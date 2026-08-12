@@ -3,146 +3,178 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1419">
 <title>Termohigrograf</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
 :root{
-  --paper:#e6ebe1;
-  --paper-deep:#dbe2d2;
-  --rule:#a9b89b;
-  --rule-fine:#c9d3be;
-  --ink:#1c2419;
-  --ink-soft:#5c6a54;
-  --pen-1:#b0432b;
-  --pen-2:#27587f;
-  --pen-3:#68762c;
-  --pen-4:#7e4668;
-  --gap:clamp(1.1rem,3.2vw,2rem);
+  --bg:#0f1419;
+  --panel:#151c24;
+  --edge:#212c36;
+  --grid:#1d262f;
+  --grid-day:#2f3d4a;
+  --text:#e4ebf1;
+  --dim:#7d8d9b;
+  --faint:#4d5a66;
+  --pen-1:#e8a13c;
+  --pen-2:#5fb8e0;
+  --pen-3:#5fce9e;
+  --pen-4:#e2708f;
+  --pen-5:#b79ae8;
+  --pen-6:#d4c95f;
+  --gap:clamp(1rem,3.2vw,2rem);
 }
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{
-  margin:0;
-  background:var(--paper);
-  background-image:repeating-linear-gradient(to bottom,transparent 0 27px,rgba(169,184,155,.22) 27px 28px);
-  color:var(--ink);
+  margin:0;min-height:100vh;
+  background:
+    radial-gradient(120% 70% at 50% -10%,#1a232c 0%,transparent 60%),
+    repeating-linear-gradient(to bottom,transparent 0 31px,rgba(255,255,255,.014) 31px 32px),
+    var(--bg);
+  color:var(--text);
   font-family:"Familjen Grotesk",system-ui,sans-serif;
-  font-size:16px;
-  line-height:1.45;
+  font-size:16px;line-height:1.45;
+  -webkit-font-smoothing:antialiased;
 }
 .sheet{max-width:1080px;margin:0 auto;padding:var(--gap) var(--gap) 4rem}
 
 /* nagłówek --------------------------------------------------------------- */
 .masthead{
-  display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem 1.2rem;
-  padding-bottom:.7rem;border-bottom:3px double var(--rule);
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1.2rem;
+  padding-bottom:.8rem;border-bottom:1px solid var(--edge);
 }
 .masthead h1{
-  margin:0;font-size:clamp(1.3rem,4.5vw,2rem);font-weight:700;
+  margin:0;font-size:clamp(1.25rem,4.5vw,1.9rem);font-weight:700;
   letter-spacing:-.02em;text-transform:lowercase;
 }
-.masthead h1 .nib{color:var(--pen-1)}
+.masthead h1 .nib{
+  color:var(--pen-1);text-shadow:0 0 14px rgba(232,161,60,.55);
+}
 .stamp{
   margin-left:auto;font-family:"IBM Plex Sans Condensed",sans-serif;
-  font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);
+  font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);
 }
 
-/* karty piór ------------------------------------------------------------- */
+/* karty odczytów --------------------------------------------------------- */
 .pens{
-  display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));
-  gap:1px;background:var(--rule-fine);
-  border:1px solid var(--rule-fine);margin:var(--gap) 0 0;
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));
+  gap:1px;background:var(--edge);border:1px solid var(--edge);
+  margin-top:var(--gap);
 }
-.pen{background:var(--paper);padding:.7rem .85rem .8rem;position:relative}
-.pen::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--c)}
+.pen{background:var(--panel);padding:.75rem .9rem .85rem;position:relative;overflow:hidden}
+.pen::before{
+  content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--c);
+  box-shadow:0 0 12px 1px var(--c);opacity:.9;
+}
 .pen b{
   display:block;font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;
-  font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);
-  margin:0 0 .3rem .55rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-size:.74rem;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);
+  margin:0 0 .35rem .5rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 .pen .read{
-  display:flex;align-items:baseline;gap:.55rem;margin-left:.55rem;
+  display:flex;align-items:baseline;gap:.5rem;margin-left:.5rem;
   font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
 }
-.pen .t{font-size:1.5rem;font-weight:500;color:var(--c);line-height:1}
-.pen .h{font-size:.92rem;color:var(--ink-soft)}
-.pen .ago{
-  margin:.35rem 0 0 .55rem;font-family:"IBM Plex Sans Condensed",sans-serif;
-  font-size:.72rem;letter-spacing:.05em;color:var(--ink-soft);opacity:.8;
+.pen .t{
+  font-size:1.6rem;font-weight:400;color:var(--c);line-height:1;
+  text-shadow:0 0 18px color-mix(in srgb,var(--c) 45%,transparent);
 }
+.pen .h{font-size:.9rem;color:var(--dim)}
+.pen .foot{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:.15rem .55rem;
+  margin:.4rem 0 0 .5rem;
+  font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.71rem;
+  letter-spacing:.04em;color:var(--faint);
+}
+.pen .foot>*{white-space:nowrap}
+.pen .trend{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--dim)}
 
 /* sterowanie ------------------------------------------------------------- */
 .controls{
-  display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;
-  margin:1.4rem 0 0;padding-bottom:.55rem;border-bottom:1px solid var(--rule-fine);
+  display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;
+  margin-top:1.4rem;padding-bottom:.6rem;border-bottom:1px solid var(--edge);
   font-family:"IBM Plex Sans Condensed",sans-serif;
 }
 .controls .lbl{
-  font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--ink-soft);margin-right:.5rem;
+  font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--faint);margin-right:.45rem;
 }
 .range{
-  appearance:none;border:1px solid var(--rule-fine);background:transparent;
-  color:var(--ink-soft);font:inherit;font-size:.84rem;letter-spacing:.03em;
-  padding:.22rem .7rem;cursor:pointer;border-radius:0;
+  appearance:none;border:1px solid var(--edge);background:transparent;
+  color:var(--dim);font:inherit;font-size:.83rem;letter-spacing:.03em;
+  padding:.24rem .72rem;cursor:pointer;border-radius:0;transition:.15s;
 }
-.range:hover{border-color:var(--rule)}
-.range[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.range:hover{border-color:var(--grid-day);color:var(--text)}
+.range[aria-pressed="true"]{
+  background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600;
+}
 .range:focus-visible{outline:2px solid var(--pen-2);outline-offset:2px}
-.toggles{display:flex;flex-wrap:wrap;gap:.15rem;margin-left:auto}
+.toggles{display:flex;flex-wrap:wrap;gap:.1rem;margin-left:auto}
 .toggle{
   appearance:none;border:0;background:transparent;font:inherit;font-size:.8rem;
-  color:var(--ink-soft);padding:.22rem .5rem;cursor:pointer;
-  display:inline-flex;align-items:center;gap:.4rem;
+  color:var(--dim);padding:.24rem .5rem;cursor:pointer;transition:.15s;
+  display:inline-flex;align-items:center;gap:.42rem;
 }
-.toggle::before{content:"";width:11px;height:11px;border:1.5px solid var(--c);background:var(--c)}
-.toggle[aria-pressed="false"]{opacity:.42}
-.toggle[aria-pressed="false"]::before{background:transparent}
+.toggle::before{
+  content:"";width:9px;height:9px;border-radius:50%;
+  background:var(--c);box-shadow:0 0 9px var(--c);
+}
+.toggle:hover{color:var(--text)}
+.toggle[aria-pressed="false"]{opacity:.32}
+.toggle[aria-pressed="false"]::before{background:transparent;box-shadow:none;border:1.5px solid var(--c)}
 .toggle:focus-visible{outline:2px solid var(--pen-2);outline-offset:1px}
 
 /* wykresy ---------------------------------------------------------------- */
-.trace{margin-top:1.6rem}
+.trace{margin-top:1.7rem}
 .trace h2{
-  margin:0 0 .45rem;font-family:"IBM Plex Sans Condensed",sans-serif;
-  font-size:.76rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;
-  color:var(--ink-soft);display:flex;align-items:baseline;gap:.6rem;
+  margin:0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;
+  font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--dim);display:flex;align-items:baseline;gap:.55rem;
 }
-.trace h2 small{font-weight:400;letter-spacing:.06em;opacity:.65;text-transform:none}
-.plot{position:relative;height:230px;border:1px solid var(--rule-fine);background:var(--paper)}
-@media(min-width:700px){.plot{height:290px}}
+.trace h2 small{font-weight:400;letter-spacing:.06em;color:var(--faint);text-transform:none}
+.plot{
+  position:relative;height:238px;background:var(--panel);
+  border:1px solid var(--edge);
+}
+@media(min-width:700px){.plot{height:300px}}
 
 /* tabela ----------------------------------------------------------------- */
-.summary{width:100%;border-collapse:collapse;margin-top:2rem;font-size:.86rem}
+.summary{width:100%;border-collapse:collapse;margin-top:2.1rem;font-size:.85rem}
 .summary caption{
   text-align:left;font-family:"IBM Plex Sans Condensed",sans-serif;
-  font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;
-  color:var(--ink-soft);padding-bottom:.5rem;
+  font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--faint);padding-bottom:.55rem;
 }
 .summary th,.summary td{
-  text-align:right;padding:.42rem .5rem;border-bottom:1px solid var(--rule-fine);
-  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:400;
+  text-align:right;padding:.45rem .5rem;border-bottom:1px solid var(--edge);
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+  font-weight:300;color:var(--text);
 }
 .summary th{
-  font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:.72rem;
-  letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);
+  font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:.7rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--faint);
 }
 .summary th:first-child,.summary td:first-child{text-align:left}
-.summary td:first-child{font-family:"Familjen Grotesk",sans-serif;border-left:4px solid var(--c);padding-left:.7rem}
+.summary td:first-child{
+  font-family:"Familjen Grotesk",sans-serif;font-weight:400;
+  border-left:3px solid var(--c);padding-left:.7rem;
+}
 
 /* stany puste ------------------------------------------------------------ */
 .notice{
-  margin:2.5rem 0;padding:1.3rem 1.4rem;border:1px solid var(--rule);
-  background:var(--paper-deep);max-width:44rem;
+  margin:2.5rem 0;padding:1.4rem 1.5rem;border:1px solid var(--edge);
+  background:var(--panel);max-width:44rem;
 }
-.notice h2{margin:0 0 .5rem;font-size:1.05rem;font-weight:700}
-.notice p{margin:.45rem 0;color:var(--ink-soft);font-size:.92rem}
+.notice h2{margin:0 0 .55rem;font-size:1.05rem;font-weight:700}
+.notice p{margin:.45rem 0;color:var(--dim);font-size:.92rem}
 .notice code{
-  font-family:"IBM Plex Mono",monospace;font-size:.85em;
-  background:var(--paper);padding:.1em .4em;border:1px solid var(--rule-fine);
+  font-family:"IBM Plex Mono",monospace;font-size:.85em;color:var(--pen-1);
+  background:#0b1015;padding:.12em .42em;border:1px solid var(--edge);
 }
 [hidden]{display:none!important}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -186,7 +218,7 @@ body{
 </main>
 
 <script>
-const PENS = ['#b0432b','#27587f','#68762c','#7e4668','#3f6f66','#8a5a24'];
+const PENS = ['#e8a13c','#5fb8e0','#5fce9e','#e2708f','#b79ae8','#d4c95f'];
 const CSS = getComputedStyle(document.documentElement);
 const C = n => CSS.getPropertyValue(n).trim();
 
@@ -204,6 +236,26 @@ function fmtWhen(d, span) {
   if (isMidnight(d) || span > 24 * 14) return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
   if (span <= 36) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
   return `${pad(d.getHours())}:00`;
+}
+
+// Chart.js dzieli zakres równo i potrafi nigdy nie trafić w północ — wtedy oś
+// pokazuje "19:00, 03:00, 11:00" bez dat i nie wiadomo, który to dzień.
+// Dlatego znaczniki wyznaczamy sami, zawsze od lokalnej północy.
+const STEPS_H = [1, 2, 3, 6, 12, 24, 48, 72, 96, 120, 168, 336, 720];
+
+function timeTicks(min, max, width) {
+  const target = width < 420 ? 5 : width < 760 ? 8 : 11;
+  const spanH = (max - min) / 3600e3;
+  const step = STEPS_H.find(s => spanH / s <= target) || STEPS_H[STEPS_H.length - 1];
+
+  const first = new Date(min);
+  first.setHours(0, 0, 0, 0);   // cofnij do północy tego dnia
+
+  const out = [];
+  for (let t = first.getTime(); t <= max; t += step * 3600e3) {
+    if (t >= min) out.push({ value: t });
+  }
+  return out;
 }
 
 function fmtAgo(ms) {
@@ -344,7 +396,32 @@ function series(kind) {
     .filter(s => s.points.length);
 }
 
+// Ostatni odczyt danego pola oraz ten sprzed doby — do policzenia trendu.
+function readings(device, kind) {
+  if (!device[kind]) return { last: null, dayAgo: null };
+  const cutoff = Date.now() - 24 * 3600e3;
+  let last = null, dayAgo = null;
+  for (const r of state.rows) {
+    if (r.id !== device.id || r.code !== device[kind] || !isFinite(r.v)) continue;
+    last = r;
+    if (r.t <= cutoff) dayAgo = r;
+  }
+  return { last, dayAgo };
+}
+
 /* --- rysowanie ------------------------------------------------------------ */
+
+// Świecenie krzywych: panel przyrządowy nocą, nie płaska kreska.
+const glow = {
+  id: 'glow',
+  beforeDatasetDraw(chart, args) {
+    const { ctx } = chart;
+    ctx.save();
+    ctx.shadowColor = chart.data.datasets[args.index].borderColor;
+    ctx.shadowBlur = 9;
+  },
+  afterDatasetDraw(chart) { chart.ctx.restore(); },
+};
 
 // Pióro spoczywające na papierze: znacznik ostatniej wartości na prawej krawędzi.
 const nib = {
@@ -358,6 +435,8 @@ const nib = {
       if (!last || last.y < chartArea.top || last.y > chartArea.bottom) return;
       ctx.save();
       ctx.fillStyle = ds.borderColor;
+      ctx.shadowColor = ds.borderColor;
+      ctx.shadowBlur = 8;
       ctx.beginPath();
       ctx.moveTo(chartArea.right + 2, last.y);
       ctx.lineTo(chartArea.right + 11, last.y - 5);
@@ -379,7 +458,7 @@ function draw(canvasId, sets, unit, decimals) {
         data: s.points,
         borderColor: s.device.color,
         backgroundColor: s.device.color,
-        borderWidth: 1.4,
+        borderWidth: 1.5,
         pointRadius: 0,
         pointHitRadius: 12,
         tension: .18,
@@ -391,31 +470,30 @@ function draw(canvasId, sets, unit, decimals) {
       maintainAspectRatio: false,
       animation: false,
       interaction: { mode: 'index', intersect: false },
-      layout: { padding: { right: 16 } },
+      layout: { padding: { right: 16, top: 6 } },
       scales: {
         x: {
           type: 'time',
-          // Bez tego Chart.js dzieli zakres równo i podpisuje losowe minuty.
-          time: { unit: span <= 24 * 10 ? 'hour' : 'day' },
-          border: { color: C('--rule') },
+          afterBuildTicks: s => { s.ticks = timeTicks(s.min, s.max, s.chart.width); },
+          border: { color: C('--edge') },
           grid: {
             tickLength: 4,
             color: ctx => ctx.tick && isMidnight(new Date(ctx.tick.value))
-              ? C('--rule') : C('--rule-fine'),
+              ? C('--grid-day') : C('--grid'),
           },
           ticks: {
-            color: C('--ink-soft'),
+            color: C('--dim'),
             font: { family: 'IBM Plex Sans Condensed', size: 11 },
             maxRotation: 0,
-            autoSkipPadding: 22,
+            autoSkip: false,
             callback: v => fmtWhen(new Date(v), span),
           },
         },
         y: {
-          border: { color: C('--rule') },
-          grid: { color: C('--rule-fine') },
+          border: { color: C('--edge') },
+          grid: { color: C('--grid') },
           ticks: {
-            color: C('--ink-soft'),
+            color: C('--dim'),
             font: { family: 'IBM Plex Mono', size: 11 },
             callback: v => fmtNum(v, 0),
           },
@@ -424,12 +502,13 @@ function draw(canvasId, sets, unit, decimals) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: C('--ink'),
-          titleColor: C('--paper'),
-          bodyColor: C('--paper'),
-          borderWidth: 0,
+          backgroundColor: '#080c10',
+          titleColor: C('--dim'),
+          bodyColor: C('--text'),
+          borderColor: C('--grid-day'),
+          borderWidth: 1,
           cornerRadius: 0,
-          padding: 9,
+          padding: 10,
           titleFont: { family: 'IBM Plex Sans Condensed', size: 11, weight: '600' },
           bodyFont: { family: 'IBM Plex Mono', size: 12 },
           callbacks: {
@@ -441,7 +520,7 @@ function draw(canvasId, sets, unit, decimals) {
         },
       },
     },
-    plugins: [nib],
+    plugins: [glow, nib],
   };
 
   state.charts[canvasId]?.destroy();
@@ -452,26 +531,26 @@ function renderPens() {
   const box = document.getElementById('pens');
   box.innerHTML = '';
   state.devices.forEach(d => {
-    const latest = k => {
-      if (!d[k]) return null;
-      for (let i = state.rows.length - 1; i >= 0; i--) {
-        const r = state.rows[i];
-        if (r.id === d.id && r.code === d[k]) return r;
-      }
-      return null;
-    };
-    const t = latest('temp'), h = latest('hum');
-    const when = Math.max(t?.t || 0, h?.t || 0);
+    const t = readings(d, 'temp'), h = readings(d, 'hum');
+    const when = Math.max(t.last?.t || 0, h.last?.t || 0);
+
+    let trend = '';
+    if (t.last && t.dayAgo) {
+      const diff = t.last.v - t.dayAgo.v;
+      const arrow = diff > .05 ? '▲' : diff < -.05 ? '▼' : '=';
+      trend = `<span class="trend">${arrow} ${fmtNum(Math.abs(diff))}° 24h</span>`;
+    }
+
     const el = document.createElement('div');
     el.className = 'pen';
     el.style.setProperty('--c', d.color);
     el.innerHTML =
       `<b>${d.name}</b>
        <div class="read">
-         <span class="t">${fmtNum(t?.v, 1)}&deg;</span>
-         <span class="h">${fmtNum(h?.v, 0)}%</span>
+         <span class="t">${fmtNum(t.last?.v, 1)}&deg;</span>
+         <span class="h">${fmtNum(h.last?.v, 0)}%</span>
        </div>
-       <div class="ago">${when ? fmtAgo(when) : 'brak odczytu'}</div>`;
+       <div class="foot"><span>${when ? fmtAgo(when) : 'brak odczytu'}</span>${trend}</div>`;
     box.appendChild(el);
   });
 }
