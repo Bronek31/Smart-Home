@@ -1,0 +1,76 @@
+{
+  "updated": "2026-08-12T17:50:01Z",
+  "months": [
+    "2026-08"
+  ],
+  "devices": {
+    "bfd6f4f87fea9d866dvpve": {
+      "name": "T & H Sensor 4",
+      "codes": {
+        "va_temperature": {
+          "kind": "temp",
+          "unit": "℃"
+        },
+        "va_humidity": {
+          "kind": "hum",
+          "unit": "%"
+        },
+        "battery_state": {
+          "kind": "battery",
+          "unit": "%"
+        }
+      }
+    },
+    "bf5741c97c96fa85b1d7do": {
+      "name": "T & H Sensor 3",
+      "codes": {
+        "va_temperature": {
+          "kind": "temp",
+          "unit": "℃"
+        },
+        "va_humidity": {
+          "kind": "hum",
+          "unit": "%"
+        },
+        "battery_state": {
+          "kind": "battery",
+          "unit": "%"
+        }
+      }
+    },
+    "bf7e2a70935af7de78mjqt": {
+      "name": "T & H Sensor 2",
+      "codes": {
+        "va_temperature": {
+          "kind": "temp",
+          "unit": "℃"
+        },
+        "va_humidity": {
+          "kind": "hum",
+          "unit": "%"
+        },
+        "battery_state": {
+          "kind": "battery",
+          "unit": "%"
+        }
+      }
+    },
+    "bf43cf664d6644420axva3": {
+      "name": "T & H Sensor",
+      "codes": {
+        "va_temperature": {
+          "kind": "temp",
+          "unit": "℃"
+        },
+        "va_humidity": {
+          "kind": "hum",
+          "unit": "%"
+        },
+        "battery_state": {
+          "kind": "battery",
+          "unit": "%"
+        }
+      }
+    }
+  }
+}
