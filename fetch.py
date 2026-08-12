@@ -315,6 +315,28 @@ def _logs(client, version, device_id, start_ms, end_ms) -> list[dict] | None:
 # --- zapis do plików ---------------------------------------------------------
 
 
+def parse_since(text: str) -> int:
+    """
+    Zamienia TUYA_SINCE na znacznik w milisekundach.
+
+    Przyjmuje '2026-08-13', '2026-08-12T21:30', '2026-08-12T21:30+02:00'
+    albo '2026-08-12T19:30Z'. Zapis bez strefy traktujemy jako UTC.
+    """
+    text = (text or "").strip()
+    if not text:
+        return 0
+    try:
+        moment = datetime.fromisoformat(text)
+    except ValueError:
+        raise TuyaError(
+            f"TUYA_SINCE ma zły format: {text!r}.\n"
+            "Użyj np. 2026-08-13 albo 2026-08-12T21:30+02:00 (czas polski latem)."
+        )
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return int(moment.timestamp() * 1000)
+
+
 def iso(ms: int) -> str:
     return datetime.fromtimestamp(ms / 1000, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -423,15 +445,37 @@ def main() -> int:
     end_ms = int(time.time() * 1000)
     start_ms = int((datetime.now(timezone.utc) - timedelta(days=args.days)).timestamp() * 1000)
 
+    # Granica "zbieraj dopiero od": pozwala wyczyścić dane i zacząć od nowa bez
+    # tego, żeby okno 7-dniowe wciągnęło stare odczyty z powrotem.
+    since_ms = parse_since(os.environ.get("TUYA_SINCE", ""))
+    if since_ms:
+        start_ms = max(start_ms, since_ms)
+        print(f"Zbieram wyłącznie odczyty od {iso(since_ms)}.\n", flush=True)
+        if since_ms >= end_ms:
+            print("Granica leży w przyszłości — na razie nie ma czego zbierać.",
+                  file=sys.stderr)
+
     DATA_DIR.mkdir(exist_ok=True)
     manifest_devices, collected = {}, []
+
+    # Pola urządzeń nie zmieniają się z godziny na godzinę, więc czytamy je
+    # z poprzedniego manifestu zamiast odpytywać API przy każdym przebiegu.
+    cached = {}
+    if MANIFEST.exists():
+        try:
+            for dev_id, entry in json.loads(MANIFEST.read_text(encoding="utf-8")).get("devices", {}).items():
+                known = entry.get("codes") or {}
+                if all("scale" in meta for meta in known.values()) and known:
+                    cached[dev_id] = {c: dict(m) for c, m in known.items()}
+        except (ValueError, OSError):
+            pass
 
     failed = []
 
     for dev in all_devices:
         device_id = dev["id"]
         name = dev.get("name") or device_id
-        codes = describe_codes(client, device_id)
+        codes = cached.get(device_id) or describe_codes(client, device_id)
 
         # Bez temperatury i wilgotności to nie czujnik klimatu — bramka, żarówka,
         # gniazdko. Pomijamy, żeby nie zużywać limitu zapytań na logi.
@@ -440,7 +484,8 @@ def main() -> int:
 
         manifest_devices[device_id] = {
             "name": name,
-            "codes": {c: {"kind": m["kind"], "unit": m["unit"]} for c, m in codes.items()},
+            "codes": {c: {"kind": m["kind"], "unit": m["unit"], "scale": m["scale"]}
+                      for c, m in codes.items()},
         }
 
         try:
@@ -457,15 +502,22 @@ def main() -> int:
             meta = codes.get(code)
             if not meta:
                 continue
+            raw = entry.get("value")
             try:
-                value = float(entry["value"]) / (10 ** meta["scale"])
-            except (TypeError, ValueError, KeyError):
+                value = f'{float(raw) / (10 ** meta["scale"]):g}'
+            except (TypeError, ValueError):
+                # Stan baterii to zwykle enum low/middle/high, nie liczba.
+                if meta["kind"] != "battery" or raw is None:
+                    continue
+                value = str(raw)
+            when = int(entry["event_time"])
+            if since_ms and when < since_ms:
                 continue
             collected.append({
-                "ts": iso(int(entry["event_time"])),
+                "ts": iso(when),
                 "device_id": device_id,
                 "code": code,
-                "value": f"{value:g}",
+                "value": value,
             })
             kept += 1
         print(f"{name}: {kept} odczytów z ostatnich {args.days} dni", flush=True)

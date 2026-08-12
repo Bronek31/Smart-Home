@@ -1,0 +1,65 @@
+name: Zbieranie odczytów
+
+on:
+  schedule:
+    # Co godzinę, o :19. Pełne godziny są u GitHuba najbardziej obciążone,
+    # więc przebiegi z :00 wypadają najczęściej. Spóźnienia i tak nie szkodzą —
+    # każdy przebieg pobiera okno kilkudniowe, więc następny nadrabia poprzedni.
+    - cron: '19 * * * *'
+  workflow_dispatch:        # przycisk "Run workflow" do ręcznego odpalenia
+
+permissions:
+  contents: write           # potrzebne, żeby workflow mógł wypchnąć nowe dane
+
+concurrency:
+  group: zbieranie
+  cancel-in-progress: false
+
+jobs:
+  zbierz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Pobierz odczyty z chmury Tuya
+        env:
+          TUYA_CLIENT_ID: ${{ secrets.TUYA_CLIENT_ID }}
+          TUYA_CLIENT_SECRET: ${{ secrets.TUYA_CLIENT_SECRET }}
+          # Zmień, jeśli twój projekt jest w innym data center:
+          # eu = Central Europe (domyślne dla Polski), we = Western Europe,
+          # us = Western America, ue = Eastern America, in = India, cn = China
+          TUYA_REGION: eu
+          # Opcjonalnie: lista ID urządzeń po przecinku. Puste = wszystkie czujniki.
+          # Warto wypełnić, jeśli masz na koncie dużo urządzeń Tuya — skrypt
+          # pominie wtedy odpytywanie żarówek i gniazdek o specyfikację.
+          TUYA_DEVICE_IDS: 'bf43cf664d6644420axva3,bf7e2a70935af7de78mjqt,bf5741c97c96fa85b1d7do,bfd6f4f87fea9d866dvpve'
+          # Zbieraj wyłącznie odczyty od podanego momentu. Puste = bez granicy.
+          # Służy do wyczyszczenia danych i zaczęcia od zera: bez tego okno
+          # 7-dniowe wciągnęłoby skasowane odczyty z powrotem.
+          # Przykład: '2026-08-12T21:30+02:00' (czas polski latem to +02:00).
+          TUYA_SINCE: '2026-08-12T20:00+02:00'
+          # Minimalny odstęp między zapytaniami w sekundach. Zwiększ do 2 lub 3,
+          # jeśli w logu pojawia się "limit zapytań Tuya".
+          TUYA_MIN_GAP: '1.2'
+        # Okno 3 dni zamiast 7: przy przebiegach co godzinę to nadal ogromny
+        # zapas na awarie, a każde zapytanie mniej to mniejsze ryzyko limitu.
+        run: python fetch.py --days 3
+
+      - name: Zapisz zmiany
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "Brak nowych odczytów — nic do zapisania."
+          else
+            git commit -m "odczyty: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git push
+          fi

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0f1419">
+<!-- NAZWA STRONY — zmień tutaj i w nagłówku <h1> niżej -->
 <title>Smart Home</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -50,7 +51,7 @@ body{
 }
 .masthead h1{
   margin:0;font-size:clamp(1.25rem,4.5vw,1.9rem);font-weight:700;
-  letter-spacing:-.02em;text-transform:lowercase;
+  letter-spacing:-.02em;
 }
 .masthead h1 .nib{
   color:var(--pen-1);text-shadow:0 0 14px rgba(232,161,60,.55);
@@ -184,6 +185,7 @@ body{
 <main class="sheet">
 
   <header class="masthead">
+    <!-- NAZWA STRONY — druga z dwóch linijek do zmiany -->
     <h1><span class="nib">&#9134;</span> Smart Home</h1>
     <span class="stamp" id="stamp">wczytywanie&hellip;</span>
   </header>
@@ -294,9 +296,10 @@ async function loadMonth(m) {
   const lines = (await res.text()).trim().split('\n');
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
-    const [ts, id, code, value] = lines[i].split(',');
+    const [ts, id, code, value] = lines[i].replace(/\r$/, '').split(',');
     if (!ts) continue;
-    rows.push({ t: Date.parse(ts), id, code, v: parseFloat(value) });
+    // v jest liczbą tylko dla pomiarów; stan baterii bywa enumem low/middle/high.
+    rows.push({ t: Date.parse(ts), id, code, v: parseFloat(value), raw: value });
   }
   monthCache.set(m, rows);
   return rows;
@@ -315,9 +318,14 @@ async function boot() {
   }
 
   const ids = Object.keys(manifest.devices || {});
-  if (!ids.length || !(manifest.months || []).length) {
+  if (!ids.length) {
     return fail('Kolektor działa, ale nie znalazł czujników',
       'Uruchom lokalnie <code>python fetch.py --discover</code> i sprawdź, czy urządzenia mają pola z temperaturą lub wilgotnością.');
+  }
+  if (!(manifest.months || []).length) {
+    return fail('Czujniki są, odczytów jeszcze nie ma',
+      'Tak wygląda świeży start po wyczyszczeniu danych albo po ustawieniu <code>TUYA_SINCE</code>.',
+      'Czujniki Zigbee raportują dopiero przy zmianie temperatury o jakieś pół stopnia, więc na pierwsze wpisy potrafisz poczekać kilkanaście minut do godziny. Kolejny przebieg kolektora je zgarnie.');
   }
 
   state.devices = ids.map((id, i) => {
@@ -329,6 +337,7 @@ async function boot() {
       color: PENS[i % PENS.length],
       temp: Object.keys(codes).find(c => codes[c].kind === 'temp'),
       hum:  Object.keys(codes).find(c => codes[c].kind === 'hum'),
+      batt: Object.keys(codes).find(c => codes[c].kind === 'battery'),
     };
   });
 
@@ -582,6 +591,19 @@ function renderPens() {
 }
 
 
+const BATTERY_PL = { low: 'niski', middle: 'średni', high: 'wysoki' };
+
+function lastBattery(device) {
+  if (!device.batt) return null;
+  for (let i = state.rows.length - 1; i >= 0; i--) {
+    const r = state.rows[i];
+    if (r.id === device.id && r.code === device.batt) {
+      return BATTERY_PL[r.raw] || (isFinite(r.v) ? `${r.v}%` : r.raw);
+    }
+  }
+  return null;
+}
+
 // Diagnostyka łączności: czy bramka faktycznie słyszy każdy czujnik i czy
 // temperatura z wilgotnością przychodzą w tym samym raporcie.
 function renderHealth() {
@@ -603,7 +625,8 @@ function renderHealth() {
 
     const last = Math.max(T.length ? T[T.length - 1].t : 0,
                           H.length ? H[H.length - 1].t : 0);
-    return { d, nT: T.length, nH: H.length, median, worst, paired, last };
+    return { d, nT: T.length, nH: H.length, median, worst, paired, last,
+             batt: lastBattery(d) };
   });
 
   // Przerwa dłuższa niż pięciokrotność typowego odstępu to sygnał, że czujnik
@@ -616,7 +639,7 @@ function renderHealth() {
      <thead><tr>
        <th>Czujnik</th><th>temp.</th><th>wilg.</th>
        <th>typowy odstęp</th><th>najdłuższa przerwa</th>
-       <th>razem</th><th>ostatni</th>
+       <th>razem</th><th>bateria</th><th>ostatni</th>
      </tr></thead><tbody>` +
     rows.map(r => {
       const gapStyle = suspicious(r) ? ` style="color:${warn}"` : '';
@@ -627,6 +650,7 @@ function renderHealth() {
         <td>${fmtDur(r.median)}</td>
         <td${gapStyle}>${fmtDur(r.worst)}</td>
         <td${pairStyle}>${r.paired == null ? '–' : Math.round(r.paired * 100) + '%'}</td>
+        <td${r.batt === 'niski' ? ` style="color:${warn}"` : ''}>${r.batt || '–'}</td>
         <td>${r.last ? fmtAgo(r.last) : '–'}</td>
       </tr>`;
     }).join('') + '</tbody>';
