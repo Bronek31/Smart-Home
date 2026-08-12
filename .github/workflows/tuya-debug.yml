@@ -20,7 +20,9 @@ jobs:
     env:
       TUYA_CLIENT_ID: ${{ secrets.TUYA_CLIENT_ID }}
       TUYA_CLIENT_SECRET: ${{ secrets.TUYA_CLIENT_SECRET }}
-      TUYA_REGION: ${{ secrets.TUYA_REGION }}
+      # Produkcyjny workflow używa regionu EU. Nie pobieramy go z osobnego
+      # sekretu, żeby diagnostyka korzystała dokładnie z tego samego data center.
+      TUYA_REGION: eu
       TUYA_DEVICE_IDS: ${{ secrets.TUYA_DEVICE_IDS }}
     steps:
       - name: Checkout
