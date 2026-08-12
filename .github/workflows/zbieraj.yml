@@ -2,14 +2,13 @@ name: Zbieranie odczytów
 
 on:
   schedule:
-    # Dwa razy dziennie, o 03:19 i 15:19 UTC. Harmonogram GitHuba bywa spóźniony
-    # o kilkadziesiąt minut, ale przy oknie 7-dniowym to bez znaczenia —
-    # drugi przebieg i tak nadrobi to, czego nie zdążył pierwszy.
-    - cron: '19 3,15 * * *'
+    # Raz na godzinę, poza pełną godziną — GitHub może opóźniać scheduled runs.
+    # Opóźnienie nie jest problemem, bo fetch.py pobiera okno 3 dni.
+    - cron: '19 * * * *'
   workflow_dispatch:        # przycisk "Run workflow" do ręcznego odpalenia
 
 permissions:
-  contents: write           # potrzebne, żeby workflow mógł wypchnąć nowe dane
+  contents: write
 
 concurrency:
   group: zbieranie
@@ -32,18 +31,12 @@ jobs:
         env:
           TUYA_CLIENT_ID: ${{ secrets.TUYA_CLIENT_ID }}
           TUYA_CLIENT_SECRET: ${{ secrets.TUYA_CLIENT_SECRET }}
-          # Zmień, jeśli twój projekt jest w innym data center:
-          # eu = Central Europe (domyślne dla Polski), we = Western Europe,
-          # us = Western America, ue = Eastern America, in = India, cn = China
           TUYA_REGION: eu
-          # Opcjonalnie: lista ID urządzeń po przecinku. Puste = wszystkie czujniki.
-          # Warto wypełnić, jeśli masz na koncie dużo urządzeń Tuya — skrypt
-          # pominie wtedy odpytywanie żarówek i gniazdek o specyfikację.
           TUYA_DEVICE_IDS: 'bf43cf664d6644420axva3,bf7e2a70935af7de78mjqt,bf5741c97c96fa85b1d7do,bfd6f4f87fea9d866dvpve'
-          # Minimalny odstęp między zapytaniami w sekundach. Zwiększ do 2 lub 3,
-          # jeśli w logu pojawia się "limit zapytań Tuya".
+          # Granica danych — zachowana z działającej wersji workflow.
+          TUYA_SINCE: '2026-08-12T21:00+02:00'
           TUYA_MIN_GAP: '1.2'
-        run: python fetch.py
+        run: python fetch.py --days 3
 
       - name: Zapisz zmiany
         run: |
