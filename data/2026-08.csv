@@ -75,3 +75,5 @@ ts,device_id,code,value
 2026-08-12T17:39:00Z,bf43cf664d6644420axva3,va_humidity,39
 2026-08-12T17:43:43Z,bfd6f4f87fea9d866dvpve,va_humidity,43
 2026-08-12T17:43:43Z,bfd6f4f87fea9d866dvpve,va_temperature,25.8
+2026-08-12T18:01:48Z,bf7e2a70935af7de78mjqt,va_humidity,38
+2026-08-12T18:01:48Z,bf7e2a70935af7de78mjqt,va_temperature,25.5

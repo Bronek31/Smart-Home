@@ -1,11 +1,11 @@
 {
-  "updated": "2026-08-12T17:54:47Z",
+  "updated": "2026-08-12T18:08:14Z",
   "months": [
     "2026-08"
   ],
   "devices": {
     "bfd6f4f87fea9d866dvpve": {
-      "name": "T & H Sensor 4",
+      "name": "Łazienka",
       "codes": {
         "va_temperature": {
           "kind": "temp",
@@ -22,7 +22,7 @@
       }
     },
     "bf5741c97c96fa85b1d7do": {
-      "name": "T & H Sensor 3",
+      "name": "Kuchnia",
       "codes": {
         "va_temperature": {
           "kind": "temp",
@@ -39,7 +39,7 @@
       }
     },
     "bf7e2a70935af7de78mjqt": {
-      "name": "T & H Sensor 2",
+      "name": "Sypialnia",
       "codes": {
         "va_temperature": {
           "kind": "temp",
@@ -56,7 +56,7 @@
       }
     },
     "bf43cf664d6644420axva3": {
-      "name": "T & H Sensor",
+      "name": "Salon",
       "codes": {
         "va_temperature": {
           "kind": "temp",
