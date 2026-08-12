@@ -44,7 +44,7 @@ jobs:
           # Służy do wyczyszczenia danych i zaczęcia od zera: bez tego okno
           # 7-dniowe wciągnęłoby skasowane odczyty z powrotem.
           # Przykład: '2026-08-12T21:30+02:00' (czas polski latem to +02:00).
-          TUYA_SINCE: '2026-08-12T21:00+02:00'
+          TUYA_SINCE: ''
           # Minimalny odstęp między zapytaniami w sekundach. Zwiększ do 2 lub 3,
           # jeśli w logu pojawia się "limit zapytań Tuya".
           TUYA_MIN_GAP: '1.2'
