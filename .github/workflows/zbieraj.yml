@@ -2,22 +2,14 @@ name: Zbieranie odczytów
 
 on:
   schedule:
-    # Dwa razy na godzinę, poza pełną godziną (o :00 GitHub jest najbardziej
-    # obciążony i wtedy najczęściej gubi przebiegi). Nie prosimy o przebieg
-    # co 15 minut — GitHub przy takiej częstotliwości gubi ich sporo.
-    # Zamiast tego jeden przebieg robi dwa pobrania w odstępie 15 minut,
-    # więc wystarczy, że harmonogram trafi raz na pół godziny:
-    # przebieg o :09 zbiera o :09 i :24, przebieg o :39 — o :39 i :54.
-    - cron: '9,39 * * * *'
-  workflow_dispatch:
-    inputs:
-      minuty:
-        description: 'Ile minut ma trwać zbieranie w tym przebiegu'
-        required: false
-        default: '18'
+    # Dwa razy dziennie, o 03:19 i 15:19 UTC. Harmonogram GitHuba bywa spóźniony
+    # o kilkadziesiąt minut, ale przy oknie 7-dniowym to bez znaczenia —
+    # drugi przebieg i tak nadrobi to, czego nie zdążył pierwszy.
+    - cron: '19 3,15 * * *'
+  workflow_dispatch:        # przycisk "Run workflow" do ręcznego odpalenia
 
 permissions:
-  contents: write
+  contents: write           # potrzebne, żeby workflow mógł wypchnąć nowe dane
 
 concurrency:
   group: zbieranie
@@ -26,10 +18,6 @@ concurrency:
 jobs:
   zbierz:
     runs-on: ubuntu-latest
-    # Twardy limit: gdyby przebieg się zawiesił, blokowałby grupę concurrency
-    # w nieskończoność i kolejne przebiegi nigdy by nie wystartowały.
-    timeout-minutes: 25
-
     steps:
       - uses: actions/checkout@v4
 
@@ -40,62 +28,31 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Zbieraj odczyty co 15 minut
+      - name: Pobierz odczyty z chmury Tuya
         env:
           TUYA_CLIENT_ID: ${{ secrets.TUYA_CLIENT_ID }}
           TUYA_CLIENT_SECRET: ${{ secrets.TUYA_CLIENT_SECRET }}
+          # Zmień, jeśli twój projekt jest w innym data center:
           # eu = Central Europe (domyślne dla Polski), we = Western Europe,
           # us = Western America, ue = Eastern America, in = India, cn = China
           TUYA_REGION: eu
+          # Opcjonalnie: lista ID urządzeń po przecinku. Puste = wszystkie czujniki.
+          # Warto wypełnić, jeśli masz na koncie dużo urządzeń Tuya — skrypt
+          # pominie wtedy odpytywanie żarówek i gniazdek o specyfikację.
           TUYA_DEVICE_IDS: 'bf43cf664d6644420axva3,bf7e2a70935af7de78mjqt,bf5741c97c96fa85b1d7do,bfd6f4f87fea9d866dvpve'
-          # Zbieraj wyłącznie odczyty od podanego momentu. Puste = bez granicy.
-          TUYA_SINCE: ''
-          # Zwiększ do 2 lub 3, jeśli w logu widzisz "limit zapytań Tuya".
+          # Minimalny odstęp między zapytaniami w sekundach. Zwiększ do 2 lub 3,
+          # jeśli w logu pojawia się "limit zapytań Tuya".
           TUYA_MIN_GAP: '1.2'
-          # Przez wejście workflow_dispatch, nie wprost w skrypcie — inaczej
-          # treść wpisana w formularzu trafiłaby do powłoki jako kod.
-          MINUTY: ${{ github.event.inputs.minuty || '18' }}
+        run: python fetch.py
+
+      - name: Zapisz zmiany
         run: |
-          set -u
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # Odstęp między pobraniami w sekundach. 900 = 15 minut.
-          ODSTEP=900
-          KONIEC=$(( $(date +%s) + MINUTY * 60 ))
-
-          while : ; do
-            START=$(date +%s)
-            echo "--- pobieranie $(date -u '+%H:%M:%S') UTC ---"
-
-            # Okno 1 dnia zamiast 3: Tuya i tak trzyma historię po swojej
-            # stronie, więc nawet po godzinnej przerwie nic nie ginie —
-            # następny przebieg dociąga zaległe odczyty.
-            python fetch.py --days 1 || echo "::warning::fetch.py zakończył się błędem, próbuję dalej"
-
-            git add data/
-            if git diff --staged --quiet; then
-              echo "Brak nowych odczytów — nic do zapisania."
-            else
-              git commit -q -m "odczyty: $(date -u '+%Y-%m-%d %H:%M') UTC"
-              # Rebase przed pushem: bez tego push przepada, gdy w międzyczasie
-              # sam commitniesz cokolwiek do main, a odczyty z tej iteracji giną.
-              for PROBA in 1 2 3; do
-                if git pull --rebase --autostash -q && git push -q; then
-                  echo "Zapisano."
-                  break
-                fi
-                echo "Push nieudany (próba $PROBA), ponawiam za 5 s…"
-                sleep 5
-              done
-            fi
-
-            if [ $(( START + ODSTEP )) -ge $KONIEC ]; then
-              echo "Budżet czasu wyczerpany — kończę przebieg."
-              break
-            fi
-            # Odejmujemy czas trwania pobierania, żeby odstęp wynosił
-            # równe 15 minut, a nie 15 minut plus czas pracy skryptu.
-            RESZTA=$(( START + ODSTEP - $(date +%s) ))
-            [ $RESZTA -gt 0 ] && sleep $RESZTA
-          done
+          git add data/
+          if git diff --staged --quiet; then
+            echo "Brak nowych odczytów — nic do zapisania."
+          else
+            git commit -m "odczyty: $(date -u '+%Y-%m-%d %H:%M') UTC"
+            git push
+          fi
