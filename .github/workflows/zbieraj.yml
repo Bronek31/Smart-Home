@@ -2,10 +2,10 @@ name: Zbieranie odczytów
 
 on:
   schedule:
-    # Co godzinę, o :19. Pełne godziny są u GitHuba najbardziej obciążone,
+    # Co godzinę, o :17. Pełne godziny są u GitHuba najbardziej obciążone,
     # więc przebiegi z :00 wypadają najczęściej. Spóźnienia i tak nie szkodzą —
     # każdy przebieg pobiera okno kilkudniowe, więc następny nadrabia poprzedni.
-    - cron: '19 * * * *'
+    - cron: '15 * * * *'
   workflow_dispatch:        # przycisk "Run workflow" do ręcznego odpalenia
 
 permissions:
