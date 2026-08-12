@@ -44,12 +44,39 @@ MANIFEST = DATA_DIR / "index.json"
 FIELDS = ["ts", "device_id", "code", "value"]
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 
-# Po tych fragmentach nazwy rozpoznajemy, czym jest dany odczyt.
-KIND_HINTS = [
-    ("temp", "temp"),
-    ("humi", "hum"),
-    ("battery", "battery"),
-]
+# "The log query is too frequent" i pokrewne — warto odczekać i spróbować ponownie.
+RATE_LIMIT_CODES = {40000309, 1104, 2009}
+
+# Rozpoznawanie pól po jednostce, nie po samej nazwie. Nazwa nie wystarcza:
+# żarówka ma pole `temp_value`, czyli temperaturę barwy światła, a nie powietrza.
+TEMP_UNITS = {"°c", "℃", "c", "°f", "℉", "f"}
+HUM_UNITS = {"%", "％"}
+
+# Pola, które są odczytem mimo braku jednostki w specyfikacji.
+KNOWN_TEMP = {"va_temperature", "temp_current", "temper_value"}
+KNOWN_HUM = {"va_humidity", "humidity_value", "humidity_current"}
+
+# Cokolwiek z tym w nazwie na pewno nie jest pomiarem klimatu w pokoju:
+# barwa światła, nastawa termostatu, korekta kalibracyjna, próg alarmu.
+NOT_A_SENSOR = (
+    "colour", "color", "bright", "work_mode", "scene", "countdown",
+    "set", "correct", "calibration", "alarm", "upper", "lower", "unit_convert",
+)
+
+
+def classify(code: str, unit: str) -> str | None:
+    """Zwraca 'temp', 'hum', 'battery' albo None."""
+    low, u = code.lower(), (unit or "").strip().lower()
+
+    if any(bad in low for bad in NOT_A_SENSOR):
+        return None
+    if "battery" in low:
+        return "battery"
+    if low in KNOWN_TEMP or ("temp" in low and u in TEMP_UNITS):
+        return "temp"
+    if low in KNOWN_HUM or ("humi" in low and u in HUM_UNITS):
+        return "hum"
+    return None
 
 
 class TuyaError(RuntimeError):
@@ -73,6 +100,9 @@ class Tuya:
         self.token = ""
         self.token_expires = 0.0
         self.session = requests.Session()
+        self.min_gap = float(os.environ.get("TUYA_MIN_GAP", "1.2"))
+        self.last_call = 0.0
+        self.log_api = None  # 'v2' albo 'v1' — ustalane raz i trzymane
 
     def _headers(self, method: str, path: str, with_token: bool) -> dict:
         t = str(int(time.time() * 1000))
@@ -104,6 +134,13 @@ class Tuya:
         self.token = result["access_token"]
         self.token_expires = time.time() + int(result.get("expire_time", 7200))
 
+    def _throttle(self) -> None:
+        """Tuya liczy zapytania o logi i przy zbyt gęstych odmawia (40000309)."""
+        wait = self.min_gap - (time.monotonic() - self.last_call)
+        if wait > 0:
+            time.sleep(wait)
+        self.last_call = time.monotonic()
+
     def get(self, path: str, params: dict | None = None, _retry: bool = True) -> dict:
         if not self.token or time.time() > self.token_expires - 60:
             self._refresh_token()
@@ -116,15 +153,29 @@ class Tuya:
             )
             full = f"{path}?{query}"
 
-        resp = self.session.get(
-            self.base + full, headers=self._headers("GET", full, True), timeout=30
-        )
-        data = resp.json()
+        for attempt in range(5):
+            self._throttle()
+            resp = self.session.get(
+                self.base + full, headers=self._headers("GET", full, True), timeout=30
+            )
+            data = resp.json()
 
-        # 1010 / 1013 = token wygasł albo unieważniony — odśwież i spróbuj raz jeszcze.
-        if not data.get("success") and data.get("code") in (1010, 1013) and _retry:
-            self.token = ""
-            return self.get(path, params, _retry=False)
+            if data.get("success"):
+                return data
+
+            # Za gęsto — odczekaj coraz dłużej i spróbuj jeszcze raz.
+            if data.get("code") in RATE_LIMIT_CODES:
+                pause = min(3 * (2 ** attempt), 30)
+                print(f"  limit zapytań Tuya, czekam {pause} s…", flush=True)
+                time.sleep(pause)
+                continue
+
+            # Token wygasł albo unieważniony — odśwież i spróbuj raz jeszcze.
+            if data.get("code") in (1010, 1013) and _retry:
+                self.token = ""
+                return self.get(path, params, _retry=False)
+
+            return data
 
         return data
 
@@ -189,17 +240,14 @@ def describe_codes(client: Tuya, device_id: str) -> dict:
         except (ValueError, TypeError):
             spec = {}
 
-        kind = None
-        for needle, label in KIND_HINTS:
-            if needle in code.lower():
-                kind = label
-                break
+        unit = spec.get("unit") or ""
+        kind = classify(code, unit)
         if kind is None:
             continue
 
         codes[code] = {
             "kind": kind,
-            "unit": spec.get("unit") or ("°C" if kind == "temp" else "%"),
+            "unit": unit or {"temp": "°C", "hum": "%", "battery": "%"}[kind],
             "scale": int(spec.get("scale", 0) or 0),
         }
     return codes
@@ -207,50 +255,60 @@ def describe_codes(client: Tuya, device_id: str) -> dict:
 
 def fetch_logs(client: Tuya, device_id: str, start_ms: int, end_ms: int) -> list[dict]:
     """
-    Pobiera logi odczytów. Najpierw próbuje nowszego endpointu v2.0,
-    a jeśli konto go nie obsługuje — spada na starszy v1.0.
+    Pobiera logi odczytów jednego urządzenia.
+
+    Wersję endpointu ustalamy raz, przy pierwszym urządzeniu, i trzymamy się jej.
+    Próbowanie obu przy każdym urządzeniu podwajało liczbę zapytań i wpychało
+    nas prosto w limit Tuya.
     """
-    rows = _logs_v2(client, device_id, start_ms, end_ms)
+    if client.log_api is None:
+        probe = _logs(client, "v2", device_id, start_ms, end_ms)
+        if probe is not None:
+            client.log_api = "v2"
+            return probe
+        client.log_api = "v1"
+
+    rows = _logs(client, client.log_api, device_id, start_ms, end_ms)
     if rows is None:
-        rows = _logs_v1(client, device_id, start_ms, end_ms)
-    return rows or []
+        raise TuyaError(
+            f"Endpoint logów ({client.log_api}) odmówił dla urządzenia {device_id}."
+        )
+    return rows
 
 
-def _logs_v2(client, device_id, start_ms, end_ms) -> list[dict] | None:
-    out, last_key = [], None
+def _logs(client, version, device_id, start_ms, end_ms) -> list[dict] | None:
+    """Zwraca listę wpisów albo None, jeśli ten endpoint nie działa na tym koncie."""
+    out, cursor = [], None
+
     for _ in range(300):  # bezpiecznik przed pętlą bez końca
         params = {"start_time": start_ms, "end_time": end_ms, "size": 100}
-        if last_key:
-            params["last_row_key"] = last_key
-        data = client.get(f"/v2.0/cloud/thing/{device_id}/report-logs", params)
+        if version == "v2":
+            path = f"/v2.0/cloud/thing/{device_id}/report-logs"
+            if cursor:
+                params["last_row_key"] = cursor
+        else:
+            path = f"/v1.0/devices/{device_id}/logs"
+            params["type"] = 7  # 7 = raport data pointów
+            if cursor:
+                params["start_row_key"] = cursor
+
+        data = client.get(path, params)
         if not data.get("success"):
+            # Częściowy wynik jest lepszy niż żaden — oddajemy, co zebraliśmy.
+            if out:
+                print(f"  uwaga: {explain(data)}", flush=True)
+                return out
             return None
+
         result = data.get("result") or {}
         out.extend(result.get("logs", []))
-        if not result.get("has_more"):
-            break
-        last_key = result.get("last_row_key")
-        if not last_key:
-            break
-    return out
 
+        if not (result.get("has_more") or result.get("has_next")):
+            break
+        cursor = result.get("last_row_key") or result.get("next_row_key")
+        if not cursor:
+            break
 
-def _logs_v1(client, device_id, start_ms, end_ms) -> list[dict] | None:
-    out, row_key = [], None
-    for _ in range(300):
-        params = {"type": 7, "start_time": start_ms, "end_time": end_ms, "size": 100}
-        if row_key:
-            params["start_row_key"] = row_key
-        data = client.get(f"/v1.0/devices/{device_id}/logs", params)
-        if not data.get("success"):
-            raise TuyaError(explain(data))
-        result = data.get("result") or {}
-        out.extend(result.get("logs", []))
-        if not result.get("has_next"):
-            break
-        row_key = result.get("next_row_key")
-        if not row_key:
-            break
     return out
 
 
@@ -368,19 +426,31 @@ def main() -> int:
     DATA_DIR.mkdir(exist_ok=True)
     manifest_devices, collected = {}, []
 
+    failed = []
+
     for dev in all_devices:
         device_id = dev["id"]
         name = dev.get("name") or device_id
         codes = describe_codes(client, device_id)
-        if not codes:
-            continue  # bramka, wtyczka, cokolwiek bez temperatury i wilgotności
+
+        # Bez temperatury i wilgotności to nie czujnik klimatu — bramka, żarówka,
+        # gniazdko. Pomijamy, żeby nie zużywać limitu zapytań na logi.
+        if not any(m["kind"] in ("temp", "hum") for m in codes.values()):
+            continue
 
         manifest_devices[device_id] = {
             "name": name,
             "codes": {c: {"kind": m["kind"], "unit": m["unit"]} for c, m in codes.items()},
         }
 
-        logs = fetch_logs(client, device_id, start_ms, end_ms)
+        try:
+            logs = fetch_logs(client, device_id, start_ms, end_ms)
+        except (TuyaError, requests.RequestException) as err:
+            # Jedno oporne urządzenie nie może kosztować nas reszty przebiegu.
+            failed.append(name)
+            print(f"{name}: pominięty — {err}", flush=True)
+            continue
+
         kept = 0
         for entry in logs:
             code = entry.get("code")
@@ -398,7 +468,7 @@ def main() -> int:
                 "value": f"{value:g}",
             })
             kept += 1
-        print(f"{name}: {kept} odczytów z ostatnich {args.days} dni")
+        print(f"{name}: {kept} odczytów z ostatnich {args.days} dni", flush=True)
 
     if not manifest_devices:
         print("\nŻadne urządzenie nie zgłosiło temperatury ani wilgotności.",
@@ -413,6 +483,11 @@ def main() -> int:
     added = merge(collected)
     write_manifest(manifest_devices)
     print(f"\nDopisano {added} nowych odczytów ({len(collected) - added} już było).")
+
+    if failed:
+        print(f"Pominięte czujniki: {', '.join(failed)}.")
+        print("Dane pozostałych zostały zapisane. Następny przebieg nadrobi resztę —"
+              " okno 7 dni jeszcze się nie zamknęło.")
     return 0
 
 
