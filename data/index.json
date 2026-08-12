@@ -1,11 +1,11 @@
 {
-  "updated": "2026-08-12T18:32:01Z",
+  "updated": "2026-08-12T19:23:03Z",
   "months": [
     "2026-08"
   ],
   "devices": {
-    "bfd6f4f87fea9d866dvpve": {
-      "name": "Łazienka",
+    "bf43cf664d6644420axva3": {
+      "name": "Salon",
       "codes": {
         "va_temperature": {
           "kind": "temp",
@@ -44,8 +44,8 @@
         }
       }
     },
-    "bf7e2a70935af7de78mjqt": {
-      "name": "Sypialnia",
+    "bfd6f4f87fea9d866dvpve": {
+      "name": "Łazienka",
       "codes": {
         "va_temperature": {
           "kind": "temp",
@@ -64,8 +64,8 @@
         }
       }
     },
-    "bf43cf664d6644420axva3": {
-      "name": "Salon",
+    "bf7e2a70935af7de78mjqt": {
+      "name": "Sypialnia",
       "codes": {
         "va_temperature": {
           "kind": "temp",
