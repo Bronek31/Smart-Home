@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Termohigrograf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+:root{
+  --paper:#e6ebe1;
+  --paper-deep:#dbe2d2;
+  --rule:#a9b89b;
+  --rule-fine:#c9d3be;
+  --ink:#1c2419;
+  --ink-soft:#5c6a54;
+  --pen-1:#b0432b;
+  --pen-2:#27587f;
+  --pen-3:#68762c;
+  --pen-4:#7e4668;
+  --gap:clamp(1.1rem,3.2vw,2rem);
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--paper);
+  background-image:repeating-linear-gradient(to bottom,transparent 0 27px,rgba(169,184,155,.22) 27px 28px);
+  color:var(--ink);
+  font-family:"Familjen Grotesk",system-ui,sans-serif;
+  font-size:16px;
+  line-height:1.45;
+}
+.sheet{max-width:1080px;margin:0 auto;padding:var(--gap) var(--gap) 4rem}
+
+/* nagłówek --------------------------------------------------------------- */
+.masthead{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:.5rem 1.2rem;
+  padding-bottom:.7rem;border-bottom:3px double var(--rule);
+}
+.masthead h1{
+  margin:0;font-size:clamp(1.3rem,4.5vw,2rem);font-weight:700;
+  letter-spacing:-.02em;text-transform:lowercase;
+}
+.masthead h1 .nib{color:var(--pen-1)}
+.stamp{
+  margin-left:auto;font-family:"IBM Plex Sans Condensed",sans-serif;
+  font-size:.78rem;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-soft);
+}
+
+/* karty piór ------------------------------------------------------------- */
+.pens{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));
+  gap:1px;background:var(--rule-fine);
+  border:1px solid var(--rule-fine);margin:var(--gap) 0 0;
+}
+.pen{background:var(--paper);padding:.7rem .85rem .8rem;position:relative}
+.pen::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--c)}
+.pen b{
+  display:block;font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;
+  font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-soft);
+  margin:0 0 .3rem .55rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.pen .read{
+  display:flex;align-items:baseline;gap:.55rem;margin-left:.55rem;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+}
+.pen .t{font-size:1.5rem;font-weight:500;color:var(--c);line-height:1}
+.pen .h{font-size:.92rem;color:var(--ink-soft)}
+.pen .ago{
+  margin:.35rem 0 0 .55rem;font-family:"IBM Plex Sans Condensed",sans-serif;
+  font-size:.72rem;letter-spacing:.05em;color:var(--ink-soft);opacity:.8;
+}
+
+/* sterowanie ------------------------------------------------------------- */
+.controls{
+  display:flex;flex-wrap:wrap;align-items:center;gap:.4rem;
+  margin:1.4rem 0 0;padding-bottom:.55rem;border-bottom:1px solid var(--rule-fine);
+  font-family:"IBM Plex Sans Condensed",sans-serif;
+}
+.controls .lbl{
+  font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-soft);margin-right:.5rem;
+}
+.range{
+  appearance:none;border:1px solid var(--rule-fine);background:transparent;
+  color:var(--ink-soft);font:inherit;font-size:.84rem;letter-spacing:.03em;
+  padding:.22rem .7rem;cursor:pointer;border-radius:0;
+}
+.range:hover{border-color:var(--rule)}
+.range[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.range:focus-visible{outline:2px solid var(--pen-2);outline-offset:2px}
+.toggles{display:flex;flex-wrap:wrap;gap:.15rem;margin-left:auto}
+.toggle{
+  appearance:none;border:0;background:transparent;font:inherit;font-size:.8rem;
+  color:var(--ink-soft);padding:.22rem .5rem;cursor:pointer;
+  display:inline-flex;align-items:center;gap:.4rem;
+}
+.toggle::before{content:"";width:11px;height:11px;border:1.5px solid var(--c);background:var(--c)}
+.toggle[aria-pressed="false"]{opacity:.42}
+.toggle[aria-pressed="false"]::before{background:transparent}
+.toggle:focus-visible{outline:2px solid var(--pen-2);outline-offset:1px}
+
+/* wykresy ---------------------------------------------------------------- */
+.trace{margin-top:1.6rem}
+.trace h2{
+  margin:0 0 .45rem;font-family:"IBM Plex Sans Condensed",sans-serif;
+  font-size:.76rem;font-weight:600;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--ink-soft);display:flex;align-items:baseline;gap:.6rem;
+}
+.trace h2 small{font-weight:400;letter-spacing:.06em;opacity:.65;text-transform:none}
+.plot{position:relative;height:230px;border:1px solid var(--rule-fine);background:var(--paper)}
+@media(min-width:700px){.plot{height:290px}}
+
+/* tabela ----------------------------------------------------------------- */
+.summary{width:100%;border-collapse:collapse;margin-top:2rem;font-size:.86rem}
+.summary caption{
+  text-align:left;font-family:"IBM Plex Sans Condensed",sans-serif;
+  font-size:.72rem;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--ink-soft);padding-bottom:.5rem;
+}
+.summary th,.summary td{
+  text-align:right;padding:.42rem .5rem;border-bottom:1px solid var(--rule-fine);
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:400;
+}
+.summary th{
+  font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:.72rem;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);
+}
+.summary th:first-child,.summary td:first-child{text-align:left}
+.summary td:first-child{font-family:"Familjen Grotesk",sans-serif;border-left:4px solid var(--c);padding-left:.7rem}
+
+/* stany puste ------------------------------------------------------------ */
+.notice{
+  margin:2.5rem 0;padding:1.3rem 1.4rem;border:1px solid var(--rule);
+  background:var(--paper-deep);max-width:44rem;
+}
+.notice h2{margin:0 0 .5rem;font-size:1.05rem;font-weight:700}
+.notice p{margin:.45rem 0;color:var(--ink-soft);font-size:.92rem}
+.notice code{
+  font-family:"IBM Plex Mono",monospace;font-size:.85em;
+  background:var(--paper);padding:.1em .4em;border:1px solid var(--rule-fine);
+}
+[hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<main class="sheet">
+
+  <header class="masthead">
+    <h1><span class="nib">&#9134;</span> termohigrograf</h1>
+    <span class="stamp" id="stamp">wczytywanie&hellip;</span>
+  </header>
+
+  <section id="app" hidden>
+    <div class="pens" id="pens"></div>
+
+    <div class="controls">
+      <span class="lbl">Zakres</span>
+      <button class="range" data-hours="24">24 h</button>
+      <button class="range" data-hours="168" aria-pressed="true">7 dni</button>
+      <button class="range" data-hours="720">30 dni</button>
+      <button class="range" data-hours="0">całość</button>
+      <div class="toggles" id="toggles"></div>
+    </div>
+
+    <div class="trace">
+      <h2>Temperatura <small>&deg;C</small></h2>
+      <div class="plot"><canvas id="temp"></canvas></div>
+    </div>
+
+    <div class="trace">
+      <h2>Wilgotność względna <small>%</small></h2>
+      <div class="plot"><canvas id="hum"></canvas></div>
+    </div>
+
+    <table class="summary" id="summary"></table>
+  </section>
+
+  <div class="notice" id="notice" hidden></div>
+
+</main>
+
+<script>
+const PENS = ['#b0432b','#27587f','#68762c','#7e4668','#3f6f66','#8a5a24'];
+const CSS = getComputedStyle(document.documentElement);
+const C = n => CSS.getPropertyValue(n).trim();
+
+const state = { hours: 168, devices: [], rows: [], off: new Set(), charts: {} };
+const monthCache = new Map();
+
+const fmtNum = (v, d = 1) =>
+  v == null || !isFinite(v) ? '–' : v.toFixed(d).replace('.', ',');
+
+const pad = n => String(n).padStart(2, '0');
+const isMidnight = d => d.getHours() === 0 && d.getMinutes() === 0;
+
+// Jak na papierze rejestratora: granice doby podpisane datą, między nimi godziny.
+function fmtWhen(d, span) {
+  if (isMidnight(d) || span > 24 * 14) return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}`;
+  if (span <= 36) return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${pad(d.getHours())}:00`;
+}
+
+function fmtAgo(ms) {
+  const min = Math.round((Date.now() - ms) / 60000);
+  if (min < 2) return 'przed chwilą';
+  if (min < 60) return `${min} min temu`;
+  const h = Math.round(min / 60);
+  if (h < 48) return `${h} godz. temu`;
+  return `${Math.round(h / 24)} dni temu`;
+}
+
+function fail(title, ...paras) {
+  document.getElementById('stamp').textContent = 'brak danych';
+  const n = document.getElementById('notice');
+  n.innerHTML = `<h2>${title}</h2>` + paras.map(p => `<p>${p}</p>`).join('');
+  n.hidden = false;
+}
+
+/* --- wczytywanie ---------------------------------------------------------- */
+
+async function loadMonth(m) {
+  if (monthCache.has(m)) return monthCache.get(m);
+  const res = await fetch(`data/${m}.csv`, { cache: 'no-cache' });
+  if (!res.ok) { monthCache.set(m, []); return []; }
+  const lines = (await res.text()).trim().split('\n');
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const [ts, id, code, value] = lines[i].split(',');
+    if (!ts) continue;
+    rows.push({ t: Date.parse(ts), id, code, v: parseFloat(value) });
+  }
+  monthCache.set(m, rows);
+  return rows;
+}
+
+async function boot() {
+  let manifest;
+  try {
+    const res = await fetch('data/index.json', { cache: 'no-cache' });
+    if (!res.ok) throw new Error(res.status);
+    manifest = await res.json();
+  } catch {
+    return fail('Nie ma jeszcze żadnych odczytów',
+      'Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.',
+      'Wejdź w zakładkę <b>Actions</b> w repozytorium, wybierz <b>Zbieranie odczytów</b> i kliknij <b>Run workflow</b>.');
+  }
+
+  const ids = Object.keys(manifest.devices || {});
+  if (!ids.length || !(manifest.months || []).length) {
+    return fail('Kolektor działa, ale nie znalazł czujników',
+      'Uruchom lokalnie <code>python fetch.py --discover</code> i sprawdź, czy urządzenia mają pola z temperaturą lub wilgotnością.');
+  }
+
+  state.devices = ids.map((id, i) => {
+    const d = manifest.devices[id];
+    const codes = d.codes || {};
+    return {
+      id,
+      name: d.name || id,
+      color: PENS[i % PENS.length],
+      temp: Object.keys(codes).find(c => codes[c].kind === 'temp'),
+      hum:  Object.keys(codes).find(c => codes[c].kind === 'hum'),
+    };
+  });
+
+  const months = manifest.months.slice().sort();
+  state.rows = (await Promise.all(months.map(loadMonth))).flat().sort((a, b) => a.t - b.t);
+
+  if (!state.rows.length) {
+    return fail('Pliki z danymi są puste',
+      'Czujniki nie zaraportowały nic w oknie 7 dni albo pierwszy przebieg dopiero się wykonał.');
+  }
+
+  document.getElementById('app').hidden = false;
+  buildToggles();
+  wireRanges();
+  render();
+}
+
+/* --- sterowanie ----------------------------------------------------------- */
+
+function buildToggles() {
+  const box = document.getElementById('toggles');
+  box.innerHTML = '';
+  state.devices.forEach(d => {
+    const b = document.createElement('button');
+    b.className = 'toggle';
+    b.style.setProperty('--c', d.color);
+    b.setAttribute('aria-pressed', 'true');
+    b.textContent = d.name;
+    b.onclick = () => {
+      const on = b.getAttribute('aria-pressed') === 'true';
+      b.setAttribute('aria-pressed', String(!on));
+      on ? state.off.add(d.id) : state.off.delete(d.id);
+      render();
+    };
+    box.appendChild(b);
+  });
+}
+
+function wireRanges() {
+  document.querySelectorAll('.range').forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll('.range').forEach(o => o.removeAttribute('aria-pressed'));
+      b.setAttribute('aria-pressed', 'true');
+      state.hours = +b.dataset.hours;
+      render();
+    };
+  });
+}
+
+/* --- przetwarzanie -------------------------------------------------------- */
+
+function bucket(points, limit = 900) {
+  if (points.length <= limit) return points;
+  const size = Math.ceil(points.length / limit);
+  const out = [];
+  for (let i = 0; i < points.length; i += size) {
+    const slice = points.slice(i, i + size);
+    out.push({
+      x: slice[Math.floor(slice.length / 2)].x,
+      y: slice.reduce((s, p) => s + p.y, 0) / slice.length,
+    });
+  }
+  return out;
+}
+
+function series(kind) {
+  const from = state.hours ? Date.now() - state.hours * 3600e3 : 0;
+  return state.devices
+    .filter(d => d[kind] && !state.off.has(d.id))
+    .map(d => {
+      const pts = state.rows
+        .filter(r => r.id === d.id && r.code === d[kind] && r.t >= from && isFinite(r.v))
+        .map(r => ({ x: r.t, y: r.v }));
+      return { device: d, points: bucket(pts) };
+    })
+    .filter(s => s.points.length);
+}
+
+/* --- rysowanie ------------------------------------------------------------ */
+
+// Pióro spoczywające na papierze: znacznik ostatniej wartości na prawej krawędzi.
+const nib = {
+  id: 'nib',
+  afterDatasetsDraw(chart) {
+    const { ctx, chartArea } = chart;
+    chart.data.datasets.forEach((ds, i) => {
+      const meta = chart.getDatasetMeta(i);
+      if (meta.hidden || !meta.data.length) return;
+      const last = meta.data[meta.data.length - 1];
+      if (!last || last.y < chartArea.top || last.y > chartArea.bottom) return;
+      ctx.save();
+      ctx.fillStyle = ds.borderColor;
+      ctx.beginPath();
+      ctx.moveTo(chartArea.right + 2, last.y);
+      ctx.lineTo(chartArea.right + 11, last.y - 5);
+      ctx.lineTo(chartArea.right + 11, last.y + 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    });
+  },
+};
+
+function draw(canvasId, sets, unit, decimals) {
+  const span = state.hours || 24 * 400;
+  const cfg = {
+    type: 'line',
+    data: {
+      datasets: sets.map(s => ({
+        label: s.device.name,
+        data: s.points,
+        borderColor: s.device.color,
+        backgroundColor: s.device.color,
+        borderWidth: 1.4,
+        pointRadius: 0,
+        pointHitRadius: 12,
+        tension: .18,
+        spanGaps: 3 * 3600e3,
+      })),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      layout: { padding: { right: 16 } },
+      scales: {
+        x: {
+          type: 'time',
+          // Bez tego Chart.js dzieli zakres równo i podpisuje losowe minuty.
+          time: { unit: span <= 24 * 10 ? 'hour' : 'day' },
+          border: { color: C('--rule') },
+          grid: {
+            tickLength: 4,
+            color: ctx => ctx.tick && isMidnight(new Date(ctx.tick.value))
+              ? C('--rule') : C('--rule-fine'),
+          },
+          ticks: {
+            color: C('--ink-soft'),
+            font: { family: 'IBM Plex Sans Condensed', size: 11 },
+            maxRotation: 0,
+            autoSkipPadding: 22,
+            callback: v => fmtWhen(new Date(v), span),
+          },
+        },
+        y: {
+          border: { color: C('--rule') },
+          grid: { color: C('--rule-fine') },
+          ticks: {
+            color: C('--ink-soft'),
+            font: { family: 'IBM Plex Mono', size: 11 },
+            callback: v => fmtNum(v, 0),
+          },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: C('--ink'),
+          titleColor: C('--paper'),
+          bodyColor: C('--paper'),
+          borderWidth: 0,
+          cornerRadius: 0,
+          padding: 9,
+          titleFont: { family: 'IBM Plex Sans Condensed', size: 11, weight: '600' },
+          bodyFont: { family: 'IBM Plex Mono', size: 12 },
+          callbacks: {
+            title: items => new Intl.DateTimeFormat('pl-PL', {
+              day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+            }).format(new Date(items[0].parsed.x)),
+            label: item => ` ${item.dataset.label}  ${fmtNum(item.parsed.y, decimals)} ${unit}`,
+          },
+        },
+      },
+    },
+    plugins: [nib],
+  };
+
+  state.charts[canvasId]?.destroy();
+  state.charts[canvasId] = new Chart(document.getElementById(canvasId), cfg);
+}
+
+function renderPens() {
+  const box = document.getElementById('pens');
+  box.innerHTML = '';
+  state.devices.forEach(d => {
+    const latest = k => {
+      if (!d[k]) return null;
+      for (let i = state.rows.length - 1; i >= 0; i--) {
+        const r = state.rows[i];
+        if (r.id === d.id && r.code === d[k]) return r;
+      }
+      return null;
+    };
+    const t = latest('temp'), h = latest('hum');
+    const when = Math.max(t?.t || 0, h?.t || 0);
+    const el = document.createElement('div');
+    el.className = 'pen';
+    el.style.setProperty('--c', d.color);
+    el.innerHTML =
+      `<b>${d.name}</b>
+       <div class="read">
+         <span class="t">${fmtNum(t?.v, 1)}&deg;</span>
+         <span class="h">${fmtNum(h?.v, 0)}%</span>
+       </div>
+       <div class="ago">${when ? fmtAgo(when) : 'brak odczytu'}</div>`;
+    box.appendChild(el);
+  });
+}
+
+function renderSummary(tempSets, humSets) {
+  const stats = pts => {
+    const ys = pts.map(p => p.y);
+    return ys.length
+      ? { min: Math.min(...ys), max: Math.max(...ys), avg: ys.reduce((a, b) => a + b, 0) / ys.length }
+      : null;
+  };
+  const byId = sets => Object.fromEntries(sets.map(s => [s.device.id, stats(s.points)]));
+  const T = byId(tempSets), H = byId(humSets);
+  const shown = state.devices.filter(d => T[d.id] || H[d.id]);
+
+  const label = { 24: 'ostatnie 24 godziny', 168: 'ostatnie 7 dni', 720: 'ostatnie 30 dni', 0: 'cała historia' }[state.hours];
+
+  document.getElementById('summary').innerHTML =
+    `<caption>Zakresy &middot; ${label}</caption>
+     <thead><tr>
+       <th>Czujnik</th><th>min &deg;C</th><th>śr &deg;C</th><th>max &deg;C</th>
+       <th>min %</th><th>śr %</th><th>max %</th>
+     </tr></thead><tbody>` +
+    shown.map(d => {
+      const t = T[d.id], h = H[d.id];
+      return `<tr style="--c:${d.color}">
+        <td>${d.name}</td>
+        <td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td>
+        <td>${fmtNum(h?.min, 0)}</td><td>${fmtNum(h?.avg, 0)}</td><td>${fmtNum(h?.max, 0)}</td>
+      </tr>`;
+    }).join('') + '</tbody>';
+}
+
+function render() {
+  const tempSets = series('temp');
+  const humSets = series('hum');
+  renderPens();
+  draw('temp', tempSets, '°C', 1);
+  draw('hum', humSets, '%', 0);
+  renderSummary(tempSets, humSets);
+
+  const newest = state.rows[state.rows.length - 1]?.t;
+  document.getElementById('stamp').textContent =
+    'ostatni zapis · ' + new Intl.DateTimeFormat('pl-PL', {
+      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+    }).format(new Date(newest));
+}
+
+boot();
+</script>
+</body>
+</html>
