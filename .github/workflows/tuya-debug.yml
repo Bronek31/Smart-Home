@@ -1,0 +1,45 @@
+name: Tuya API diagnostics
+
+on:
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "Ile godzin logów sprawdzić"
+        required: false
+        default: "24"
+      samples:
+        description: "Ile ostatnich raportów pokazać na urządzenie"
+        required: false
+        default: "20"
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TUYA_CLIENT_ID: ${{ secrets.TUYA_CLIENT_ID }}
+      TUYA_CLIENT_SECRET: ${{ secrets.TUYA_CLIENT_SECRET }}
+      TUYA_REGION: ${{ secrets.TUYA_REGION }}
+      TUYA_DEVICE_IDS: ${{ secrets.TUYA_DEVICE_IDS }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Inspect Tuya API
+        run: python inspect_tuya.py --hours "${{ inputs.hours }}" --samples "${{ inputs.samples }}" --output tuya_debug.json
+
+      - name: Upload diagnostic report
+        uses: actions/upload-artifact@v4
+        with:
+          name: tuya-api-diagnostics
+          path: tuya_debug.json
+          retention-days: 7
