@@ -5,7 +5,7 @@ on:
     # Co godzinę, o :17. Pełne godziny są u GitHuba najbardziej obciążone,
     # więc przebiegi z :00 wypadają najczęściej. Spóźnienia i tak nie szkodzą —
     # każdy przebieg pobiera okno kilkudniowe, więc następny nadrabia poprzedni.
-    - cron: '15 * * * *'
+    - cron: '*/5 * * * *'
   workflow_dispatch:        # przycisk "Run workflow" do ręcznego odpalenia
 
 permissions:
