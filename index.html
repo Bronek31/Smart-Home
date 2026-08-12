@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0f1419">
-<title>Termohigrograf</title>
+<!-- NAZWA STRONY — zmień tutaj i w nagłówku <h1> niżej -->
+<title>Smart Home</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap" rel="stylesheet">
@@ -184,6 +185,7 @@ body{
 <main class="sheet">
 
   <header class="masthead">
+    <!-- NAZWA STRONY — druga z dwóch linijek do zmiany -->
     <h1><span class="nib">&#9134;</span> termohigrograf</h1>
     <span class="stamp" id="stamp">wczytywanie&hellip;</span>
   </header>
@@ -211,6 +213,7 @@ body{
     </div>
 
     <table class="summary" id="summary"></table>
+    <table class="summary" id="health"></table>
   </section>
 
   <div class="notice" id="notice" hidden></div>
@@ -256,6 +259,16 @@ function timeTicks(min, max, width) {
     if (t >= min) out.push({ value: t });
   }
   return out;
+}
+
+function fmtDur(ms) {
+  if (ms == null || !isFinite(ms)) return '–';
+  const min = ms / 60000;
+  if (min < 1) return `${Math.round(ms / 1000)} s`;
+  if (min < 90) return `${Math.round(min)} min`;
+  const h = min / 60;
+  if (h < 36) return `${h.toFixed(1).replace('.', ',')} godz.`;
+  return `${Math.round(h / 24)} dni`;
 }
 
 function fmtAgo(ms) {
@@ -329,9 +342,17 @@ async function boot() {
       'Czujniki nie zaraportowały nic w oknie 7 dni albo pierwszy przebieg dopiero się wykonał.');
   }
 
+  // Nie pokazujmy widoku 7-dniowego, gdy czujniki działają od trzech godzin.
+  const spanH = (state.rows[state.rows.length - 1].t - state.rows[0].t) / 3600e3;
+  state.hours = spanH <= 24 ? 24 : spanH <= 168 ? 168 : spanH <= 720 ? 720 : 0;
+
   document.getElementById('app').hidden = false;
   buildToggles();
   wireRanges();
+  document.querySelectorAll('.range').forEach(b => {
+    b.toggleAttribute('aria-pressed', +b.dataset.hours === state.hours);
+    if (+b.dataset.hours === state.hours) b.setAttribute('aria-pressed', 'true');
+  });
   render();
 }
 
@@ -394,6 +415,13 @@ function series(kind) {
       return { device: d, points: bucket(pts) };
     })
     .filter(s => s.points.length);
+}
+
+// Odczyty bez uśredniania — diagnostyka musi widzieć każdy pojedynczy raport.
+function rawPoints(device, kind, from) {
+  if (!device[kind]) return [];
+  return state.rows.filter(r =>
+    r.id === device.id && r.code === device[kind] && r.t >= from && isFinite(r.v));
 }
 
 // Ostatni odczyt danego pola oraz ten sprzed doby — do policzenia trendu.
@@ -555,6 +583,57 @@ function renderPens() {
   });
 }
 
+
+// Diagnostyka łączności: czy bramka faktycznie słyszy każdy czujnik i czy
+// temperatura z wilgotnością przychodzą w tym samym raporcie.
+function renderHealth() {
+  const from = state.hours ? Date.now() - state.hours * 3600e3 : 0;
+  const warn = C('--pen-1');
+
+  const rows = state.devices.map(d => {
+    const T = rawPoints(d, 'temp', from);
+    const H = rawPoints(d, 'hum', from);
+
+    const times = T.map(r => r.t);
+    const gaps = times.slice(1).map((t, i) => t - times[i]);
+    const sorted = gaps.slice().sort((a, b) => a - b);
+    const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : null;
+    const worst = gaps.length ? Math.max(...gaps) : null;
+
+    const humTimes = new Set(H.map(r => r.t));
+    const paired = T.length ? T.filter(r => humTimes.has(r.t)).length / T.length : null;
+
+    const last = Math.max(T.length ? T[T.length - 1].t : 0,
+                          H.length ? H[H.length - 1].t : 0);
+    return { d, nT: T.length, nH: H.length, median, worst, paired, last };
+  });
+
+  // Przerwa dłuższa niż pięciokrotność typowego odstępu to sygnał, że czujnik
+  // wypadał z zasięgu. Przy garstce odczytów mediana jest bez znaczenia.
+  const suspicious = r =>
+    r.nT >= 6 && r.median != null && r.worst != null && r.worst > 5 * r.median;
+
+  document.getElementById('health').innerHTML =
+    `<caption>Łączność z bramką &middot; ${rangeLabel()}</caption>
+     <thead><tr>
+       <th>Czujnik</th><th>temp.</th><th>wilg.</th>
+       <th>typowy odstęp</th><th>najdłuższa przerwa</th>
+       <th>razem</th><th>ostatni</th>
+     </tr></thead><tbody>` +
+    rows.map(r => {
+      const gapStyle = suspicious(r) ? ` style="color:${warn}"` : '';
+      const pairStyle = r.paired != null && r.paired < .8 ? ` style="color:${warn}"` : '';
+      return `<tr style="--c:${r.d.color}">
+        <td>${r.d.name}</td>
+        <td>${r.nT}</td><td>${r.nH}</td>
+        <td>${fmtDur(r.median)}</td>
+        <td${gapStyle}>${fmtDur(r.worst)}</td>
+        <td${pairStyle}>${r.paired == null ? '–' : Math.round(r.paired * 100) + '%'}</td>
+        <td>${r.last ? fmtAgo(r.last) : '–'}</td>
+      </tr>`;
+    }).join('') + '</tbody>';
+}
+
 function renderSummary(tempSets, humSets) {
   const stats = pts => {
     const ys = pts.map(p => p.y);
@@ -566,10 +645,8 @@ function renderSummary(tempSets, humSets) {
   const T = byId(tempSets), H = byId(humSets);
   const shown = state.devices.filter(d => T[d.id] || H[d.id]);
 
-  const label = { 24: 'ostatnie 24 godziny', 168: 'ostatnie 7 dni', 720: 'ostatnie 30 dni', 0: 'cała historia' }[state.hours];
-
   document.getElementById('summary').innerHTML =
-    `<caption>Zakresy &middot; ${label}</caption>
+    `<caption>Zakresy &middot; ${rangeLabel()}</caption>
      <thead><tr>
        <th>Czujnik</th><th>min &deg;C</th><th>śr &deg;C</th><th>max &deg;C</th>
        <th>min %</th><th>śr %</th><th>max %</th>
@@ -584,6 +661,20 @@ function renderSummary(tempSets, humSets) {
     }).join('') + '</tbody>';
 }
 
+function rangeLabel() {
+  const base = { 24: 'ostatnie 24 godziny', 168: 'ostatnie 7 dni',
+                 720: 'ostatnie 30 dni', 0: 'cała historia' }[state.hours];
+  const oldest = state.rows[0]?.t;
+  const from = state.hours ? Date.now() - state.hours * 3600e3 : 0;
+  // Nie udawajmy tygodnia, jeśli czujniki działają od paru godzin.
+  if (oldest && oldest > from + 3600e3) {
+    return `${base} · dane od ${new Intl.DateTimeFormat('pl-PL',
+      { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+      .format(new Date(oldest))}`;
+  }
+  return base;
+}
+
 function render() {
   const tempSets = series('temp');
   const humSets = series('hum');
@@ -591,6 +682,7 @@ function render() {
   draw('temp', tempSets, '°C', 1);
   draw('hum', humSets, '%', 0);
   renderSummary(tempSets, humSets);
+  renderHealth();
 
   const newest = state.rows[state.rows.length - 1]?.t;
   document.getElementById('stamp').textContent =
