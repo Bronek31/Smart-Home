@@ -34,7 +34,7 @@ jobs:
           TUYA_REGION: eu
           TUYA_DEVICE_IDS: 'bf43cf664d6644420axva3,bf7e2a70935af7de78mjqt,bf5741c97c96fa85b1d7do,bfd6f4f87fea9d866dvpve'
           # Granica danych — zachowana z działającej wersji workflow.
-          TUYA_SINCE: '2026-08-12T21:00+02:00'
+          TUYA_SINCE: '2026-08-12T22:00+02:00'
           TUYA_MIN_GAP: '1.2'
         run: python fetch.py --days 3
 
