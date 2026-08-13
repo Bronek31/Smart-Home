@@ -1,11 +1,22 @@
 {
-  "updated": "2026-08-13T17:14:37Z",
+  "updated": "2026-08-13T18:00:28Z",
   "months": [
     "2026-08"
   ],
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
   "devices": {
+    "bfe38c4af789b0c8fbxte4": {
+      "name": "FERSK VIND 2",
+      "appliance": true,
+      "codes": {
+        "switch": {
+          "kind": "power",
+          "unit": "",
+          "scale": 0
+        }
+      }
+    },
     "bfd6f4f87fea9d866dvpve": {
       "name": "Łazienka",
       "codes": {

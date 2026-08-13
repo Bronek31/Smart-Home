@@ -1,13 +1,13 @@
 {
-  "updated": "2026-08-13T17:14:35Z",
+  "updated": "2026-08-13T18:00:27Z",
   "current": {
-    "time": "2026-08-13T19:00",
+    "time": "2026-08-13T20:00",
     "interval": 900,
-    "temperature_2m": 24.4,
-    "relative_humidity_2m": 33,
-    "apparent_temperature": 21.8,
+    "temperature_2m": 23.7,
+    "relative_humidity_2m": 35,
+    "apparent_temperature": 21.2,
     "weather_code": 0,
-    "wind_speed_10m": 13.3
+    "wind_speed_10m": 12.2
   },
   "daily": {
     "time": [
@@ -18,17 +18,17 @@
     "weather_code": [
       2,
       0,
-      0
+      1
     ],
     "temperature_2m_max": [
       25.9,
-      26.9,
-      32.3
+      27.0,
+      32.7
     ],
     "temperature_2m_min": [
       15.0,
       16.5,
-      18.0
+      17.9
     ],
     "precipitation_probability_max": [
       0,
@@ -42,10 +42,10 @@
     ]
   },
   "air": {
-    "time": "2026-08-13T19:00",
+    "time": "2026-08-13T20:00",
     "interval": 3600,
-    "european_aqi": 33,
-    "pm2_5": 7.5,
-    "pm10": 14.3
+    "european_aqi": 32,
+    "pm2_5": 10.0,
+    "pm10": 15.9
   }
 }
