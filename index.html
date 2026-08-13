@@ -67,7 +67,7 @@
 
   <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div></div>
   <div class="trace"><h2>Wilgotność względna <small>%</small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
-  <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
+  <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small><small id="wietrz-abs"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
     <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, więc po niej nie poznasz, czy wietrzenie cokolwiek dało — po tej owszem: linia mieszkania zbliża się wtedy do linii dworu.</p></div>
 
   <table class="summary" id="summary"></table><table class="summary" id="health"></table>
@@ -157,6 +157,7 @@ function despike(pts,kind){
   return bad.size?{pts:pts.filter((_,k)=>!bad.has(k)),cut:bad.size}:{pts,cut:0};
 }
 const plSkok=n=>n===1?'1 skok':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} skoki`:`${n} skoków`;
+const plWietrz=n=>n===1?'1 wietrzenie':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} wietrzenia`:`${n} wietrzeń`;
 const plRap=n=>n===1?'1 raport':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} raporty`:`${n} raportów`;
 // Nazwy czujników pochodzą z aplikacji Tuya i lądują w innerHTML oraz w SVG.
 // To własne dane, więc nie chodzi o atak — po prostu nazwa ze znakiem < rozjeżdża widok.
@@ -249,23 +250,81 @@ function pairAbs(T,H){
   }
   return out;
 }
+function absPoints(d,cut,liczCiecia){
+  if(useDaily()){
+    // z agregatów wychodzi wartość z dobowych średnich, nie średnia z wartości chwilowych
+    const dob=k=>new Map(state.daily.filter(r=>r.id===d.id&&r.code===d[k]&&r.t>=cut&&isFinite(r.avg)).map(r=>[r.date,r.avg]));
+    const T=dob('temp'),H=dob('hum'),pts=[];
+    for(const[date,t]of T){const h=H.get(date);if(h==null)continue;const y=absHum(t,h);if(y!=null)pts.push({x:Date.parse(date+'T12:00:00'),y})}
+    return pts.sort((a,b)=>a.x-b.x);
+  }
+  const surowe=k=>state.rows.filter(r=>r.id===d.id&&r.code===d[k]&&r.t>=cut&&isFinite(r.v)).map(r=>({x:r.t,y:r.v}));
+  let T=surowe('temp'),H=surowe('hum');
+  if(state.filtr&&!d.ext){const a=despike(T,'temp'),b=despike(H,'hum');T=a.pts;H=b.pts;if(liczCiecia)state.cut.abs+=a.cut+b.cut}
+  return pairAbs(T,H);
+}
 function seriesAbs(){
   const from=state.hours?Date.now()-state.hours*3600e3:0,since=indoorStart();state.cut.abs=0;
-  return state.devices.filter(d=>d.temp&&d.hum&&!state.off.has(d.id)).map(d=>{
-    const cut=d.ext?Math.max(from,since):from;
-    if(useDaily()){
-      // z agregatów wychodzi wartość z dobowych średnich, nie średnia z wartości chwilowych
-      const dob=k=>new Map(state.daily.filter(r=>r.id===d.id&&r.code===d[k]&&r.t>=cut&&isFinite(r.avg)).map(r=>[r.date,r.avg]));
-      const T=dob('temp'),H=dob('hum'),pts=[];
-      for(const[date,t]of T){const h=H.get(date);if(h==null)continue;const y=absHum(t,h);if(y!=null)pts.push({x:Date.parse(date+'T12:00:00'),y})}
-      return{device:d,points:pts.sort((a,b)=>a.x-b.x),stats:null};
-    }
-    const surowe=k=>state.rows.filter(r=>r.id===d.id&&r.code===d[k]&&r.t>=cut&&isFinite(r.v)).map(r=>({x:r.t,y:r.v}));
-    let T=surowe('temp'),H=surowe('hum');
-    if(state.filtr&&!d.ext){const a=despike(T,'temp'),b=despike(H,'hum');T=a.pts;H=b.pts;state.cut.abs+=a.cut+b.cut}
-    return{device:d,points:bucket(pairAbs(T,H)),stats:null};
-  }).filter(s=>s.points.length);
+  return state.devices.filter(d=>d.temp&&d.hum&&!state.off.has(d.id))
+    .map(d=>({device:d,points:bucket(absPoints(d,d.ext?Math.max(from,since):from,true)),stats:null}))
+    .filter(s=>s.points.length);
 }
+
+/* --- Wykrywanie wietrzenia ---
+   Otwarte okno poznaje się po tym, że wilgotność bezwzględna w pokoju rusza szybko
+   w stronę wartości na dworze — bo to po prostu wymiana powietrza. Dlatego działa
+   tak samo zimą, gdy wietrzenie osusza, jak i w parny letni dzień, gdy dokłada pary.
+   Sama temperatura by nie wystarczyła: grzejnik też ją podnosi, tylko wolniej. */
+// Okno musi być dłuższe niż heartbeat: w spokojnym pokoju czujnik odzywa się raz na
+// godzinę, więc ostatni cichy odczyt trzeba zestawić z pierwszym już przy otwartym oknie.
+// Krótsze okno po prostu nie ma czego porównać. Rozdzielczość wykrywania jest więc
+// ograniczona częstością raportów — wietrzenia krótsze niż godzina mogą umknąć.
+const WIETRZ={zmiana:0.7,okno:2*HEARTBEAT,luka:0.5};
+const naZewnatrz=(zew,t)=>{
+  if(!zew.length)return null;
+  let lo=0,hi=zew.length-1;
+  while(lo<hi){const mid=(lo+hi)>>1;zew[mid].x<t?lo=mid+1:hi=mid}
+  const a=zew[Math.max(0,lo-1)],b=zew[lo];
+  return Math.abs(a.x-t)<=Math.abs(b.x-t)?a.y:b.y;
+};
+function wietrzenia(pts,zew){
+  if(pts.length<2||!zew.length)return[];
+  const out=[];let i=0;
+  while(i<pts.length-1){
+    const naDworze=naZewnatrz(zew,pts[i].x);
+    // gdy po obu stronach ściany jest tyle samo pary, "w stronę dworu" nic nie znaczy
+    if(naDworze==null||Math.abs(naDworze-pts[i].y)<WIETRZ.luka){i++;continue}
+    const kierunek=Math.sign(naDworze-pts[i].y);
+    let j=i+1,skraj=i;
+    while(j<pts.length&&pts[j].x-pts[i].x<=WIETRZ.okno){
+      if((pts[j].y-pts[i].y)*kierunek>(pts[skraj].y-pts[i].y)*kierunek)skraj=j;
+      j++;
+    }
+    const zmiana=(pts[skraj].y-pts[i].y)*kierunek;
+    if(skraj>i&&zmiana>=WIETRZ.zmiana){out.push({od:pts[i].x,do:pts[skraj].x,zmiana});i=skraj+1;continue}
+    i++;
+  }
+  return out;
+}
+// jedno wietrzenie widzi zwykle kilka pokoi naraz — na wykresie ma być jedno pasmo
+function scalPasma(lista){
+  const all=lista.flat().sort((a,b)=>a.od-b.od),out=[];
+  for(const w of all){const last=out.at(-1);
+    if(last&&w.od<=last.do)last.do=Math.max(last.do,w.do);else out.push({od:w.od,do:w.do})}
+  return out;
+}
+const pasma={id:'pasma',beforeDatasetsDraw(chart){
+  const ev=state.wietrzPasma;if(!ev?.length)return;
+  const{ctx,chartArea:a,scales:{x}}=chart;
+  ctx.save();ctx.fillStyle='rgba(95,184,224,.14)';
+  ev.forEach(w=>{
+    const x1=x.getPixelForValue(w.od),x2=x.getPixelForValue(w.do);
+    if(x2<a.left||x1>a.right)return;
+    const l=Math.max(x1,a.left),r=Math.min(Math.max(x2,l+2),a.right);
+    ctx.fillRect(l,a.top,r-l,a.bottom-a.top);
+  });
+  ctx.restore();
+}};
 function rawPoints(device,kind,from){if(!device[kind])return[];return state.rows.filter(r=>r.id===device.id&&r.code===device[kind]&&r.t>=from&&isFinite(r.v))}
 function readings(device,kind){if(!device[kind])return{last:null,dayAgo:null};const cutoff=Date.now()-24*3600e3;let last=null,dayAgo=null;for(const r of state.rows){if(r.id!==device.id||r.code!==device[kind]||!isFinite(r.v))continue;last=r;if(r.t<=cutoff)dayAgo=r}return{last,dayAgo}}
 const BATTERY_PL={low:'niski',middle:'średni',high:'wysoki'};function lastBattery(d){if(!d.batt)return null;for(let i=state.rows.length-1;i>=0;i--){const r=state.rows[i];if(r.id===d.id&&r.code===d.batt)return BATTERY_PL[r.raw]||(isFinite(r.v)?`${r.v}%`:r.raw)}return null}
@@ -332,7 +391,7 @@ function wireTouch(id){
   box.addEventListener('touchcancel',koniec,{passive:true});
 }
 addEventListener('scroll',hideTips,{passive:true});
-function draw(canvasId,sets,unit,decimals){const span=state.hours||24*400;const cfg={type:'line',plugins:[dotyk],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{s.ticks=timeTicks(s.min,s.max,s.chart.width)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),span)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg)}
+function draw(canvasId,sets,unit,decimals,extra=[]){const span=state.hours||24*400;const cfg={type:'line',plugins:[dotyk,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{s.ticks=timeTicks(s.min,s.max,s.chart.width)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),span)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg)}
 function renderMap(){
   const svg=[`<svg viewBox="-3 -3 ${PLAN.w+6} ${PLAN.h+6}" xmlns="http://www.w3.org/2000/svg">`];
   PLAN.rooms.forEach(rm=>{
@@ -413,10 +472,22 @@ function renderEvents(){
   box.innerHTML=ev.slice(0,7).map(e=>`<div class="event ${e.status}"><i class="edot"></i><div class="et">${e.text}</div><div class="es">${e.t?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(e.t)):''}</div></div>`).join('')||'<div class="empty">Wszystko w normie w ostatnich 24 godzinach.</div>';
 }
 
-function renderSummary(tempSets,humSets){const stats=pts=>{const ys=pts.map(p=>p.y);return ys.length?{min:Math.min(...ys),max:Math.max(...ys),avg:ys.reduce((a,b)=>a+b,0)/ys.length}:null};const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||stats(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel()}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td></tr>`}).join('')+'</tbody>'}
+function renderSummary(tempSets,humSets){const stats=pts=>{const ys=pts.map(p=>p.y);return ys.length?{min:Math.min(...ys),max:Math.max(...ys),avg:ys.reduce((a,b)=>a+b,0)/ys.length}:null};const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||stats(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel()}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th><th>wietrzenia</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td><td>${d.ext||useDaily()?"–":(state.wietrz?.[d.id]?.length??0)}</td></tr>`}).join('')+'</tbody>'}
 function renderHealth(){document.getElementById('health').innerHTML=`<caption>Łączność z bramką · diagnostyka ostatnich 24 h · alarm dopiero powyżej ${fmtDur(MISS_GAP)} ciszy</caption><thead><tr><th>Czujnik</th><th>temp.</th><th>wilg.</th><th>mediana odstępu</th><th>najdłuższa przerwa</th><th>para t+w</th><th>bateria</th><th>ostatni</th></tr></thead><tbody>`+state.health.map(r=>`<tr style="--c:${r.d.color}"><td>${esc(r.d.name)}</td><td>${r.nT}</td><td>${r.nH}</td><td>${fmtDur(r.median)}</td><td class="${r.suspicious?'warn-text':''}">${fmtDur(r.worst)}</td><td class="${r.paired!=null&&r.paired<.9?'warn-text':''}">${r.paired==null?'–':Math.round(r.paired*100)+'%'}</td><td class="${r.batt==='niski'?'warn-text':''}">${r.batt||'–'}</td><td class="${r.age>STALE_BAD?'bad-text':r.age>STALE_WARN?'warn-text':''}">${r.last?fmtAgo(r.last):'–'}</td></tr>`).join('')+'</tbody>'}
 function rangeLabel(){const base={24:'ostatnie 24 godziny',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[state.hours]+(useDaily()?' · dobowe min/śr/max':''),oldest=state.since??state.rows[0]?.t,from=state.hours?Date.now()-state.hours*3600e3:0;if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
-async function render(){await ensureRows();computeHealth();renderStatus();renderPens();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();draw('temp',T,'°C',1);draw('hum',H,'%',0);draw('abs',A,'g/m³',1);['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–')}
+async function render(){await ensureRows();computeHealth();renderStatus();renderPens();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();
+  // odniesienie z dworu liczymy niezależnie od przełączników — wyłączenie krzywej
+  // pogodowej z wykresu nie może wyłączać wykrywania wietrzenia
+  state.wietrz={};
+  // w widoku "całość" mamy dobowe średnie — wietrzenia po nich wykryć się nie da
+  if(!useDaily()){
+    const od=state.hours?Date.now()-state.hours*3600e3:0;
+    const zewn=state.devices.find(d=>d.ext&&d.temp&&d.hum),odn=zewn?absPoints(zewn,od,false):[];
+    state.devices.filter(d=>!d.ext&&d.temp&&d.hum).forEach(d=>{state.wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn)});
+  }
+  state.wietrzPasma=scalPasma(Object.values(state.wietrz));
+  document.getElementById('wietrz-abs').textContent=state.wietrzPasma.length?` · ${plWietrz(state.wietrzPasma.length)}`:'';
+  draw('temp',T,'°C',1);draw('hum',H,'%',0);draw('abs',A,'g/m³',1,[pasma]);['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–')}
 boot();
 // Instalacja na ekranie głównym i tryb offline. Rejestracja po load, żeby nie
 // konkurowała o łącze z pierwszym wczytaniem danych. Brak wsparcia albo blokada
