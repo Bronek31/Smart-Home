@@ -32,7 +32,9 @@ jobs:
           TUYA_CLIENT_ID: ${{ secrets.TUYA_CLIENT_ID }}
           TUYA_CLIENT_SECRET: ${{ secrets.TUYA_CLIENT_SECRET }}
           TUYA_REGION: eu
-          TUYA_DEVICE_IDS: 'bf43cf664d6644420axva3,bf7e2a70935af7de78mjqt,bf5741c97c96fa85b1d7do,bfd6f4f87fea9d866dvpve'
+          # cztery czujniki klimatu + klimatyzator FERSK VIND 2 (zbierany jest z niego
+          # wyłącznie włącznik, żeby było wiadomo, kiedy chodził)
+          TUYA_DEVICE_IDS: 'bf43cf664d6644420axva3,bf7e2a70935af7de78mjqt,bf5741c97c96fa85b1d7do,bfd6f4f87fea9d866dvpve,bfe38c4af789b0c8fbxte4'
           TUYA_SINCE: ''
           TUYA_MIN_GAP: '1.2'
           # Pogoda z Open-Meteo — bez klucza API. Puste OUTDOOR_LAT wyłącza tę część.

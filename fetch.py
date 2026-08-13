@@ -63,6 +63,8 @@ def classify(code: str, unit: str) -> str | None:
     low, u = code.lower(), (unit or "").strip().lower()
     if any(bad in low for bad in NOT_A_SENSOR):
         return None
+    if low == "switch" or (low.startswith("switch_") and low[7:].isdigit()):
+        return "power"          # włącznik urządzenia: klimatyzator, oczyszczacz, grzejnik
     if "battery" in low:
         return "battery"
     if low in KNOWN_TEMP or ("temp" in low and u in TEMP_UNITS):
@@ -210,7 +212,7 @@ def describe_codes(client: Tuya, device_id: str) -> dict:
             continue
         codes[code] = {
             "kind": kind,
-            "unit": unit or {"temp": "°C", "hum": "%", "battery": "%"}[kind],
+            "unit": unit or {"temp": "°C", "hum": "%", "battery": "%"}.get(kind, ""),
             "scale": int(spec.get("scale", 0) or 0),
         }
     return codes
@@ -567,6 +569,8 @@ def write_daily(devices: dict | None = None) -> int:
         points.sort()
         # gdy manifest milczy o tym kodzie, próbujemy go jeszcze rozpoznać po nazwie
         kind = kinds.get((device, code)) or classify(code, "")
+        if kind in ("power", "battery"):
+            continue      # dobowa średnia z włącznika albo poziomu baterii nic nie znaczy
         bad = drop_spikes([(t, v) for t, v, _ in points], kind)
         skipped += len(bad)
         for index, (_, value, day) in enumerate(points):
@@ -681,10 +685,17 @@ def main() -> int:
         device_id = dev["id"]
         name = dev.get("name") or device_id
         codes = cached.get(device_id) or describe_codes(client, device_id)
-        if not any(m["kind"] in ("temp", "hum") for m in codes.values()):
+        # Urządzenie z włącznikiem to sprzęt, nie czujnik klimatu: interesuje nas wyłącznie
+        # to, kiedy chodziło. Jego własny termometr (klimatyzator ma temp_current) mierzy
+        # powietrze na wlocie, a nie temperaturę pokoju, więc nie wpuszczamy go na wykresy.
+        sprzet = any(m["kind"] == "power" for m in codes.values())
+        if sprzet:
+            codes = {c: m for c, m in codes.items() if m["kind"] == "power"}
+        elif not any(m["kind"] in ("temp", "hum") for m in codes.values()):
             continue
         manifest_devices[device_id] = {
             "name": name,
+            **({"appliance": True} if sprzet else {}),
             "codes": {c: {"kind": m["kind"], "unit": m["unit"], "scale": m["scale"]} for c, m in codes.items()},
         }
         try:
@@ -700,12 +711,17 @@ def main() -> int:
             if not meta:
                 continue
             raw = entry.get("value")
-            try:
-                value = f'{float(raw) / (10 ** meta["scale"]):g}'
-            except (TypeError, ValueError):
-                if meta["kind"] != "battery" or raw is None:
-                    continue
-                value = str(raw)
+            if meta["kind"] == "power":
+                # Tuya raportuje włącznik jako "true"/"false"; w CSV trzymamy 1/0,
+                # żeby przeglądarka nie musiała znać obu zapisów
+                value = "1" if str(raw).strip().lower() in ("true", "1", "on") else "0"
+            else:
+                try:
+                    value = f'{float(raw) / (10 ** meta["scale"]):g}'
+                except (TypeError, ValueError):
+                    if meta["kind"] != "battery" or raw is None:
+                        continue
+                    value = str(raw)
             when = int(entry["event_time"])
             if since_ms and when < since_ms:
                 continue

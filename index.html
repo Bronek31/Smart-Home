@@ -29,6 +29,7 @@
 /* przewijanie w pionie i szczypanie zostają przy przeglądarce, poziome przeciąganie jest nasze — bez tego podwójne stuknięcie w wykres przybliża stronę */
 .plot canvas{touch-action:pan-y pinch-zoom}
 .trace .hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);max-width:52rem}
+.pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
 .rightcol{display:flex;flex-direction:column;gap:1.2rem;min-width:0}
@@ -68,6 +69,7 @@
   <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div></div>
   <div class="trace"><h2>Wilgotność względna <small>%</small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
   <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small><small id="wietrz-abs"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
+    <div class="pasma-legenda" id="pasma-legenda" hidden></div>
     <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, więc po niej nie poznasz, czy wietrzenie cokolwiek dało — po tej owszem: linia mieszkania zbliża się wtedy do linii dworu.</p></div>
 
   <table class="summary" id="summary"></table><table class="summary" id="health"></table>
@@ -86,7 +88,7 @@
 </main>
 <script>
 const PENS=['#e8a13c','#5fb8e0','#5fce9e','#e2708f','#b79ae8','#d4c95f'];const CSS=getComputedStyle(document.documentElement);const C=n=>CSS.getPropertyValue(n).trim();
-const state={hours:168,filtr:true,cut:{},devices:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],updated:null};const monthCache=new Map();
+const state={hours:168,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -126,6 +128,10 @@ const PLAN={w:400,h:500,door:[20,192,20,246],rooms:[
   {name:'Salon',dev:'bf43cf664d6644420axva3',x:226,y:282,w:154,h:148},
   {name:'Kuchnia',dev:'bf5741c97c96fa85b1d7do',x:0,y:359,w:174,h:135}
 ]};
+/* Sprzęt osusza albo dogrzewa wyłącznie pokój, w którym stoi — wietrzenie w sypialni
+   nie ma nic wspólnego z klimatyzatorem w salonie. Tu wiążemy urządzenie z czujnikiem
+   w jego pokoju; sprzęt bez wpisu nie tłumi wykrywania nigdzie. */
+const SPRZET_POKOJ={'bfe38c4af789b0c8fbxte4':'bf43cf664d6644420axva3'};   // FERSK VIND 2 → Salon
 const HEAT_MIN=19,HEAT_MAX=28,HUE_COLD=205,HUE_HOT=22;   // skala cieplna rzutu — dopasuj do swojego zakresu
 function heat(t){if(t==null||!isFinite(t))return null;const k=Math.max(0,Math.min(1,(t-HEAT_MIN)/(HEAT_MAX-HEAT_MIN)));return HUE_COLD+(HUE_HOT-HUE_COLD)*k}
 function hsl2rgb(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,9-k(n),1));return[f(0),f(8),f(4)].map(v=>Math.round(v*255))}
@@ -183,7 +189,7 @@ const monthKey=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.get
 function neededMonths(){const all=state.months,newest=all.at(-1);if(!all.length)return[];if(!state.daily.length)return all;if(!state.hours)return all.slice(-2);const from=monthKey(Math.min(zakresOd(),Date.now()-24*3600e3)),need=all.filter(m=>m>=from);return need.includes(newest)?need:need.concat(newest)}
 async function ensureRows(){state.rows=(await Promise.all(neededMonths().map(loadMonth))).flat().sort((a,b)=>a.t-b.t)}
 const useDaily=()=>state.daily.length>0&&!state.hours;
-async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;state.devices=ids.map((id,i)=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,color:PENS[i%PENS.length],ext:!!d.external,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery')}});state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;const spanH=(Date.now()-start)/3600e3;state.hours=spanH<=24&&Date.now()-odPolnocy()>=3*3600e3?DZIS:spanH<=168?168:spanH<=720?720:0;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();['temp','hum','abs'].forEach(wireTouch);await render()}
+async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;const wszystkie=ids.map(id=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,ext:!!d.external,appliance:!!d.appliance,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery'),power:Object.keys(codes).find(c=>codes[c].kind==='power')}});state.appliances=wszystkie.filter(d=>d.appliance);state.devices=wszystkie.filter(d=>!d.appliance);state.devices.forEach((d,i)=>d.color=PENS[i%PENS.length]);state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;const spanH=(Date.now()-start)/3600e3;state.hours=spanH<=24&&Date.now()-odPolnocy()>=3*3600e3?DZIS:spanH<=168?168:spanH<=720?720:0;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();['temp','hum','abs'].forEach(wireTouch);await render()}
 // ktoś wkleił adres z innym widokiem albo cofnął się po historii
 addEventListener('hashchange',()=>{if(!state.devices.length)return;readHash();buildToggles();state.markRanges?.();document.getElementById('filtr').checked=state.filtr;render()});
 /* --- Widok zapisany w adresie ---
@@ -286,7 +292,7 @@ function seriesAbs(){
 // godzinę, więc ostatni cichy odczyt trzeba zestawić z pierwszym już przy otwartym oknie.
 // Krótsze okno po prostu nie ma czego porównać. Rozdzielczość wykrywania jest więc
 // ograniczona częstością raportów — wietrzenia krótsze niż godzina mogą umknąć.
-const WIETRZ={zmiana:0.7,okno:2*HEARTBEAT,luka:0.5,lukaT:0.5,luzT:0.3};
+const WIETRZ={zmiana:0.7,okno:2*HEARTBEAT,luka:0.5};
 // najbliższa w czasie wartość z posortowanej serii
 const wartoscW=(seria,t)=>{
   if(!seria.length)return null;
@@ -295,21 +301,7 @@ const wartoscW=(seria,t)=>{
   const a=seria[Math.max(0,lo-1)],b=seria[lo];
   return Math.abs(a.x-t)<=Math.abs(b.x-t)?a.y:b.y;
 };
-/* Klimatyzator też osusza powietrze, więc po samej wilgotności nie odróżnisz go od
-   otwartego okna. Odróżnia je temperatura, i to dwoma niezależnymi sposobami, bo
-   wymiana powietrza potrafi tylko jedno: przyciągnąć pokój do warunków na dworze.
-   1. Nie może pchać go w drugą stronę — a właśnie to robi chłodzenie w upał,
-      gdy na dworze jest goręcej niż w środku.
-   2. Nie może przeciągnąć pokoju poniżej temperatury dworu — a klimatyzator owszem,
-      i po to się go włącza także wtedy, gdy na dworze jest już chłodniej. */
-function nieChlodzenie(od,doKiedy,T,Tzew){
-  const t0=wartoscW(T,od),t1=wartoscW(T,doKiedy),z0=wartoscW(Tzew,od),z1=wartoscW(Tzew,doKiedy);
-  if(t0==null||t1==null||z0==null)return true;      // bez temperatury nie mamy czym orzekać
-  if(Math.abs(z0-t0)>=WIETRZ.lukaT&&(t1-t0)*Math.sign(z0-t0)<-WIETRZ.luzT)return false;
-  if(t1<Math.min(z0,z1??z0)-WIETRZ.luzT)return false;
-  return true;
-}
-function wietrzenia(pts,zew,T,Tzew){
+function wietrzenia(pts,zew){
   if(pts.length<2||!zew.length)return[];
   const out=[];let i=0;
   while(i<pts.length-1){
@@ -323,11 +315,27 @@ function wietrzenia(pts,zew,T,Tzew){
       j++;
     }
     const zmiana=(pts[skraj].y-pts[i].y)*kierunek;
-    if(skraj>i&&zmiana>=WIETRZ.zmiana&&nieChlodzenie(pts[i].x,pts[skraj].x,T,Tzew)){out.push({od:pts[i].x,do:pts[skraj].x,zmiana});i=skraj+1;continue}
+    if(skraj>i&&zmiana>=WIETRZ.zmiana){out.push({od:pts[i].x,do:pts[skraj].x,zmiana});i=skraj+1;continue}
     i++;
   }
   return out;
 }
+/* Kiedy chodził sprzęt — prosto z jego włącznika, bez zgadywania z temperatury.
+   Klimatyzator osusza powietrze tak samo jak otwarte okno, więc bez tej informacji
+   jego praca liczyłaby się jako wietrzenie. */
+function okresyPracy(d,od){
+  if(!d.power)return[];
+  const rows=state.rows.filter(r=>r.id===d.id&&r.code===d.power);
+  const out=[];let start=null;
+  for(const r of rows){
+    const wlaczony=r.v===1;
+    if(wlaczony&&start==null)start=r.t;
+    else if(!wlaczony&&start!=null){if(r.t>start)out.push({od:start,do:r.t});start=null}
+  }
+  if(start!=null)out.push({od:start,do:Date.now()});   // nadal chodzi
+  return out.filter(w=>w.do>=od).map(w=>({od:Math.max(w.od,od),do:w.do}));
+}
+const nachodzi=(a,lista)=>lista.some(w=>a.od<w.do&&a.do>w.od);
 // jedno wietrzenie widzi zwykle kilka pokoi naraz — na wykresie ma być jedno pasmo
 function scalPasma(lista){
   const all=lista.flat().sort((a,b)=>a.od-b.od),out=[];
@@ -336,14 +344,17 @@ function scalPasma(lista){
   return out;
 }
 const pasma={id:'pasma',beforeDatasetsDraw(chart){
-  const ev=state.wietrzPasma;if(!ev?.length)return;
   const{ctx,chartArea:a,scales:{x}}=chart;
-  ctx.save();ctx.fillStyle='rgba(95,184,224,.14)';
-  ev.forEach(w=>{
-    const x1=x.getPixelForValue(w.od),x2=x.getPixelForValue(w.do);
-    if(x2<a.left||x1>a.right)return;
-    const l=Math.max(x1,a.left),r=Math.min(Math.max(x2,l+2),a.right);
-    ctx.fillRect(l,a.top,r-l,a.bottom-a.top);
+  ctx.save();
+  [[state.klima,'rgba(226,112,143,.13)'],[state.wietrzPasma,'rgba(95,184,224,.14)']].forEach(([ev,kolor])=>{
+    if(!ev?.length)return;
+    ctx.fillStyle=kolor;
+    ev.forEach(w=>{
+      const x1=x.getPixelForValue(w.od),x2=x.getPixelForValue(w.do);
+      if(x2<a.left||x1>a.right)return;
+      const l=Math.max(x1,a.left),r=Math.min(Math.max(x2,l+2),a.right);
+      ctx.fillRect(l,a.top,r-l,a.bottom-a.top);
+    });
   });
   ctx.restore();
 }};
@@ -500,17 +511,26 @@ function rangeLabel(){const base={[DZIS]:'dzisiaj od północy',168:'ostatnie 7 
 async function render(){await ensureRows();computeHealth();renderStatus();renderPens();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();
   // odniesienie z dworu liczymy niezależnie od przełączników — wyłączenie krzywej
   // pogodowej z wykresu nie może wyłączać wykrywania wietrzenia
-  state.wietrz={};
+  state.wietrz={};state.klima=[];
   // w widoku "całość" mamy dobowe średnie — wietrzenia po nich wykryć się nie da
   if(!useDaily()){
     const od=zakresOd();
+    const praca=state.appliances.map(d=>({d,okresy:okresyPracy(d,od)}));
+    state.klima=scalPasma(praca.map(p=>p.okresy));
+    const wPokoju={};   // czujnik → okresy pracy sprzętu stojącego akurat u niego
+    praca.forEach(({d,okresy})=>{const cel=SPRZET_POKOJ[d.id];if(cel)(wPokoju[cel]??=[]).push(...okresy)});
     const zewn=state.devices.find(d=>d.ext&&d.temp&&d.hum),odn=zewn?absPoints(zewn,od,false):[];
-    const tempPkt=d=>state.rows.filter(r=>r.id===d.id&&r.code===d.temp&&r.t>=od&&isFinite(r.v)).map(r=>({x:r.t,y:r.v}));
-    const Tzew=zewn?tempPkt(zewn):[];
-    state.devices.filter(d=>!d.ext&&d.temp&&d.hum).forEach(d=>{state.wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn,tempPkt(d),Tzew)});
+    // epizod nachodzący na pracę sprzętu w tym samym pokoju to jego osuszanie, nie otwarte okno
+    state.devices.filter(d=>!d.ext&&d.temp&&d.hum).forEach(d=>{
+      state.wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn).filter(e=>!nachodzi(e,wPokoju[d.id]||[]));
+    });
   }
   state.wietrzPasma=scalPasma(Object.values(state.wietrz));
   document.getElementById('wietrz-abs').textContent=state.wietrzPasma.length?` · ${plWietrz(state.wietrzPasma.length)}`:'';
+  const legenda=[];
+  if(state.wietrzPasma.length)legenda.push('<span><i style="background:rgba(95,184,224,.32)"></i>wietrzenie</span>');
+  if(state.klima.length)legenda.push(`<span><i style="background:rgba(226,112,143,.30)"></i>${esc(state.appliances[0]?.name||'urządzenie')} w pracy</span>`);
+  const box=document.getElementById('pasma-legenda');box.innerHTML=legenda.join('');box.hidden=!legenda.length;
   draw('temp',T,'°C',1);draw('hum',H,'%',0);draw('abs',A,'g/m³',1,[pasma]);['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–')}
 boot();
 // Instalacja na ekranie głównym i tryb offline. Rejestracja po load, żeby nie

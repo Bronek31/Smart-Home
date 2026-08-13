@@ -29,6 +29,11 @@ dopiero wtedy, gdy kolektor milczy dłużej niż tydzień. Właśnie po to jest 
 Czujniki raportują **przy zmianie temperatury o 0,5 °C** albo **raz na godzinę**,
 cokolwiek wypadnie pierwsze. Odstępy 60-minutowe to norma, nie awaria.
 
+Poza czujnikami klimatu kolektor zbiera też **włączniki urządzeń** — z klimatyzatora
+w salonie bierze wyłącznie to, kiedy chodził. Bez tego jego osuszanie liczyłoby się
+jako wietrzenie, bo w powietrzu wygląda tak samo jak otwarte okno. Które urządzenie
+stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
+
 ---
 
 ## Pliki
@@ -39,6 +44,8 @@ cokolwiek wypadnie pierwsze. Odstępy 60-minutowe to norma, nie awaria.
 | `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
 | `.github/workflows/zbieraj.yml` | harmonogram zbierania, co godzinę o :19 |
 | `.github/workflows/watchdog.yml` | raz na dobę sprawdza, czy kolektor żyje |
+| `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
+| `manifest.json`, `sw.js`, `ikona*` | instalacja na ekranie głównym telefonu i tryb offline |
 | `data/RRRR-MM.csv` | surowe odczyty: `ts,device_id,code,value` |
 | `data/dzienne.csv` | dobowe min/średnia/max — z tego rysuje się widok „całość" |
 | `data/pogoda.json` | migawka: teraz, prognoza na 3 dni, jakość powietrza. Nadpisywana co przebieg |
