@@ -45,6 +45,8 @@ FIELDS = ["ts", "device_id", "code", "value"]
 DAILY_FIELDS = ["date", "device_id", "code", "min", "avg", "max", "n"]
 OUTDOOR_ID = "zewnatrz"
 OUTDOOR_URL = "https://api.open-meteo.com/v1/forecast"
+AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
+WEATHER = DATA_DIR / "pogoda.json"
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 RATE_LIMIT_CODES = {40000309, 1104, 2009}
 TEMP_UNITS = {"°c", "℃", "c", "°f", "℉", "f"}
@@ -441,6 +443,49 @@ def drop_spikes(points: list[tuple[float, float]], code: str) -> set[int]:
     return bad
 
 
+def fetch_weather() -> dict | None:
+    """Migawka pogodowa: teraz + prognoza na 3 dni + jakość powietrza.
+
+    To nie jest historia, tylko stan na chwilę obecną, więc ląduje w osobnym
+    pliku nadpisywanym co przebieg, a nie w CSV z odczytami.
+    """
+    lat = os.environ.get("OUTDOOR_LAT", "").strip()
+    lon = os.environ.get("OUTDOOR_LON", "").strip()
+    if not lat or not lon:
+        return None
+    zone = os.environ.get("TZ_LOCAL", "Europe/Warsaw")
+    snapshot = {"updated": iso(int(time.time() * 1000))}
+    try:
+        resp = requests.get(OUTDOOR_URL, params={
+            "latitude": lat, "longitude": lon,
+            "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
+            "daily": "weather_code,temperature_2m_max,temperature_2m_min,"
+                     "precipitation_probability_max,precipitation_sum",
+            "forecast_days": 3, "timezone": zone,
+        }, timeout=30)
+        data = resp.json() or {}
+        if not data.get("current"):
+            print(f"Prognoza: pominięta — {data.get('reason', 'brak danych')}", flush=True)
+            return None
+        snapshot["current"] = data["current"]
+        snapshot["daily"] = data.get("daily") or {}
+    except (requests.RequestException, ValueError) as err:
+        print(f"Prognoza: pominięta — {err}", flush=True)
+        return None
+    try:
+        resp = requests.get(AIR_URL, params={
+            "latitude": lat, "longitude": lon,
+            "current": "european_aqi,pm2_5,pm10", "timezone": zone,
+        }, timeout=30)
+        snapshot["air"] = (resp.json() or {}).get("current") or {}
+    except (requests.RequestException, ValueError) as err:
+        print(f"Jakość powietrza: pominięta — {err}", flush=True)
+        snapshot["air"] = {}
+    WEATHER.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"Prognoza zapisana ({snapshot['current'].get('temperature_2m')} °C teraz).", flush=True)
+    return snapshot
+
+
 def write_daily() -> int:
     """Przelicza całą historię na dobowe min/średnią/max.
 
@@ -509,6 +554,7 @@ def write_manifest(devices: dict) -> None:
                 "updated": iso(int(time.time() * 1000)),
                 "months": months,
                 "daily": DAILY.name if DAILY.exists() else None,
+                "weather": WEATHER.name if WEATHER.exists() else None,
                 "devices": devices,
             },
             ensure_ascii=False, indent=2,
@@ -624,6 +670,8 @@ def main() -> int:
     if outdoor_entry:
         collected.extend(outdoor_rows)
         manifest_devices[OUTDOOR_ID] = outdoor_entry
+
+    fetch_weather()
 
     added = merge(collected)
     days_written = write_daily()

@@ -35,12 +35,13 @@ cokolwiek wypadnie pierwsze. Odstępy 60-minutowe to norma, nie awaria.
 
 | Plik | Do czego |
 |---|---|
-| `fetch.py` | kolektor: pobiera logi z Tuya i pogodę z Open-Meteo, przelicza agregaty |
+| `fetch.py` | kolektor: pobiera logi z Tuya, pogodę i smog z Open-Meteo, przelicza agregaty |
 | `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
 | `.github/workflows/zbieraj.yml` | harmonogram zbierania, co godzinę o :19 |
 | `.github/workflows/watchdog.yml` | raz na dobę sprawdza, czy kolektor żyje |
 | `data/RRRR-MM.csv` | surowe odczyty: `ts,device_id,code,value` |
 | `data/dzienne.csv` | dobowe min/średnia/max — z tego rysuje się widok „całość" |
+| `data/pogoda.json` | migawka: teraz, prognoza na 3 dni, jakość powietrza. Nadpisywana co przebieg |
 | `data/index.json` | lista urządzeń, miesięcy i czas ostatniej zbiórki |
 
 ---
@@ -72,12 +73,12 @@ Wszystkie w sekcji `env` w `.github/workflows/zbieraj.yml`:
 | `TUYA_REGION` | `eu` | data center projektu Tuya |
 | `TUYA_DEVICE_IDS` | — | identyfikatory czujników po przecinku |
 | `TUYA_SINCE` | puste | granica: starsze odczyty są kasowane i nie wracają |
-| `OUTDOOR_LAT` / `OUTDOOR_LON` | Katowice | pogoda z Open-Meteo. Puste = wyłączona |
+| `OUTDOOR_LAT` / `OUTDOOR_LON` | Katowice | pogoda i smog z Open-Meteo. Puste = wyłączone |
 | `TZ_LOCAL` | `Europe/Warsaw` | według tej strefy tną się doby w agregatach |
 
 Proporcje pokoi na rzucie mieszkania siedzą w stałej `PLAN` w `index.html` —
 to `x, y, w, h` w siatce 400×500. Progi alarmów (`HEARTBEAT`, `STALE_WARN`)
-są tuż obok.
+i filtra chwilowych skoków (`SPIKE`) są tuż obok.
 
 ---
 
@@ -99,5 +100,5 @@ są tuż obok.
 ## Koszt
 
 Zero. Publiczne repozytorium ma darmowe minuty Actions i darmowe Pages.
-Open-Meteo nie wymaga klucza API. Jedyne ograniczenie to darmowy trial
+Open-Meteo nie wymaga klucza API (licencja CC BY 4.0 — stąd podpis w stopce). Jedyne ograniczenie to darmowy trial
 IoT Core u Tuya, który trzeba co pół roku przedłużać jednym kliknięciem.
