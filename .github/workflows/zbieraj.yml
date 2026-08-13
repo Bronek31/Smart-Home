@@ -35,6 +35,12 @@ jobs:
           TUYA_DEVICE_IDS: 'bf43cf664d6644420axva3,bf7e2a70935af7de78mjqt,bf5741c97c96fa85b1d7do,bfd6f4f87fea9d866dvpve'
           TUYA_SINCE: ''
           TUYA_MIN_GAP: '1.2'
+          # Pogoda z Open-Meteo — bez klucza API. Puste OUTDOOR_LAT wyłącza tę część.
+          OUTDOOR_LAT: '50.2649'          # Katowice
+          OUTDOOR_LON: '19.0238'
+          OUTDOOR_NAME: 'Na zewnątrz'
+          # Strefa, według której tną się doby w agregatach data/dzienne.csv
+          TZ_LOCAL: 'Europe/Warsaw'
         run: python fetch.py --days 3
 
       - name: Zapisz zmiany
