@@ -1,11 +1,31 @@
 {
-  "updated": "2026-08-12T23:59:30Z",
+  "updated": "2026-08-13T02:49:18Z",
   "months": [
     "2026-08"
   ],
   "devices": {
-    "bf43cf664d6644420axva3": {
-      "name": "Salon",
+    "bfd6f4f87fea9d866dvpve": {
+      "name": "Łazienka",
+      "codes": {
+        "va_temperature": {
+          "kind": "temp",
+          "unit": "℃",
+          "scale": 1
+        },
+        "va_humidity": {
+          "kind": "hum",
+          "unit": "%",
+          "scale": 0
+        },
+        "battery_state": {
+          "kind": "battery",
+          "unit": "%",
+          "scale": 0
+        }
+      }
+    },
+    "bf7e2a70935af7de78mjqt": {
+      "name": "Sypialnia",
       "codes": {
         "va_temperature": {
           "kind": "temp",
@@ -44,28 +64,8 @@
         }
       }
     },
-    "bfd6f4f87fea9d866dvpve": {
-      "name": "Łazienka",
-      "codes": {
-        "va_temperature": {
-          "kind": "temp",
-          "unit": "℃",
-          "scale": 1
-        },
-        "va_humidity": {
-          "kind": "hum",
-          "unit": "%",
-          "scale": 0
-        },
-        "battery_state": {
-          "kind": "battery",
-          "unit": "%",
-          "scale": 0
-        }
-      }
-    },
-    "bf7e2a70935af7de78mjqt": {
-      "name": "Sypialnia",
+    "bf43cf664d6644420axva3": {
+      "name": "Salon",
       "codes": {
         "va_temperature": {
           "kind": "temp",
