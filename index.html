@@ -173,13 +173,40 @@ const monthKey=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.get
 function neededMonths(){const all=state.months,newest=all.at(-1);if(!all.length)return[];if(!state.daily.length)return all;if(!state.hours)return all.slice(-2);const from=monthKey(Date.now()-state.hours*3600e3),need=all.filter(m=>m>=from);return need.includes(newest)?need:need.concat(newest)}
 async function ensureRows(){state.rows=(await Promise.all(neededMonths().map(loadMonth))).flat().sort((a,b)=>a.t-b.t)}
 const useDaily=()=>state.daily.length>0&&!state.hours;
-async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;state.devices=ids.map((id,i)=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,color:PENS[i%PENS.length],ext:!!d.external,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery')}});state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;const spanH=(Date.now()-start)/3600e3;state.hours=spanH<=24?24:spanH<=168?168:spanH<=720?720:0;document.getElementById('app').hidden=false;buildToggles();wireRanges();['temp','hum'].forEach(wireTouch);await render()}
-function buildToggles(){const box=document.getElementById('toggles');box.innerHTML='';state.devices.forEach(d=>{const b=document.createElement('button');b.className='toggle';b.style.setProperty('--c',d.color);b.setAttribute('aria-pressed','true');b.textContent=d.name;b.onclick=()=>{const on=b.getAttribute('aria-pressed')==='true';b.setAttribute('aria-pressed',String(!on));on?state.off.add(d.id):state.off.delete(d.id);render()};box.appendChild(b)})}
+async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;state.devices=ids.map((id,i)=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,color:PENS[i%PENS.length],ext:!!d.external,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery')}});state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;const spanH=(Date.now()-start)/3600e3;state.hours=spanH<=24?24:spanH<=168?168:spanH<=720?720:0;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();['temp','hum'].forEach(wireTouch);await render()}
+// ktoś wkleił adres z innym widokiem albo cofnął się po historii
+addEventListener('hashchange',()=>{if(!state.devices.length)return;readHash();buildToggles();state.markRanges?.();document.getElementById('filtr').checked=state.filtr;render()});
+/* --- Widok zapisany w adresie ---
+   #zakres=7d&bez=salon,kuchnia&filtr=0 — dzięki temu odświeżenie strony nie kasuje
+   wyboru, widok da się dodać do zakładek i wysłać komuś gotowy. Czujniki po nazwie,
+   nie po identyfikatorze, bo adres ma być czytelny; nieznana nazwa jest pomijana. */
+const ZAKRESY={'24h':24,'7d':168,'30d':720,'all':0};
+function readHash(){
+  const p=new URLSearchParams(location.hash.slice(1)),z=p.get('zakres');
+  const znany=z!=null&&z in ZAKRESY;
+  if(znany)state.hours=ZAKRESY[z];
+  // adres z zakresem opisuje widok w całości, więc brak filtr= znaczy "włączony",
+  // a nie "zostaw jak było" — inaczej wklejony link dałby u każdego co innego
+  if(znany||p.has('filtr'))state.filtr=p.get('filtr')!=='0';
+  const bez=(p.get('bez')||'').split(',').filter(Boolean).map(s=>s.toLowerCase());
+  state.off=new Set(state.devices.filter(d=>bez.includes(d.name.toLowerCase())).map(d=>d.id));
+  return znany;
+}
+function writeHash(){
+  const p=new URLSearchParams({zakres:Object.keys(ZAKRESY).find(k=>ZAKRESY[k]===state.hours)||'7d'});
+  const bez=state.devices.filter(d=>state.off.has(d.id)).map(d=>d.name.toLowerCase());
+  if(bez.length)p.set('bez',bez.join(','));
+  if(!state.filtr)p.set('filtr','0');
+  // replaceState, a nie push: przycisk Wstecz ma wracać na poprzednią stronę, nie po widokach
+  history.replaceState(null,'',location.pathname+location.search+'#'+p);
+}
+function buildToggles(){const box=document.getElementById('toggles');box.innerHTML='';state.devices.forEach(d=>{const b=document.createElement('button');b.className='toggle';b.style.setProperty('--c',d.color);b.setAttribute('aria-pressed',String(!state.off.has(d.id)));b.textContent=d.name;b.onclick=()=>{const on=b.getAttribute('aria-pressed')==='true';b.setAttribute('aria-pressed',String(!on));on?state.off.add(d.id):state.off.delete(d.id);writeHash();render()};box.appendChild(b)})}
 function wireRanges(){const btns=[...document.querySelectorAll('.range[data-hours]')];
   // boot() sam dobiera zakres do długości historii, więc podświetlenie idzie za stanem, a nie za kliknięciem
   const mark=()=>btns.forEach(b=>+b.dataset.hours===state.hours?b.setAttribute('aria-pressed','true'):b.removeAttribute('aria-pressed'));
-  btns.forEach(b=>b.onclick=()=>{state.hours=+b.dataset.hours;mark();render()});mark();
-  const f=document.getElementById('filtr');f.checked=state.filtr;f.onchange=()=>{state.filtr=f.checked;render()}}
+  btns.forEach(b=>b.onclick=()=>{state.hours=+b.dataset.hours;mark();writeHash();render()});mark();
+  const f=document.getElementById('filtr');f.checked=state.filtr;f.onchange=()=>{state.filtr=f.checked;writeHash();render()};
+  state.markRanges=mark}
 function bucket(points,limit=900){if(points.length<=limit)return points;const size=Math.ceil(points.length/limit),out=[];for(let i=0;i<points.length;i+=size){const s=points.slice(i,i+size);out.push({x:s[Math.floor(s.length/2)].x,y:s.reduce((a,p)=>a+p.y,0)/s.length})}return out}
 function indoorStart(){const ext=new Set(state.devices.filter(d=>d.ext).map(d=>d.id));
   if(useDaily())return state.daily.find(r=>!ext.has(r.id))?.t||0;
