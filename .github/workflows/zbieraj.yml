@@ -52,7 +52,18 @@ jobs:
           git add data/
           if git diff --staged --quiet; then
             echo "Brak nowych odczytów — nic do zapisania."
-          else
-            git commit -m "odczyty: $(date -u '+%Y-%m-%d %H:%M') UTC"
-            git push
+            exit 0
           fi
+          git commit -m "odczyty: $(date -u '+%Y-%m-%d %H:%M') UTC"
+          # Ktoś mógł commitnąć na main w trakcie przebiegu — wtedy push leci odrzucony
+          # i przebieg świeci na czerwono, choć nic złego się nie stało. Dociągamy więc
+          # i próbujemy ponownie. Rebase jest bezpieczny, bo ruszamy wyłącznie data/.
+          for proba in 1 2 3; do
+            if git push; then
+              exit 0
+            fi
+            echo "Push odrzucony (próba $proba) — dociągam main i powtarzam."
+            git pull --rebase --autostash origin main || break
+          done
+          echo "Nie udało się zapisać odczytów po trzech próbach." >&2
+          exit 1
