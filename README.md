@@ -21,7 +21,7 @@ czujniki Zigbee → bramka → chmura Tuya → fetch.py (GitHub Actions, co godz
                                     index.html (GitHub Pages)
 ```
 
-Tuya udostępnia **7 dni logów wstecz**, więc każdy przebieg pobiera okno 3 dni
+Tuya udostępnia **7 dni logów wstecz**, więc każdy przebieg pobiera całe to okno
 i dokłada tylko to, czego jeszcze nie ma. Pominięty albo nieudany przebieg
 niczego nie kosztuje — następny nadrabia zaległości. Dziura w danych powstaje
 dopiero wtedy, gdy kolektor milczy dłużej niż tydzień. Właśnie po to jest watchdog.

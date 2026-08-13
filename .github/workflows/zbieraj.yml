@@ -3,7 +3,7 @@ name: Zbieranie odczytów
 on:
   schedule:
     # Raz na godzinę, poza pełną godziną — GitHub może opóźniać scheduled runs.
-    # Opóźnienie nie jest problemem, bo fetch.py pobiera okno 3 dni.
+    # Opóźnienie nie jest problemem, bo fetch.py pobiera pełne okno 7 dni.
     - cron: '19 * * * *'
   workflow_dispatch:        # przycisk "Run workflow" do ręcznego odpalenia
 
@@ -41,7 +41,9 @@ jobs:
           OUTDOOR_NAME: 'Na zewnątrz'
           # Strefa, według której tną się doby w agregatach data/dzienne.csv
           TZ_LOCAL: 'Europe/Warsaw'
-        run: python fetch.py --days 3
+        # Pełne okno, jakie daje Tuya. Przy postoju kolektora dopiero to pozwala
+        # nadrobić wszystko, co jeszcze jest do odzyskania.
+        run: python fetch.py --days 7
 
       - name: Zapisz zmiany
         run: |
