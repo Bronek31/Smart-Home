@@ -340,7 +340,11 @@ function okresyPracy(d,od){
   if(start!=null)out.push({od:start,do:Date.now()});   // nadal chodzi
   return out.filter(w=>w.do>=od).map(w=>({od:Math.max(w.od,od),do:w.do}));
 }
-const nachodzi=(a,lista)=>lista.some(w=>a.od<w.do&&a.do>w.od);
+/* Liczy się moment, w którym wilgotność zaczęła spadać, a nie cały epizod: jeśli
+   sprzęt ruszył godzinę po tym, jak zaczęła opadać, to nie on ją strącił. Luz na
+   przód, bo urządzenie mogło zacząć chłodzić chwilę przed pierwszym raportem. */
+const KLIMA_LUZ=10*60000;
+const pracowalWtedy=(t,lista)=>lista.some(w=>t>=w.od-KLIMA_LUZ&&t<=w.do);
 // jedno wietrzenie widzi zwykle kilka pokoi naraz — na wykresie ma być jedno pasmo
 function scalPasma(lista){
   const all=lista.flat().sort((a,b)=>a.od-b.od),out=[];
@@ -526,9 +530,9 @@ async function render(){await ensureRows();computeHealth();renderStatus();render
     const wPokoju={};   // czujnik → okresy pracy sprzętu stojącego akurat u niego
     praca.forEach(({d,okresy})=>{const cel=SPRZET_POKOJ[d.id];if(cel)(wPokoju[cel]??=[]).push(...okresy)});
     const zewn=state.devices.find(d=>d.ext&&d.temp&&d.hum),odn=zewn?absPoints(zewn,od,false):[];
-    // epizod nachodzący na pracę sprzętu w tym samym pokoju to jego osuszanie, nie otwarte okno
+    // spadek zaczęty przy pracującym sprzęcie w tym samym pokoju to jego osuszanie, nie okno
     state.devices.filter(d=>!d.ext&&d.temp&&d.hum).forEach(d=>{
-      state.wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn).filter(e=>!nachodzi(e,wPokoju[d.id]||[]));
+      state.wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn).filter(e=>!pracowalWtedy(e.od,wPokoju[d.id]||[]));
     });
   }
   state.wietrzPasma=scalPasma(Object.values(state.wietrz));
