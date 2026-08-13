@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0f1419"/>
+  <!-- ta sama krzywa co na wykresie temperatury, w kolorze pierwszego pisaka -->
+  <path d="M64 336 L128 300 L176 316 L224 208 L272 240 L320 168 L384 196 L448 152"
+        fill="none" stroke="#e8a13c" stroke-width="26"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M64 396 L448 396" stroke="#2f3d4a" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="320" cy="168" r="34" fill="#0f1419"/>
+  <circle cx="320" cy="168" r="20" fill="#5fb8e0"/>
+</svg>
