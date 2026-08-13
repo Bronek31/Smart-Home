@@ -1,0 +1,92 @@
+name: Watchdog kolektora
+
+# Actions nie powiadamia o przebiegach, które w ogóle nie ruszyły — a to najczęstsza
+# awaria tego zestawu. Ten workflow raz na dobę sprawdza wiek data/index.json
+# i zakłada zgłoszenie, jeśli kolektor zamilkł. Przy okazji jego własne przebiegi
+# utrzymują repozytorium jako aktywne, więc GitHub nie wyłączy harmonogramów.
+
+on:
+  schedule:
+    - cron: '41 7 * * *'     # 9:41 czasu polskiego latem
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  PROG_GODZIN: '6'           # kolektor chodzi co godzinę, więc 6 godz. to 6 nieudanych prób
+
+jobs:
+  sprawdz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Policz wiek ostatniej zbiórki
+        id: wiek
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os
+          from datetime import datetime, timezone
+          prog = float(os.environ["PROG_GODZIN"])
+          try:
+              stamp = json.load(open("data/index.json"))["updated"]
+              last = datetime.strptime(stamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+              godzin = (datetime.now(timezone.utc) - last).total_seconds() / 3600
+              opis = f"ostatni zapis {last:%Y-%m-%d %H:%M} UTC, czyli {godzin:.1f} godz. temu"
+          except Exception as blad:
+              godzin, opis = 999.0, f"nie da sie odczytac data/index.json ({blad})"
+          print(f"godzin={godzin:.1f}")
+          print(f"alarm={'tak' if godzin > prog else 'nie'}")
+          print(f"opis={opis}")
+          PY
+
+      - name: Podsumowanie
+        run: echo "Wiek ostatniej zbiórki - ${{ steps.wiek.outputs.opis }}"
+
+      - name: Załóż albo odśwież zgłoszenie
+        if: steps.wiek.outputs.alarm == 'tak'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPIS: ${{ steps.wiek.outputs.opis }}
+        run: |
+          gh label create kolektor --color B60205 --description "Zbieranie odczytów stoi" 2>/dev/null || true
+          TRESC=$(cat <<EOF
+          Kolektor przestał zapisywać dane: $OPIS.
+
+          Co sprawdzić po kolei:
+
+          1. Zakładka **Actions** — czy przebiegi *Zbieranie odczytów* w ogóle ruszają.
+             Jeśli nie ruszają, harmonogram mógł zostać wyłączony; wystarczy jedno
+             ręczne uruchomienie przyciskiem *Run workflow*.
+          2. Jeśli ruszają i się wywalają, otwórz log ostatniego przebiegu.
+             Kod **28841002** oznacza wygasły trial IoT Core — trzeba złożyć wniosek
+             o przedłużenie na iot.tuya.com i poczekać 1-2 dni robocze.
+          3. Sprawdź, czy sekrety \`TUYA_CLIENT_ID\` i \`TUYA_CLIENT_SECRET\` nadal
+             są w ustawieniach repozytorium.
+
+          **Zegar tyka:** Tuya udostępnia tylko 7 dni logów wstecz. Odczyty z okresu
+          dłuższego niż tydzień przepadną bezpowrotnie, bo nie ma ich skąd odtworzyć.
+          EOF
+          )
+          NUMER=$(gh issue list --label kolektor --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          if [ -n "$NUMER" ]; then
+            gh issue comment "$NUMER" --body "$TRESC"
+            echo "Dopisano komentarz do zgłoszenia #$NUMER."
+          else
+            gh issue create --title "Kolektor stoi" --label kolektor --body "$TRESC"
+          fi
+
+      - name: Zamknij zgłoszenie, gdy wróciło do normy
+        if: steps.wiek.outputs.alarm == 'nie'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OPIS: ${{ steps.wiek.outputs.opis }}
+        run: |
+          NUMER=$(gh issue list --label kolektor --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          if [ -z "$NUMER" ]; then
+            echo "Wszystko w normie, nie ma czego zamykać."
+            exit 0
+          fi
+          gh issue close "$NUMER" --comment "Kolektor znowu zapisuje: $OPIS."
