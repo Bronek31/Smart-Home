@@ -5,6 +5,17 @@ on:
     # Raz na godzinę, poza pełną godziną — GitHub może opóźniać scheduled runs.
     # Opóźnienie nie jest problemem, bo fetch.py pobiera pełne okno 7 dni.
     - cron: '19 * * * *'
+  push:
+    branches: [main]
+    # Zmiana kodu ma od razu dostać świeże dane, bez klikania w Actions. Strona
+    # przebudowuje się osobno i sama, przy każdym pushu na main.
+    #
+    # data/** wyłączone, żeby zapis odczytów nie wywoływał kolejnego zbierania.
+    # GitHub i tak nie odpala workflowów dla pushy zrobionych przez GITHUB_TOKEN,
+    # ale gdyby ten krok kiedykolwiek dostał własny token albo deploy key, ten
+    # filtr jest jedyną rzeczą stojącą między nami a pętlą bez końca.
+    paths-ignore:
+      - 'data/**'
   workflow_dispatch:        # przycisk "Run workflow" do ręcznego odpalenia
 
 permissions:
