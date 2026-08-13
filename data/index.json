@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-13T19:37:07Z",
+  "updated": "2026-08-13T19:57:55Z",
   "months": [
     "2026-08"
   ],
@@ -15,7 +15,8 @@
           "unit": "",
           "scale": 0
         }
-      }
+      },
+      "last_log": "2026-08-13T09:29:35Z"
     },
     "bfd6f4f87fea9d866dvpve": {
       "name": "Łazienka",
