@@ -43,6 +43,11 @@ MANIFEST = DATA_DIR / "index.json"
 DAILY = DATA_DIR / "dzienne.csv"
 FIELDS = ["ts", "device_id", "code", "value"]
 DAILY_FIELDS = ["date", "device_id", "code", "min", "avg", "max", "n"]
+# Jak głęboko wstecz dociągamy stan urządzeń z włącznikiem. Raportują co kilka sekund,
+# więc tydzień to tysiące stron logów; kolektor chodzi co godzinę, więc pół doby zapasu
+# w zupełności starcza. Po dłuższym postoju historia włączeń sprzed tego okna przepada —
+# odczyty czujników nie, bo one nadal lecą z pełnym oknem.
+SPRZET_OKNO = 12 * 3600 * 1000
 OUTDOOR_ID = "zewnatrz"
 OUTDOOR_URL = "https://api.open-meteo.com/v1/forecast"
 AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -703,13 +708,21 @@ def main() -> int:
         print(f"Usunięto {removed} starych odczytów sprzed TUYA_SINCE.", flush=True)
 
     manifest_devices, collected = {}, []
-    cached = {}
+    cached, ostatni_log = {}, {}
     if MANIFEST.exists():
         try:
             for dev_id, entry in json.loads(MANIFEST.read_text(encoding="utf-8")).get("devices", {}).items():
                 known = entry.get("codes") or {}
                 if all("scale" in meta for meta in known.values()) and known:
                     cached[dev_id] = {c: dict(m) for c, m in known.items()}
+                stamp = entry.get("last_log")
+                if stamp:
+                    try:
+                        ostatni_log[dev_id] = int(
+                            datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp() * 1000
+                        )
+                    except ValueError:
+                        pass
         except (ValueError, OSError):
             pass
 
@@ -731,12 +744,28 @@ def main() -> int:
             **({"appliance": True} if sprzet else {}),
             "codes": {c: {"kind": m["kind"], "unit": m["unit"], "scale": m["scale"]} for c, m in codes.items()},
         }
+        # Sprzęt raportuje swój stan co kilka sekund, więc ciągnięcie całego tygodnia
+        # przy każdym przebiegu to tysiące stron: przebieg puchł z 27 sekund do 10 minut
+        # i dobijał do limitu stron, przez co najnowsze zmiany bywały ucinane. Wystarczy
+        # dociągać od ostatniego widzianego wpisu — stąd last_log w manifeście. Czujniki
+        # klimatu zostają przy pełnym oknie, bo u nich to kilkaset wierszy na tydzień
+        # i daje odporność na przerwy w zbieraniu.
+        od_kiedy = start_ms
+        if sprzet:
+            od_kiedy = max(start_ms, end_ms - SPRZET_OKNO)
+            if ostatni_log.get(device_id):
+                od_kiedy = max(od_kiedy, ostatni_log[device_id] + 1000)
         try:
-            logs = fetch_logs(client, device_id, start_ms, end_ms)
+            logs = fetch_logs(client, device_id, od_kiedy, end_ms)
         except (TuyaError, requests.RequestException) as err:
             failed.append(name)
             print(f"{name}: pominięty — {err}", flush=True)
             continue
+        widziany = max((int(e["event_time"]) for e in logs if e.get("event_time")), default=0)
+        if sprzet:
+            znacznik = max(widziany, ostatni_log.get(device_id, 0))
+            if znacznik:
+                manifest_devices[device_id]["last_log"] = iso(znacznik)
         kept = 0
         for entry in logs:
             code = entry.get("code")
