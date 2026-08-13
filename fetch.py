@@ -216,6 +216,28 @@ def describe_codes(client: Tuya, device_id: str) -> dict:
     return codes
 
 
+def all_codes(client: Tuya, device_id: str) -> list[tuple[str, str, str]]:
+    """Wszystkie pola urządzenia, także te, których kolektor nie zbiera.
+
+    Potrzebne przy --discover: żeby podpiąć cokolwiek poza czujnikiem klimatu —
+    klimatyzator, czajnik, kontaktron — trzeba najpierw zobaczyć, jak nazywa się
+    jego pole włącznika i jakiego jest typu.
+    """
+    data = client.get(f"/v1.0/devices/{device_id}/specifications")
+    if not data.get("success"):
+        return []
+    out = []
+    for item in (data.get("result") or {}).get("status", []):
+        code = item.get("code", "")
+        try:
+            spec = json.loads(item.get("values") or "{}")
+        except (ValueError, TypeError):
+            spec = {}
+        opis = spec.get("unit") or spec.get("range") or ""
+        out.append((code, item.get("type", "?"), str(opis)))
+    return out
+
+
 def fetch_logs(client: Tuya, device_id: str, start_ms: int, end_ms: int) -> list[dict]:
     if client.log_api is None:
         probe = _logs(client, "v2", device_id, start_ms, end_ms)
@@ -613,12 +635,16 @@ def main() -> int:
         print(f"Znaleziono {len(all_devices)} urządzeń w regionie {region}:\n")
         for dev in all_devices:
             codes = describe_codes(client, dev["id"])
-            marker = "czujnik" if codes else "-"
+            marker = "czujnik klimatu" if codes else "inne urządzenie"
             print(f"  {dev['id']}   {dev.get('name', '?')}")
             print(f"      kategoria: {dev.get('category', '?')}   rola: {marker}")
-            for code, meta in codes.items():
-                print(f"      pole: {code} ({meta['kind']}, {meta['unit']}, scale={meta['scale']})")
+            for code, typ, opis in all_codes(client, dev["id"]):
+                meta = codes.get(code)
+                znane = f"zbierane jako {meta['kind']}, scale={meta['scale']}" if meta else "pomijane"
+                print(f"      pole: {code:<22} typ={typ:<8} {opis:<26} {znane}")
             print()
+        print("Żeby zbierać nowe urządzenie, dopisz jego identyfikator do TUYA_DEVICE_IDS")
+        print("w .github/workflows/zbieraj.yml.")
         return 0
 
     wanted = [d.strip() for d in os.environ.get("TUYA_DEVICE_IDS", "").split(",") if d.strip()]

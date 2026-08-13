@@ -1,0 +1,39 @@
+name: Pokaż urządzenia w Tuya
+
+# Wypisuje wszystkie urządzenia widoczne na koncie Tuya wraz z ich polami (DP).
+# Potrzebne, gdy chcesz podpiąć coś poza czujnikami klimatu — na przykład
+# klimatyzator, żeby dashboard wiedział, kiedy był włączony.
+#
+# Uruchamiasz ręcznie, nic nie zapisuje do repozytorium: Actions -> Pokaż
+# urządzenia w Tuya -> Run workflow, a potem czytasz log kroku.
+#
+# Uwaga: log przebiegu w publicznym repozytorium jest publiczny. Wypisywane są
+# identyfikatory i nazwy urządzeń — te same, które i tak leżą już w zbieraj.yml
+# i w data/index.json. Sekrety nie są wypisywane.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pokaz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Wypisz urządzenia i ich pola
+        env:
+          TUYA_CLIENT_ID: ${{ secrets.TUYA_CLIENT_ID }}
+          TUYA_CLIENT_SECRET: ${{ secrets.TUYA_CLIENT_SECRET }}
+          TUYA_REGION: eu
+          TUYA_MIN_GAP: '1.2'
+        run: python fetch.py --discover
