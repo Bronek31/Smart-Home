@@ -28,6 +28,7 @@
 .trace{margin-top:1.7rem}.trace h2{margin:0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;align-items:baseline;gap:.55rem}.trace h2 small{font-weight:400;letter-spacing:.06em;color:var(--faint);text-transform:none}.plot{position:relative;height:238px;background:var(--panel);border:1px solid var(--edge)}@media(min-width:700px){.plot{height:300px}}
 /* przewijanie w pionie i szczypanie zostają przy przeglądarce, poziome przeciąganie jest nasze — bez tego podwójne stuknięcie w wykres przybliża stronę */
 .plot canvas{touch-action:pan-y pinch-zoom}
+.trace .hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);max-width:52rem}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
 .rightcol{display:flex;flex-direction:column;gap:1.2rem;min-width:0}
@@ -66,6 +67,8 @@
 
   <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div></div>
   <div class="trace"><h2>Wilgotność względna <small>%</small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
+  <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
+    <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, więc po niej nie poznasz, czy wietrzenie cokolwiek dało — po tej owszem: linia mieszkania zbliża się wtedy do linii dworu.</p></div>
 
   <table class="summary" id="summary"></table><table class="summary" id="health"></table>
 
@@ -179,7 +182,7 @@ const monthKey=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.get
 function neededMonths(){const all=state.months,newest=all.at(-1);if(!all.length)return[];if(!state.daily.length)return all;if(!state.hours)return all.slice(-2);const from=monthKey(Date.now()-state.hours*3600e3),need=all.filter(m=>m>=from);return need.includes(newest)?need:need.concat(newest)}
 async function ensureRows(){state.rows=(await Promise.all(neededMonths().map(loadMonth))).flat().sort((a,b)=>a.t-b.t)}
 const useDaily=()=>state.daily.length>0&&!state.hours;
-async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;state.devices=ids.map((id,i)=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,color:PENS[i%PENS.length],ext:!!d.external,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery')}});state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;const spanH=(Date.now()-start)/3600e3;state.hours=spanH<=24?24:spanH<=168?168:spanH<=720?720:0;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();['temp','hum'].forEach(wireTouch);await render()}
+async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;state.devices=ids.map((id,i)=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,color:PENS[i%PENS.length],ext:!!d.external,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery')}});state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;const spanH=(Date.now()-start)/3600e3;state.hours=spanH<=24?24:spanH<=168?168:spanH<=720?720:0;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();['temp','hum','abs'].forEach(wireTouch);await render()}
 // ktoś wkleił adres z innym widokiem albo cofnął się po historii
 addEventListener('hashchange',()=>{if(!state.devices.length)return;readHash();buildToggles();state.markRanges?.();document.getElementById('filtr').checked=state.filtr;render()});
 /* --- Widok zapisany w adresie ---
@@ -232,6 +235,37 @@ function series(kind){const from=state.hours?Date.now()-state.hours*3600e3:0,sin
     return{device:d,points:bucket(pts),stats:null};
   }).filter(s=>s.points.length)}
 
+/* Wilgotność bezwzględna: trzeba sparować temperaturę z wilgotnością z tego samego
+   raportu, a czujnik wysyła je osobno, ze znacznikami czasu rozjeżdżonymi o sekundę.
+   Obie serie są posortowane, więc wystarczy jeden przebieg szukający sąsiada. */
+function pairAbs(T,H){
+  const out=[];let j=0;
+  for(const t of T){
+    while(j+1<H.length&&Math.abs(H[j+1].x-t.x)<Math.abs(H[j].x-t.x))j++;
+    const h=H[j];
+    if(!h||Math.abs(h.x-t.x)>PAIR_TOL)continue;
+    const y=absHum(t.y,h.y);
+    if(y!=null)out.push({x:t.x,y});
+  }
+  return out;
+}
+function seriesAbs(){
+  const from=state.hours?Date.now()-state.hours*3600e3:0,since=indoorStart();state.cut.abs=0;
+  return state.devices.filter(d=>d.temp&&d.hum&&!state.off.has(d.id)).map(d=>{
+    const cut=d.ext?Math.max(from,since):from;
+    if(useDaily()){
+      // z agregatów wychodzi wartość z dobowych średnich, nie średnia z wartości chwilowych
+      const dob=k=>new Map(state.daily.filter(r=>r.id===d.id&&r.code===d[k]&&r.t>=cut&&isFinite(r.avg)).map(r=>[r.date,r.avg]));
+      const T=dob('temp'),H=dob('hum'),pts=[];
+      for(const[date,t]of T){const h=H.get(date);if(h==null)continue;const y=absHum(t,h);if(y!=null)pts.push({x:Date.parse(date+'T12:00:00'),y})}
+      return{device:d,points:pts.sort((a,b)=>a.x-b.x),stats:null};
+    }
+    const surowe=k=>state.rows.filter(r=>r.id===d.id&&r.code===d[k]&&r.t>=cut&&isFinite(r.v)).map(r=>({x:r.t,y:r.v}));
+    let T=surowe('temp'),H=surowe('hum');
+    if(state.filtr&&!d.ext){const a=despike(T,'temp'),b=despike(H,'hum');T=a.pts;H=b.pts;state.cut.abs+=a.cut+b.cut}
+    return{device:d,points:bucket(pairAbs(T,H)),stats:null};
+  }).filter(s=>s.points.length);
+}
 function rawPoints(device,kind,from){if(!device[kind])return[];return state.rows.filter(r=>r.id===device.id&&r.code===device[kind]&&r.t>=from&&isFinite(r.v))}
 function readings(device,kind){if(!device[kind])return{last:null,dayAgo:null};const cutoff=Date.now()-24*3600e3;let last=null,dayAgo=null;for(const r of state.rows){if(r.id!==device.id||r.code!==device[kind]||!isFinite(r.v))continue;last=r;if(r.t<=cutoff)dayAgo=r}return{last,dayAgo}}
 const BATTERY_PL={low:'niski',middle:'średni',high:'wysoki'};function lastBattery(d){if(!d.batt)return null;for(let i=state.rows.length-1;i>=0;i--){const r=state.rows[i];if(r.id===d.id&&r.code===d.batt)return BATTERY_PL[r.raw]||(isFinite(r.v)?`${r.v}%`:r.raw)}return null}
@@ -382,7 +416,7 @@ function renderEvents(){
 function renderSummary(tempSets,humSets){const stats=pts=>{const ys=pts.map(p=>p.y);return ys.length?{min:Math.min(...ys),max:Math.max(...ys),avg:ys.reduce((a,b)=>a+b,0)/ys.length}:null};const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||stats(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel()}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td></tr>`}).join('')+'</tbody>'}
 function renderHealth(){document.getElementById('health').innerHTML=`<caption>Łączność z bramką · diagnostyka ostatnich 24 h · alarm dopiero powyżej ${fmtDur(MISS_GAP)} ciszy</caption><thead><tr><th>Czujnik</th><th>temp.</th><th>wilg.</th><th>mediana odstępu</th><th>najdłuższa przerwa</th><th>para t+w</th><th>bateria</th><th>ostatni</th></tr></thead><tbody>`+state.health.map(r=>`<tr style="--c:${r.d.color}"><td>${esc(r.d.name)}</td><td>${r.nT}</td><td>${r.nH}</td><td>${fmtDur(r.median)}</td><td class="${r.suspicious?'warn-text':''}">${fmtDur(r.worst)}</td><td class="${r.paired!=null&&r.paired<.9?'warn-text':''}">${r.paired==null?'–':Math.round(r.paired*100)+'%'}</td><td class="${r.batt==='niski'?'warn-text':''}">${r.batt||'–'}</td><td class="${r.age>STALE_BAD?'bad-text':r.age>STALE_WARN?'warn-text':''}">${r.last?fmtAgo(r.last):'–'}</td></tr>`).join('')+'</tbody>'}
 function rangeLabel(){const base={24:'ostatnie 24 godziny',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[state.hours]+(useDaily()?' · dobowe min/śr/max':''),oldest=state.since??state.rows[0]?.t,from=state.hours?Date.now()-state.hours*3600e3:0;if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
-async function render(){await ensureRows();computeHealth();renderStatus();renderPens();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum');draw('temp',T,'°C',1);draw('hum',H,'%',0);['temp','hum'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–')}
+async function render(){await ensureRows();computeHealth();renderStatus();renderPens();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();draw('temp',T,'°C',1);draw('hum',H,'%',0);draw('abs',A,'g/m³',1);['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–')}
 boot();
 // Instalacja na ekranie głównym i tryb offline. Rejestracja po load, żeby nie
 // konkurowała o łącze z pierwszym wczytaniem danych. Brak wsparcia albo blokada
