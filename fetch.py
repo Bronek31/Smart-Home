@@ -369,6 +369,39 @@ def merge(new_rows: list[dict]) -> int:
     return added
 
 
+def collapse_power(devices: dict) -> int:
+    """Zostawia z włączników wyłącznie zmiany stanu.
+
+    Klimatyzator raportuje swój włącznik co 10 sekund, także wtedy, gdy nic się nie
+    dzieje — z pierwszego przebiegu przyszło 2143 wiersze, z czego 3 niosły
+    informację. Do historii wystarczają momenty przełączenia; reszta to plik, który
+    przeglądarka musi za każdym razem pobrać i przemielić.
+
+    Przebieg jest globalny i idempotentny, więc czyści też to, co już leży w repo.
+    """
+    power = {key for key, kind in code_kinds(devices).items() if kind == "power"}
+    if not power:
+        return 0
+    ostatnia: dict[tuple, str] = {}
+    removed = 0
+    for month in sorted(p.stem for p in DATA_DIR.glob("[0-9]*.csv")):
+        rows = load_month(month)
+        if not rows:
+            continue
+        kept = []
+        for row in sorted(rows, key=lambda r: (r["ts"], r["device_id"], r["code"])):
+            key = (row["device_id"], row["code"])
+            if key in power:
+                if ostatnia.get(key) == row["value"]:
+                    removed += 1
+                    continue
+                ostatnia[key] = row["value"]
+            kept.append(row)
+        if len(kept) != len(rows):
+            save_month(month, kept)
+    return removed
+
+
 def fetch_outdoor(days: int) -> tuple[list[dict], dict | None]:
     """Dociąga godzinową temperaturę i wilgotność z Open-Meteo (bez klucza API).
 
@@ -746,6 +779,9 @@ def main() -> int:
     fetch_weather()
 
     added = merge(collected)
+    zwiniete = collapse_power(manifest_devices)
+    if zwiniete:
+        print(f"Włączniki: zwinięto {zwiniete} powtórzeń tego samego stanu.")
     days_written = write_daily(manifest_devices)
     write_manifest(manifest_devices)
     print(f"\nDopisano {added} nowych odczytów ({len(collected) - added} już było).")
