@@ -404,20 +404,24 @@ def fetch_outdoor(days: int) -> tuple[list[dict], dict | None]:
     return rows, entry
 
 
-SPIKE_JUMP = {"va_temperature": 1.5, "va_humidity": 8.0}
-SPIKE_BACK = {"va_temperature": 1.0, "va_humidity": 5.0}
+# Progi trzymamy przy rodzaju odczytu, nie przy kodzie DP: ten sam czujnik u innego
+# producenta zgłasza temperaturę jako temp_current albo temper_value. Frontend
+# odszumia dokładnie tak samo i też po rodzaju — obie strony muszą się zgadzać,
+# inaczej widok "całość" pokazywałby skok, którego widok 7-dniowy nie pokazuje.
+SPIKE_JUMP = {"temp": 1.5, "hum": 8.0}
+SPIKE_BACK = {"temp": 1.0, "hum": 5.0}
 SPIKE_RISE = 12 * 60          # okno, w którym mierzymy wzrost
 SPIKE_MAX = 90 * 60           # i w którym musi wrócić do poziomu wyjściowego
 
 
-def drop_spikes(points: list[tuple[float, float]], code: str) -> set[int]:
+def drop_spikes(points: list[tuple[float, float]], kind: str | None) -> set[int]:
     """Znajduje wyskoki: nagły wzrost, po którym wartość wraca tam, skąd wyszła.
 
     Trwała zmiana (włączony grzejnik, otwarte okno) nie wraca, więc zostaje.
     Dzięki temu dobowe min/max nie biorą się z chwili, w której ktoś wziął
     czujnik do ręki.
     """
-    jump, back = SPIKE_JUMP.get(code), SPIKE_BACK.get(code)
+    jump, back = SPIKE_JUMP.get(kind), SPIKE_BACK.get(kind)
     if jump is None or len(points) < 3:
         return set()
     bad: set[int] = set()
@@ -486,13 +490,37 @@ def fetch_weather() -> dict | None:
     return snapshot
 
 
-def write_daily() -> int:
+def code_kinds(devices: dict) -> dict[tuple[str, str], str]:
+    """Mapa (urządzenie, kod DP) -> rodzaj odczytu.
+
+    Bierze pod uwagę także manifest z poprzedniego przebiegu, żeby czujnik zdjęty
+    z TUYA_DEVICE_IDS nie stracił nagle odszumiania w historycznych agregatach.
+    """
+    kinds: dict[tuple[str, str], str] = {}
+    sources = []
+    if MANIFEST.exists():
+        try:
+            sources.append(json.loads(MANIFEST.read_text(encoding="utf-8")).get("devices") or {})
+        except (ValueError, OSError):
+            pass
+    sources.append(devices or {})
+    for source in sources:
+        for device_id, entry in source.items():
+            for code, meta in ((entry or {}).get("codes") or {}).items():
+                kind = (meta or {}).get("kind")
+                if kind:
+                    kinds[(device_id, code)] = kind
+    return kinds
+
+
+def write_daily(devices: dict | None = None) -> int:
     """Przelicza całą historię na dobowe min/średnią/max.
 
     Dzięki temu widok \"całość\" nie musi wczytywać wszystkich surowych odczytów —
     przy kilku latach zbierania to różnica między setkami tysięcy wierszy a setkami.
     """
     zone = os.environ.get("TZ_LOCAL", "Europe/Warsaw")
+    kinds = code_kinds(devices or {})
     try:
         tz = ZoneInfo(zone)
     except Exception:
@@ -515,7 +543,9 @@ def write_daily() -> int:
     skipped = 0
     for (device, code), points in series.items():
         points.sort()
-        bad = drop_spikes([(t, v) for t, v, _ in points], code)
+        # gdy manifest milczy o tym kodzie, próbujemy go jeszcze rozpoznać po nazwie
+        kind = kinds.get((device, code)) or classify(code, "")
+        bad = drop_spikes([(t, v) for t, v, _ in points], kind)
         skipped += len(bad)
         for index, (_, value, day) in enumerate(points):
             if index in bad:
@@ -674,7 +704,7 @@ def main() -> int:
     fetch_weather()
 
     added = merge(collected)
-    days_written = write_daily()
+    days_written = write_daily(manifest_devices)
     write_manifest(manifest_devices)
     print(f"\nDopisano {added} nowych odczytów ({len(collected) - added} już było).")
     print(f"Agregaty dobowe: {days_written} wierszy w {DAILY}.")
