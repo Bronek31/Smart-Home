@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0f1419">
+<title>Smart Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<style>
+:root{--bg:#0f1419;--panel:#151c24;--edge:#212c36;--grid:#1d262f;--grid-day:#2f3d4a;--text:#e4ebf1;--dim:#7d8d9b;--faint:#4d5a66;--ok:#5fce9e;--warn:#e8a13c;--bad:#e2708f;--pen-1:#e8a13c;--pen-2:#5fb8e0;--pen-3:#5fce9e;--pen-4:#e2708f;--pen-5:#b79ae8;--pen-6:#d4c95f;--gap:clamp(1rem,3.2vw,2rem)}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;min-height:100vh;background:radial-gradient(120% 70% at 50% -10%,#1a232c 0%,transparent 60%),repeating-linear-gradient(to bottom,transparent 0 31px,rgba(255,255,255,.014) 31px 32px),var(--bg);color:var(--text);font-family:"Familjen Grotesk",system-ui,sans-serif;font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}.sheet{max-width:1080px;margin:0 auto;padding:var(--gap) var(--gap) 4rem}
+.masthead{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1.2rem;padding-bottom:.8rem;border-bottom:1px solid var(--edge)}.masthead h1{margin:0;font-size:clamp(1.25rem,4.5vw,1.9rem);font-weight:700;letter-spacing:-.02em}.masthead h1 .nib{color:var(--pen-1);text-shadow:0 0 14px rgba(232,161,60,.55)}.stamp{margin-left:auto;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+.section-title{margin:2rem 0 .55rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.statusbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:1px;background:var(--edge);border:1px solid var(--edge);margin-top:var(--gap)}.statusbox{background:var(--panel);padding:.8rem .9rem}.statusbox .k{font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}.statusbox .v{margin-top:.2rem;font-family:"IBM Plex Mono",monospace;font-size:1rem}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.45rem;background:var(--ok);box-shadow:0 0 9px currentColor}.dot.warn{background:var(--warn);color:var(--warn)}.dot.bad{background:var(--bad);color:var(--bad)}
+.pens{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:1px;background:var(--edge);border:1px solid var(--edge);margin-top:1px}.pen{background:var(--panel);padding:.75rem .9rem .85rem;position:relative;overflow:hidden}.pen::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--c);box-shadow:0 0 12px 1px var(--c);opacity:.9}.pen b{display:flex;align-items:center;font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:.74rem;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);margin:0 0 .35rem .5rem}.pen .read{display:flex;align-items:baseline;gap:.5rem;margin-left:.5rem;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}.pen .t{font-size:1.6rem;font-weight:400;color:var(--c);line-height:1;text-shadow:0 0 18px color-mix(in srgb,var(--c) 45%,transparent)}.pen .h{font-size:.9rem;color:var(--dim)}.pen .foot{display:flex;flex-wrap:wrap;align-items:baseline;gap:.15rem .55rem;margin:.4rem 0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.71rem;letter-spacing:.04em;color:var(--faint)}.pen .trend{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--dim)}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin-top:1.4rem;padding-bottom:.6rem;border-bottom:1px solid var(--edge);font-family:"IBM Plex Sans Condensed",sans-serif}.controls .lbl{font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-right:.45rem}.range{appearance:none;border:1px solid var(--edge);background:transparent;color:var(--dim);font:inherit;font-size:.83rem;letter-spacing:.03em;padding:.24rem .72rem;cursor:pointer;border-radius:0;transition:.15s}.range:hover{border-color:var(--grid-day);color:var(--text)}.filt{margin-left:.85rem}.range[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}.toggles{display:flex;flex-wrap:wrap;gap:.1rem;margin-left:auto}.toggle{appearance:none;border:0;background:transparent;font:inherit;font-size:.8rem;color:var(--dim);padding:.24rem .5rem;cursor:pointer;display:inline-flex;align-items:center;gap:.42rem}.toggle::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 9px var(--c)}.toggle[aria-pressed="false"]{opacity:.32}.toggle[aria-pressed="false"]::before{background:transparent;box-shadow:none;border:1.5px solid var(--c)}
+.trace{margin-top:1.7rem}.trace h2{margin:0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;align-items:baseline;gap:.55rem}.trace h2 small{font-weight:400;letter-spacing:.06em;color:var(--faint);text-transform:none}.plot{position:relative;height:238px;background:var(--panel);border:1px solid var(--edge)}@media(min-width:700px){.plot{height:300px}}
+.bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 12px "IBM Plex Mono",monospace;fill:var(--faint)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
+.events{display:flex;flex-direction:column;gap:0}.event{display:grid;grid-template-columns:8px 1fr auto;gap:.55rem;align-items:start;padding:.55rem 0;border-bottom:1px solid var(--edge)}.event:last-child{border-bottom:0}.event .edot{width:7px;height:7px;border-radius:50%;margin-top:.4rem;background:var(--ok)}.event.warn .edot{background:var(--warn);box-shadow:0 0 7px var(--warn)}.event.bad .edot{background:var(--bad);box-shadow:0 0 7px var(--bad)}.event .et{font-size:.82rem}.event .es{font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint);white-space:nowrap}.empty{color:var(--faint);font-size:.84rem;padding:.5rem 0}
+.summary{width:100%;border-collapse:collapse;margin-top:2.1rem;font-size:.85rem}.summary caption{text-align:left;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding-bottom:.55rem}.summary th,.summary td{text-align:right;padding:.45rem .5rem;border-bottom:1px solid var(--edge);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:300;color:var(--text)}.summary th{font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}.summary th:first-child,.summary td:first-child{text-align:left}.summary td:first-child{font-family:"Familjen Grotesk",sans-serif;font-weight:400;border-left:3px solid var(--c);padding-left:.7rem}.warn-text{color:var(--warn)!important}.bad-text{color:var(--bad)!important}
+.notice{margin:2.5rem 0;padding:1.4rem 1.5rem;border:1px solid var(--edge);background:var(--panel);max-width:44rem}.notice h2{margin:0 0 .55rem;font-size:1.05rem}.notice p{margin:.45rem 0;color:var(--dim);font-size:.92rem}.notice code{font-family:"IBM Plex Mono",monospace;font-size:.85em;color:var(--pen-1);background:#0b1015;padding:.12em .42em;border:1px solid var(--edge)}[hidden]{display:none!important}@media(max-width:720px){.statusbar{grid-template-columns:1fr}.bottom-layout{grid-template-columns:1fr}.summary{font-size:.75rem;display:block;overflow-x:auto;white-space:nowrap}.summary th,.summary td{padding:.4rem .35rem}}
+</style>
+</head>
+<body><main class="sheet">
+<header class="masthead"><h1><span class="nib">&#9134;</span> Smart Home</h1><span class="stamp" id="stamp">wczytywanie&hellip;</span></header>
+<section id="app" hidden>
+  <div class="statusbar" id="statusbar"></div>
+  <div class="pens" id="pens"></div>
+  <div class="controls"><span class="lbl">Zakres</span><button class="range" data-hours="24">24 h</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><button class="range filt" id="filtr" aria-pressed="true" title="Ukrywa krótkie skoki, które wracają do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki. Trwałe zmiany zostają.">bez wyskoków</button><div class="toggles" id="toggles"></div></div>
+
+  <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div></div>
+  <div class="trace"><h2>Wilgotność względna <small>%</small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
+
+  <table class="summary" id="summary"></table><table class="summary" id="health"></table>
+
+  <div class="bottom-layout">
+    <section class="panel"><h2>Plan mieszkania · aktualny stan</h2>
+      <div class="floor" id="floor" role="img" aria-label="Rzut mieszkania: temperatura, wilgotność i status łączności w każdym pokoju"></div>
+      <div class="map-legend" id="maplegend"></div>
+    </section>
+    <section class="panel"><h2>Ostatnie zdarzenia</h2><div class="events" id="events"></div></section>
+  </div>
+</section><div class="notice" id="notice" hidden></div>
+</main>
+<script>
+const PENS=['#e8a13c','#5fb8e0','#5fce9e','#e2708f','#b79ae8','#d4c95f'];const CSS=getComputedStyle(document.documentElement);const C=n=>CSS.getPropertyValue(n).trim();
+const state={hours:168,filtr:true,cut:{},devices:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],updated:null};const monthCache=new Map();
+/* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
+const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
+const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
+const PAIR_TOL=5000;           // temperatura i wilgotność z jednego raportu bywają rozjechane o sekundę
+const STALE_WARN=HEARTBEAT+COLLECT+30*60000;   // 2,5 godz. — dopiero tyle znaczy "coś jest nie tak"
+const STALE_BAD=6*3600e3;
+const MISS_GAP=2.5*HEARTBEAT;  // przerwa uznana za zgubione raporty
+const HUM_ALERT=65;            // próg wilgotności dla ostrzeżenia o pleśni
+/* --- rzut mieszkania: jedyne miejsce do poprawiania proporcji pokoi --- */
+const PLAN={w:400,h:500,door:[20,192,20,246],rooms:[
+  // przedpokój pierwszy, żeby pokoje rysowały się na jego kresce
+  {name:'Przedpokój',poly:'240,135 292,135 292,282 240,282 240,235 75,235 75,359 20,359 20,175 240,175',label:[132,212]},
+  {name:'Sypialnia',x:195,y:0,w:195,h:135},
+  {name:'Łazienka',x:292,y:135,w:88,h:147},
+  {name:'Salon',x:226,y:282,w:154,h:148},
+  {name:'Kuchnia',x:0,y:359,w:174,h:135}
+]};
+const HEAT_MIN=19,HEAT_MAX=28,HUE_COLD=205,HUE_HOT=22;   // skala cieplna rzutu — dopasuj do swojego zakresu
+function heat(t){if(t==null||!isFinite(t))return null;const k=Math.max(0,Math.min(1,(t-HEAT_MIN)/(HEAT_MAX-HEAT_MIN)));return HUE_COLD+(HUE_HOT-HUE_COLD)*k}
+function hsl2rgb(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,9-k(n),1));return[f(0),f(8),f(4)].map(v=>Math.round(v*255))}
+const rgba=(h,a)=>{const c=h==null?[125,141,155]:hsl2rgb(h,58,57);return `rgba(${c[0]},${c[1]},${c[2]},${a})`};
+/* Wyskok = nagły skok, po którym wartość wraca tam, skąd wyszła.
+   Trwała zmiana (grzejnik, otwarte okno) nie wraca, więc zostaje nietknięta. */
+const SPIKE={temp:{jump:1.5,back:1.0},hum:{jump:8,back:5},rise:12*60000,max:90*60000};
+function despike(pts,kind){
+  const p=SPIKE[kind];
+  if(!p||pts.length<3)return{pts,cut:0};
+  const bad=new Set();
+  let i=1;
+  while(i<pts.length){
+    let k=i-1;
+    while(k>0&&pts[i].x-pts[k-1].x<=SPIKE.rise)k--;   // poziom sprzed wzrostu
+    const base=pts[k].y;
+    if(Math.abs(pts[i].y-base)>=p.jump){
+      let j=i;
+      while(j<pts.length&&pts[j].x-pts[k].x<=SPIKE.max&&Math.abs(pts[j].y-base)>=p.back)j++;
+      if(j<pts.length&&pts[j].x-pts[k].x<=SPIKE.max){   // wróciło => wyskok, nie zmiana
+        let m=k+1;
+        while(m<j&&Math.abs(pts[m].y-base)<p.back)m++;
+        for(let q=m;q<j;q++)bad.add(q);
+        i=j+1;continue;
+      }
+    }
+    i++;
+  }
+  return bad.size?{pts:pts.filter((_,k)=>!bad.has(k)),cut:bad.size}:{pts,cut:0};
+}
+const plWys=n=>n===1?'1 wyskok':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} wyskoki`:`${n} wyskoków`;
+const plRap=n=>n===1?'1 raport':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} raporty`:`${n} raportów`;
+const fmtNum=(v,d=1)=>v==null||!isFinite(v)?'–':v.toFixed(d).replace('.',',');const pad=n=>String(n).padStart(2,'0');const isMidnight=d=>d.getHours()===0&&d.getMinutes()===0;
+function fmtWhen(d,span){if(isMidnight(d)||span>24*14)return `${pad(d.getDate())}.${pad(d.getMonth()+1)}`;if(span<=36)return `${pad(d.getHours())}:${pad(d.getMinutes())}`;return `${pad(d.getHours())}:00`}
+const STEPS_H=[1,2,3,6,12,24,48,72,96,120,168,336,720];function timeTicks(min,max,width){const target=width<420?5:width<760?8:11,spanH=(max-min)/3600e3,step=STEPS_H.find(s=>spanH/s<=target)||STEPS_H.at(-1),first=new Date(min);first.setHours(0,0,0,0);const out=[];for(let t=first.getTime();t<=max;t+=step*3600e3)if(t>=min)out.push({value:t});return out}
+function fmtDur(ms){if(ms==null||!isFinite(ms))return'–';const min=ms/60000;if(min<1)return`${Math.round(ms/1000)} s`;if(min<90)return`${Math.round(min)} min`;const h=min/60;if(h<36)return`${h.toFixed(1).replace('.',',')} godz.`;return`${Math.round(h/24)} dni`}
+function fmtAgo(ms){const min=Math.round((Date.now()-ms)/60000);if(min<2)return'przed chwilą';if(min<60)return`${min} min temu`;const h=Math.round(min/60);if(h<48)return`${h} godz. temu`;return`${Math.round(h/24)} dni temu`}
+function fail(title,...paras){document.getElementById('stamp').textContent='brak danych';const n=document.getElementById('notice');n.innerHTML=`<h2>${title}</h2>`+paras.map(p=>`<p>${p}</p>`).join('');n.hidden=false}
+async function loadMonth(m){if(monthCache.has(m))return monthCache.get(m);const res=await fetch(`data/${m}.csv`,{cache:'no-cache'});if(!res.ok){monthCache.set(m,[]);return[]}const text=await res.text();const lines=text.trim().split('\n');const rows=[];for(let i=1;i<lines.length;i++){const [ts,id,code,value]=lines[i].replace(/\r$/,'').split(',');if(!ts)continue;rows.push({t:Date.parse(ts),id,code,v:parseFloat(value),raw:value})}monthCache.set(m,rows);return rows}
+async function loadDaily(file){try{const res=await fetch(`data/${file}`,{cache:'no-cache'});if(!res.ok)return[];const lines=(await res.text()).trim().split('\n');const out=[];for(let i=1;i<lines.length;i++){const[date,id,code,mn,avg,mx,n]=lines[i].replace(/\r$/,'').split(',');if(!date)continue;out.push({t:Date.parse(date+'T12:00:00'),date,id,code,min:+mn,avg:+avg,max:+mx,n:+n})}return out.sort((a,b)=>a.t-b.t)}catch{return[]}}
+const monthKey=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`};
+// przy widoku "całość" rysujemy z agregatów, więc surowe wczytujemy tylko dla bieżących odczytów
+function neededMonths(){const all=state.months,newest=all.at(-1);if(!all.length)return[];if(!state.daily.length)return all;if(!state.hours)return[newest];const from=monthKey(Date.now()-state.hours*3600e3),need=all.filter(m=>m>=from);return need.includes(newest)?need:need.concat(newest)}
+async function ensureRows(){state.rows=(await Promise.all(neededMonths().map(loadMonth))).flat().sort((a,b)=>a.t-b.t)}
+const useDaily=()=>state.daily.length>0&&!state.hours;
+async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;state.devices=ids.map((id,i)=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,color:PENS[i%PENS.length],ext:!!d.external,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery')}});state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;const spanH=(Date.now()-start)/3600e3;state.hours=spanH<=24?24:spanH<=168?168:spanH<=720?720:0;document.getElementById('app').hidden=false;buildToggles();wireRanges();await render()}
+function buildToggles(){const box=document.getElementById('toggles');box.innerHTML='';state.devices.forEach(d=>{const b=document.createElement('button');b.className='toggle';b.style.setProperty('--c',d.color);b.setAttribute('aria-pressed','true');b.textContent=d.name;b.onclick=()=>{const on=b.getAttribute('aria-pressed')==='true';b.setAttribute('aria-pressed',String(!on));on?state.off.add(d.id):state.off.delete(d.id);render()};box.appendChild(b)})}
+function wireRanges(){document.querySelectorAll('.range[data-hours]').forEach(b=>b.onclick=()=>{document.querySelectorAll('.range[data-hours]').forEach(o=>o.removeAttribute('aria-pressed'));b.setAttribute('aria-pressed','true');state.hours=+b.dataset.hours;render()});
+  const f=document.getElementById('filtr');f.onclick=()=>{state.filtr=!state.filtr;f.setAttribute('aria-pressed',String(state.filtr));render()}}
+function bucket(points,limit=900){if(points.length<=limit)return points;const size=Math.ceil(points.length/limit),out=[];for(let i=0;i<points.length;i+=size){const s=points.slice(i,i+size);out.push({x:s[Math.floor(s.length/2)].x,y:s.reduce((a,p)=>a+p.y,0)/s.length})}return out}
+function indoorStart(){const ext=new Set(state.devices.filter(d=>d.ext).map(d=>d.id));
+  if(useDaily())return state.daily.find(r=>!ext.has(r.id))?.t||0;
+  const from=state.hours?Date.now()-state.hours*3600e3:0;
+  return state.rows.find(r=>!ext.has(r.id)&&r.t>=from)?.t||0}
+function series(kind){const from=state.hours?Date.now()-state.hours*3600e3:0,since=indoorStart();state.cut[kind]=0;
+  return state.devices.filter(d=>d[kind]&&!state.off.has(d.id)).map(d=>{
+    const cut=d.ext?Math.max(from,since):from;   // pogoda startuje tam, gdzie zaczynają się odczyty z mieszkania
+    if(useDaily()){
+      const rows=state.daily.filter(r=>r.id===d.id&&r.code===d[kind]&&r.t>=cut&&isFinite(r.avg));
+      const total=rows.reduce((a,r)=>a+r.n,0);
+      return{device:d,points:rows.map(r=>({x:r.t,y:r.avg})),
+        stats:rows.length?{min:Math.min(...rows.map(r=>r.min)),max:Math.max(...rows.map(r=>r.max)),avg:total?rows.reduce((a,r)=>a+r.avg*r.n,0)/total:null}:null};
+    }
+    let pts=state.rows.filter(r=>r.id===d.id&&r.code===d[kind]&&r.t>=cut&&isFinite(r.v)).map(r=>({x:r.t,y:r.v}));
+    if(state.filtr&&!d.ext){const f=despike(pts,kind);pts=f.pts;state.cut[kind]+=f.cut}
+    return{device:d,points:bucket(pts),stats:null};
+  }).filter(s=>s.points.length)}
+
+function rawPoints(device,kind,from){if(!device[kind])return[];return state.rows.filter(r=>r.id===device.id&&r.code===device[kind]&&r.t>=from&&isFinite(r.v))}
+function readings(device,kind){if(!device[kind])return{last:null,dayAgo:null};const cutoff=Date.now()-24*3600e3;let last=null,dayAgo=null;for(const r of state.rows){if(r.id!==device.id||r.code!==device[kind]||!isFinite(r.v))continue;last=r;if(r.t<=cutoff)dayAgo=r}return{last,dayAgo}}
+const BATTERY_PL={low:'niski',middle:'średni',high:'wysoki'};function lastBattery(d){if(!d.batt)return null;for(let i=state.rows.length-1;i>=0;i--){const r=state.rows[i];if(r.id===d.id&&r.code===d.batt)return BATTERY_PL[r.raw]||(isFinite(r.v)?`${r.v}%`:r.raw)}return null}
+function humLoad(d,from,limit){const P=rawPoints(d,'hum',from);if(P.length<2)return 0;let above=0,total=0;for(let i=1;i<P.length;i++){const dt=Math.min(P[i].t-P[i-1].t,2*HEARTBEAT);total+=dt;if((P[i-1].v+P[i].v)/2>=limit)above+=dt}return total?above/total:0}
+function healthFor(d,from){
+  const T=rawPoints(d,'temp',from),H=rawPoints(d,'hum',from);
+  const times=T.map(r=>r.t),gaps=times.slice(1).map((t,i)=>t-times[i]);
+  const sorted=gaps.slice().sort((a,b)=>a-b);
+  const median=sorted.length?sorted[Math.floor(sorted.length/2)]:null;
+  const worst=gaps.length?Math.max(...gaps):null;
+  // temp i wilg. z jednego raportu potrafią mieć timestampy różniące się o sekundę — stąd tolerancja
+  const humTimes=H.map(r=>r.t);
+  const paired=T.length?T.filter(r=>humTimes.some(h=>Math.abs(h-r.t)<=PAIR_TOL)).length/T.length:null;
+  const last=Math.max(T.at(-1)?.t||0,H.at(-1)?.t||0);
+  // przerwa jest podejrzana dopiero gdy przekracza rytm heartbeatu, nie medianę odstępów
+  const suspicious=worst!=null&&worst>MISS_GAP;
+  const missed=suspicious?Math.max(1,Math.round(worst/HEARTBEAT)-1):0;
+  const age=last?Date.now()-last:Infinity;
+  const batt=lastBattery(d);
+  const humHigh=humLoad(d,from,HUM_ALERT);
+  let status='ok';
+  if(age>STALE_BAD)status='bad';
+  else if(suspicious||age>STALE_WARN||batt==='niski')status='warn';
+  return{d,nT:T.length,nH:H.length,median,worst,paired,last,batt,status,gaps,times,suspicious,missed,humHigh,age};
+}
+
+function computeHealth(){const from=Date.now()-24*3600e3;state.health=state.devices.filter(d=>!d.ext).map(d=>healthFor(d,from));return state.health}
+function renderStatus(){const hs=state.health,ok=hs.filter(r=>r.status==='ok').length,warn=hs.filter(r=>r.status==='warn').length,bad=hs.filter(r=>r.status==='bad').length,last=Math.max(...hs.map(r=>r.last||0));const lag=state.updated?Date.now()-state.updated:null;const box=(k,v,cls='')=>`<div class="statusbox"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;document.getElementById('statusbar').innerHTML=box('Czujniki',`<span class="dot ${bad?'bad':warn?'warn':''}"></span>${ok}/${hs.length} OK${warn?` · ${warn} uwaga`:''}${bad?` · ${bad} problem`:''}`)+box('Ostatni raport czujnika',last?fmtAgo(last):'brak danych')+box('Ostatnia zbiórka',state.updated?fmtAgo(state.updated):'–',lag!=null&&lag>STALE_WARN?'warn-text':'')+box('Najdłuższa przerwa',fmtDur(Math.max(...hs.map(r=>r.worst||0))))}
+
+function renderPens(){const box=document.getElementById('pens');box.innerHTML='';state.devices.forEach(d=>{const t=readings(d,'temp'),h=readings(d,'hum'),when=Math.max(t.last?.t||0,h.last?.t||0),r=state.health.find(x=>x.d.id===d.id);let trend='';if(t.last&&t.dayAgo){const diff=t.last.v-t.dayAgo.v;const arrow=diff>.05?'▲':diff<-.05?'▼':'=';trend=`<span class="trend">${arrow} ${fmtNum(Math.abs(diff))}° 24h</span>`}const el=document.createElement('div');el.className='pen';el.style.setProperty('--c',d.color);el.innerHTML=`<b>${d.ext?'':`<span class="dot ${r?.status==='bad'?'bad':r?.status==='warn'?'warn':''}"></span>`}${d.name}</b><div class="read"><span class="t">${fmtNum(t.last?.v,1)}&deg;</span><span class="h">${fmtNum(h.last?.v,0)}%</span></div><div class="foot"><span>${when?fmtAgo(when):'brak odczytu'}</span>${trend}${d.ext?'<span>Open-Meteo</span>':`<span>bateria: ${r?.batt||'–'}</span>`}</div>`;box.appendChild(el)})}
+function draw(canvasId,sets,unit,decimals){const span=state.hours||24*400;const cfg={type:'line',data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{s.ticks=timeTicks(s.min,s.max,s.chart.width)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),span)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg)}
+function renderMap(){
+  const svg=[`<svg viewBox="-3 -3 ${PLAN.w+6} ${PLAN.h+6}" xmlns="http://www.w3.org/2000/svg">`];
+  PLAN.rooms.forEach(rm=>{
+    if(rm.poly){svg.push(`<polygon class="rm-quiet" points="${rm.poly}"/><text class="rm-quiet-t" x="${rm.label[0]}" y="${rm.label[1]}" text-anchor="middle">${rm.name}</text>`);return}
+    const d=state.devices.find(x=>x.name===rm.name),h=state.health.find(x=>x.d.id===d?.id);
+    const t=d?readings(d,'temp').last:null,hu=d?readings(d,'hum').last:null;
+    const c=heat(t?.v),cx=rm.x+rm.w/2,size=Math.min(30,rm.w*0.29);
+    const st=h?.status==='bad'?'--bad':h?.status==='warn'?'--warn':'--ok';
+    const tip=`${rm.name} · ${fmtNum(t?.v,1)} °C · ${fmtNum(hu?.v,0)} % · ${h?.last?fmtAgo(h.last):'brak odczytu'}`;
+    svg.push(`<g><title>${tip}</title>`
+      +`<rect x="${rm.x}" y="${rm.y}" width="${rm.w}" height="${rm.h}" fill="${rgba(c,.2)}" stroke="${rgba(c,.7)}" stroke-width="1.5"/>`
+      +`<text class="rm-name" x="${cx}" y="${rm.y+23}" text-anchor="middle">${rm.name}</text>`
+      +`<text class="rm-temp" x="${cx}" y="${rm.y+rm.h*.58}" text-anchor="middle" font-size="${size}" fill="${rgba(c,1)}">${fmtNum(t?.v,1)}°</text>`
+      +`<text class="rm-hum" x="${cx}" y="${rm.y+rm.h*.58+21}" text-anchor="middle">${fmtNum(hu?.v,0)} %</text>`
+      +`<circle cx="${rm.x+rm.w-14}" cy="${rm.y+rm.h-14}" r="4.5" fill="var(${st})" stroke="var(--bg)" stroke-width="1.5"/></g>`);
+  });
+  const[x1,y1,x2,y2]=PLAN.door;
+  svg.push(`<line class="rm-door" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><title>drzwi wejściowe</title></line></svg>`);
+  document.getElementById('floor').innerHTML=svg.join('');
+  const out=state.devices.find(d=>d.ext),ot=out?readings(out,'temp').last:null;
+  document.getElementById('maplegend').innerHTML=(ot?`<span><em>${out.name.toLowerCase()} ${fmtNum(ot.v,1)}°</em></span>`:'')+`<span><em>${HEAT_MIN}°</em><i class="bar" style="background:linear-gradient(90deg,${rgba(HUE_COLD,.9)},${rgba((HUE_COLD+HUE_HOT)/2,.9)},${rgba(HUE_HOT,.9)})"></i><em>${HEAT_MAX}°</em></span><span><i class="legend-dot ok"></i> OK</span><span><i class="legend-dot warn"></i> uwaga</span><span><i class="legend-dot bad"></i> problem</span>`;
+}
+
+function renderEvents(){
+  const ev=[],lag=state.updated?Date.now()-state.updated:null;
+  // gdy stoi kolektor, wszystkie czujniki wyglądają na martwe — mówimy to raz, zamiast czterech fałszywych alarmów
+  if(lag!=null&&lag>STALE_WARN){
+    ev.push({t:state.updated,status:lag>STALE_BAD?'bad':'warn',text:`Kolektor nie zapisał nic od ${fmtDur(lag)} — sprawdź zakładkę Actions, to nie wina czujników`});
+  }else{
+    state.health.forEach(r=>{
+      if(r.suspicious){const idx=r.gaps.indexOf(r.worst);ev.push({t:r.times[idx+1]||r.last,status:'warn',text:`${r.d.name} — cisza przez ${fmtDur(r.worst)}, przepadło ok. ${plRap(r.missed)}`})}
+      if(r.age>STALE_WARN&&isFinite(r.age))ev.push({t:r.last,status:r.age>STALE_BAD?'bad':'warn',text:`${r.d.name} — ostatni raport ${fmtAgo(r.last)}`});
+      if(r.batt==='niski')ev.push({t:r.last,status:'warn',text:`${r.d.name} — bateria na wyczerpaniu, wymień ogniwo`});
+      if(r.humHigh>=.25)ev.push({t:r.last,status:'warn',text:`${r.d.name} — wilgotność powyżej ${HUM_ALERT}% przez ${Math.round(r.humHigh*100)}% doby, przewietrz`});
+    });
+  }
+  ev.sort((a,b)=>(b.t||0)-(a.t||0));
+  const box=document.getElementById('events');
+  box.innerHTML=ev.slice(0,7).map(e=>`<div class="event ${e.status}"><i class="edot"></i><div class="et">${e.text}</div><div class="es">${e.t?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(e.t)):''}</div></div>`).join('')||'<div class="empty">Wszystko w normie w ostatnich 24 godzinach.</div>';
+}
+
+function renderSummary(tempSets,humSets){const stats=pts=>{const ys=pts.map(p=>p.y);return ys.length?{min:Math.min(...ys),max:Math.max(...ys),avg:ys.reduce((a,b)=>a+b,0)/ys.length}:null};const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||stats(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel()}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${d.name}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td></tr>`}).join('')+'</tbody>'}
+function renderHealth(){document.getElementById('health').innerHTML=`<caption>Łączność z bramką · diagnostyka ostatnich 24 h · alarm dopiero powyżej ${fmtDur(MISS_GAP)} ciszy</caption><thead><tr><th>Czujnik</th><th>temp.</th><th>wilg.</th><th>mediana odstępu</th><th>najdłuższa przerwa</th><th>para t+w</th><th>bateria</th><th>ostatni</th></tr></thead><tbody>`+state.health.map(r=>`<tr style="--c:${r.d.color}"><td>${r.d.name}</td><td>${r.nT}</td><td>${r.nH}</td><td>${fmtDur(r.median)}</td><td class="${r.suspicious?'warn-text':''}">${fmtDur(r.worst)}</td><td class="${r.paired!=null&&r.paired<.9?'warn-text':''}">${r.paired==null?'–':Math.round(r.paired*100)+'%'}</td><td class="${r.batt==='niski'?'warn-text':''}">${r.batt||'–'}</td><td class="${r.age>STALE_BAD?'bad-text':r.age>STALE_WARN?'warn-text':''}">${r.last?fmtAgo(r.last):'–'}</td></tr>`).join('')+'</tbody>'}
+function rangeLabel(){const base={24:'ostatnie 24 godziny',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[state.hours]+(useDaily()?' · dobowe min/śr/max':''),oldest=state.since??state.rows[0]?.t,from=state.hours?Date.now()-state.hours*3600e3:0;if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
+async function render(){await ensureRows();computeHealth();renderStatus();renderPens();renderMap();renderEvents();const T=series('temp'),H=series('hum');draw('temp',T,'°C',1);draw('hum',H,'%',0);['temp','hum'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · odfiltrowano ${plWys(state.cut[k])}`:'');renderSummary(T,H);renderHealth();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–')}
+boot();
+</script></body></html>
