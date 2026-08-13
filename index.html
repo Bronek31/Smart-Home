@@ -70,7 +70,7 @@
   <div class="trace"><h2>Wilgotność względna <small>%</small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
   <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small><small id="wietrz-abs"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
     <div class="pasma-legenda" id="pasma-legenda" hidden></div>
-    <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, więc po niej nie poznasz, czy wietrzenie cokolwiek dało — po tej owszem: linia mieszkania zbliża się wtedy do linii dworu.</p></div>
+    <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, więc po niej nie poznasz, czy wietrzenie cokolwiek dało — po tej owszem: linia mieszkania zbliża się wtedy do linii dworu. Błękitne pasma to wykryta wymiana powietrza — nie zawsze przez okno: łazienka i kuchnia siedzą na pionie wentylacyjnym, więc powietrze potrafi im ujść samą kratką i otwartymi drzwiami.</p></div>
 
   <table class="summary" id="summary"></table><table class="summary" id="health"></table>
 
@@ -128,10 +128,15 @@ const PLAN={w:400,h:500,door:[20,192,20,246],
   rooms:[
   // przedpokój pierwszy, żeby pokoje rysowały się na jego kresce
   {name:'Przedpokój',poly:'240,135 292,135 292,282 240,282 240,235 75,235 75,359 20,359 20,175 240,175',label:[132,212]},
-  {name:'Sypialnia',dev:'bf7e2a70935af7de78mjqt',x:195,y:0,w:195,h:135},
-  {name:'Łazienka',dev:'bfd6f4f87fea9d866dvpve',x:292,y:135,w:88,h:147},
-  {name:'Salon',dev:'bf43cf664d6644420axva3',x:226,y:282,w:154,h:148},
-  {name:'Kuchnia',dev:'bf5741c97c96fa85b1d7do',x:0,y:359,w:174,h:135}
+  // strona: na którą ścianę mieszkania wychodzi okno. Otwarte razem po obu stronach
+  // dają przewiew na wylot. wywiew: pion wentylacyjny, czyli którędy powietrze ucieka —
+  // wpisany w miejscowniku, bo wchodzi wprost do zdania podpowiedzi.
+  // Salon i sypialnia mają własne kratki, ale bez pionu ciągną na tyle słabo, że nie
+  // ma sensu na nich polegać przy doradzaniu.
+  {name:'Sypialnia',dev:'bf7e2a70935af7de78mjqt',okno:'pln',x:195,y:0,w:195,h:135},
+  {name:'Łazienka',dev:'bfd6f4f87fea9d866dvpve',wywiew:'łazience',x:292,y:135,w:88,h:147},
+  {name:'Salon',dev:'bf43cf664d6644420axva3',okno:'pld',x:226,y:282,w:154,h:148},
+  {name:'Kuchnia',dev:'bf5741c97c96fa85b1d7do',okno:'pld',wywiew:'kuchni',x:0,y:359,w:174,h:135}
 ]};
 /* Sprzęt osusza albo dogrzewa wyłącznie pokój, w którym stoi — wietrzenie w sypialni
    nie ma nic wspólnego z klimatyzatorem w salonie. Tu wiążemy urządzenie z czujnikiem
@@ -458,6 +463,22 @@ function renderMap(){
   document.getElementById('maplegend').innerHTML=(ot?`<span><em>${esc(out.name.toLowerCase())} ${fmtNum(ot.v,1)}°</em></span>`:'')+`<span><em>${HEAT_MIN}°</em><i class="bar" style="background:linear-gradient(90deg,${rgba(HUE_COLD,.9)},${rgba((HUE_COLD+HUE_HOT)/2,.9)},${rgba(HUE_HOT,.9)})"></i><em>${HEAT_MAX}°</em></span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-2)"></i> okno</span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-1)"></i> drzwi</span><span><i class="legend-dot ok"></i> OK</span><span><i class="legend-dot warn"></i> uwaga</span><span><i class="legend-dot bad"></i> problem</span>`;
 }
 
+/* Które okna otworzyć. Powietrze musi mieć gdzie wejść i gdzie wyjść: wychodzi
+   pionem wentylacyjnym w łazience i kuchni, więc wejść musi oknem. Okna po
+   przeciwnych ścianach otwarte razem dają przewiew na wylot zamiast biernego
+   uchylenia — dlatego zaczynamy od najwilgotniejszego pokoju z oknem i dobieramy
+   mu partnera z drugiej strony mieszkania. */
+function jakWietrzyc(){
+  const wilg=r=>{const d=state.devices.find(x=>x.id===r.dev);return d?absHum(readings(d,'temp').last?.v,readings(d,'hum').last?.v):null};
+  const zOknem=PLAN.rooms.filter(r=>r.okno&&r.dev).map(r=>({r,w:wilg(r)})).filter(x=>x.w!=null).sort((a,b)=>b.w-a.w);
+  if(!zOknem.length)return'';
+  const pierwszy=zOknem[0],drugi=zOknem.find(x=>x.r.okno!==pierwszy.r.okno);
+  const wywiew=PLAN.rooms.filter(r=>r.wywiew).map(r=>esc(r.wywiew));
+  const przez=wywiew.length?` Wywiew i tak idzie kratkami w ${wywiew.join(' i ')}, więc zostaw otwarte drzwi.`:'';
+  return drugi
+    ? ` Na wylot najszybciej: ${esc(pierwszy.r.name.toLowerCase())} i ${esc(drugi.r.name.toLowerCase())} — okna po przeciwnych stronach.${przez}`
+    : ` Zacznij od ${esc(pierwszy.r.name.toLowerCase())} — tam najwilgotniej.${przez}`;
+}
 function airingTip(now){
   const inside=state.devices.filter(d=>!d.ext)
     .map(d=>absHum(readings(d,'temp').last?.v,readings(d,'hum').last?.v)).filter(v=>v!=null);
@@ -468,9 +489,9 @@ function airingTip(now){
   if(band&&aqi>60)return{c:'--bad',title:'Lepiej nie otwierać okien',
     text:`Jakość powietrza na zewnątrz jest ${band[0]} — indeks ${Math.round(aqi)}. Wietrz krótko albo poczekaj.`};
   const liczby=`Na zewnątrz ${fmtNum(out)} g/m³ pary wodnej, w mieszkaniu ${fmtNum(home)}.`;
-  if(diff<-0.7)return{c:'--ok',title:'Dobry moment na wietrzenie',text:`${liczby} Otwarte okno osuszy powietrze.`};
+  if(diff<-0.7)return{c:'--ok',title:'Dobry moment na wietrzenie',text:`${liczby} Otwarte okno osuszy powietrze.${jakWietrzyc()}`};
   if(diff>0.7)return{c:'--warn',title:'Wietrzenie dołoży wilgoci',text:`${liczby} Na wymianę powietrza — owszem, na osuszenie — nie teraz.`};
-  return{c:'--dim',title:'Wietrzenie bez wpływu na wilgotność',text:`${liczby} Po obu stronach ściany podobnie.`};
+  return{c:'--dim',title:'Wietrzenie bez wpływu na wilgotność',text:`${liczby} Po obu stronach ściany podobnie — ale na świeże powietrze i tak warto.${jakWietrzyc()}`};
 }
 function renderWeather(){
   const w=state.weather,panel=document.getElementById('wx-panel');
