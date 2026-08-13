@@ -31,7 +31,7 @@
 .trace .hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);max-width:52rem}
 .pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
-.floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
+.floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
 .rightcol{display:flex;flex-direction:column;gap:1.2rem;min-width:0}
 .wx{display:flex;flex-direction:column;gap:1rem}
 .wx-now{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
@@ -120,7 +120,12 @@ function aqiBand(v){if(v==null||!isFinite(v))return null;
 /* Pokój wiąże się z czujnikiem przez dev (identyfikator Tuya) — nazwa jest tylko
    zapasem. Inaczej zmiana nazwy czujnika w aplikacji Tuya po cichu wygasza pokój
    na rzucie. Identyfikatory podejrzysz przez `python fetch.py --discover`. */
-const PLAN={w:400,h:500,door:[20,192,20,246],rooms:[
+/* Okna: sypialnia wychodzi na przeciwną stronę mieszkania niż salon i kuchnia,
+   więc otwarcie sypialni razem z którymkolwiek z tamtych daje przewiew na wylot.
+   Łazienka okna nie ma — wymienia powietrze wentylacją i drzwiami. */
+const PLAN={w:400,h:500,door:[20,192,20,246],
+  okna:[[245,0,355,0],[265,430,355,430],[30,494,100,494]],
+  rooms:[
   // przedpokój pierwszy, żeby pokoje rysowały się na jego kresce
   {name:'Przedpokój',poly:'240,135 292,135 292,282 240,282 240,235 75,235 75,359 20,359 20,175 240,175',label:[132,212]},
   {name:'Sypialnia',dev:'bf7e2a70935af7de78mjqt',x:195,y:0,w:195,h:135},
@@ -441,11 +446,12 @@ function renderMap(){
       +`<text class="rm-hum" x="${cx}" y="${rm.y+rm.h*.58+21}" text-anchor="middle">${fmtNum(hu?.v,0)} %</text>`
       +`<circle cx="${rm.x+rm.w-14}" cy="${rm.y+rm.h-14}" r="4.5" fill="var(${st})" stroke="var(--bg)" stroke-width="1.5"/></g>`);
   });
+  PLAN.okna.forEach(([a,b,c,d])=>svg.push(`<line class="rm-okno" x1="${a}" y1="${b}" x2="${c}" y2="${d}"><title>okno</title></line>`));
   const[x1,y1,x2,y2]=PLAN.door;
   svg.push(`<line class="rm-door" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><title>drzwi wejściowe</title></line></svg>`);
   document.getElementById('floor').innerHTML=svg.join('');
   const out=state.devices.find(d=>d.ext),ot=out?readings(out,'temp').last:null;
-  document.getElementById('maplegend').innerHTML=(ot?`<span><em>${esc(out.name.toLowerCase())} ${fmtNum(ot.v,1)}°</em></span>`:'')+`<span><em>${HEAT_MIN}°</em><i class="bar" style="background:linear-gradient(90deg,${rgba(HUE_COLD,.9)},${rgba((HUE_COLD+HUE_HOT)/2,.9)},${rgba(HUE_HOT,.9)})"></i><em>${HEAT_MAX}°</em></span><span><i class="legend-dot ok"></i> OK</span><span><i class="legend-dot warn"></i> uwaga</span><span><i class="legend-dot bad"></i> problem</span>`;
+  document.getElementById('maplegend').innerHTML=(ot?`<span><em>${esc(out.name.toLowerCase())} ${fmtNum(ot.v,1)}°</em></span>`:'')+`<span><em>${HEAT_MIN}°</em><i class="bar" style="background:linear-gradient(90deg,${rgba(HUE_COLD,.9)},${rgba((HUE_COLD+HUE_HOT)/2,.9)},${rgba(HUE_HOT,.9)})"></i><em>${HEAT_MAX}°</em></span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-2)"></i> okno</span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-1)"></i> drzwi</span><span><i class="legend-dot ok"></i> OK</span><span><i class="legend-dot warn"></i> uwaga</span><span><i class="legend-dot bad"></i> problem</span>`;
 }
 
 function airingTip(now){
