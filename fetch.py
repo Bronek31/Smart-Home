@@ -302,7 +302,7 @@ def purge_before(since_ms: int) -> int:
     if not since_ms:
         return 0
     removed = 0
-    for path in DATA_DIR.glob("*.csv"):
+    for path in DATA_DIR.glob("[0-9]*.csv"):   # tylko pliki miesięczne — dzienne.csv ma inne kolumny
         month = path.stem
         rows = load_month(month)
         if not rows:
