@@ -24,6 +24,7 @@ import os
 import sys
 import time
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 import requests
@@ -39,7 +40,11 @@ REGIONS = {
 
 DATA_DIR = Path("data")
 MANIFEST = DATA_DIR / "index.json"
+DAILY = DATA_DIR / "dzienne.csv"
 FIELDS = ["ts", "device_id", "code", "value"]
+DAILY_FIELDS = ["date", "device_id", "code", "min", "avg", "max", "n"]
+OUTDOOR_ID = "zewnatrz"
+OUTDOOR_URL = "https://api.open-meteo.com/v1/forecast"
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 RATE_LIMIT_CODES = {40000309, 1104, 2009}
 TEMP_UNITS = {"°c", "℃", "c", "°f", "℉", "f"}
@@ -338,11 +343,120 @@ def merge(new_rows: list[dict]) -> int:
     return added
 
 
+def fetch_outdoor(days: int) -> tuple[list[dict], dict | None]:
+    """Dociąga godzinową temperaturę i wilgotność z Open-Meteo (bez klucza API).
+
+    Zwraca odczyty w tym samym formacie co czujniki, więc dalej płyną tym samym
+    torem: trafiają do CSV, do agregatów i na wykres jako dodatkowa krzywa.
+    """
+    lat = os.environ.get("OUTDOOR_LAT", "").strip()
+    lon = os.environ.get("OUTDOOR_LON", "").strip()
+    if not lat or not lon:
+        return [], None
+    name = os.environ.get("OUTDOOR_NAME", "").strip() or "Na zewnątrz"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "hourly": "temperature_2m,relative_humidity_2m",
+        "past_days": max(1, min(days, 92)),
+        "forecast_days": 1,
+        "timezone": "UTC",
+    }
+    try:
+        resp = requests.get(OUTDOOR_URL, params=params, timeout=30)
+        block = (resp.json() or {}).get("hourly") or {}
+    except (requests.RequestException, ValueError) as err:
+        print(f"Pogoda: pominięta — {err}", flush=True)
+        return [], None
+
+    stamps = block.get("time") or []
+    now = datetime.now(timezone.utc)
+    rows = []
+    pairs = (("temperature_2m", "va_temperature"), ("relative_humidity_2m", "va_humidity"))
+    for source, code in pairs:
+        values = block.get(source) or []
+        for stamp, value in zip(stamps, values):
+            if value is None:
+                continue
+            try:
+                when = datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if when > now:          # prognoza na resztę doby nas nie interesuje
+                continue
+            rows.append({
+                "ts": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "device_id": OUTDOOR_ID,
+                "code": code,
+                "value": f"{float(value):g}",
+            })
+    entry = {
+        "name": name,
+        "external": True,
+        "codes": {
+            "va_temperature": {"kind": "temp", "unit": "°C", "scale": 0},
+            "va_humidity": {"kind": "hum", "unit": "%", "scale": 0},
+        },
+    }
+    print(f"{name}: {len(rows)} odczytów pogodowych", flush=True)
+    return rows, entry
+
+
+def write_daily() -> int:
+    """Przelicza całą historię na dobowe min/średnią/max.
+
+    Dzięki temu widok \"całość\" nie musi wczytywać wszystkich surowych odczytów —
+    przy kilku latach zbierania to różnica między setkami tysięcy wierszy a setkami.
+    """
+    zone = os.environ.get("TZ_LOCAL", "Europe/Warsaw")
+    try:
+        tz = ZoneInfo(zone)
+    except Exception:
+        print(f"Nieznana strefa {zone!r}, doba liczona według UTC.", flush=True)
+        tz = timezone.utc
+
+    buckets: dict[tuple, list] = {}
+    for path in sorted(DATA_DIR.glob("[0-9]*.csv")):
+        for row in load_month(path.stem):
+            try:
+                value = float(row["value"])
+                when = datetime.fromisoformat(row["ts"].replace("Z", "+00:00"))
+            except (KeyError, TypeError, ValueError):
+                continue        # bateria bywa tekstem (low/middle/high) — do średniej się nie nadaje
+            key = (when.astimezone(tz).strftime("%Y-%m-%d"), row["device_id"], row["code"])
+            found = buckets.get(key)
+            if found is None:
+                buckets[key] = [1, value, value, value]
+            else:
+                found[0] += 1
+                found[1] += value
+                found[2] = min(found[2], value)
+                found[3] = max(found[3], value)
+
+    rows = [
+        {
+            "date": day, "device_id": device, "code": code,
+            "min": f"{low:g}", "avg": f"{total / count:.2f}", "max": f"{high:g}", "n": count,
+        }
+        for (day, device, code), (count, total, low, high) in sorted(buckets.items())
+    ]
+    with DAILY.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=DAILY_FIELDS)
+        writer.writeheader()
+        writer.writerows(rows)
+    return len(rows)
+
+
 def write_manifest(devices: dict) -> None:
-    months = sorted(p.stem for p in DATA_DIR.glob("*.csv"))
+    months = sorted(p.stem for p in DATA_DIR.glob("[0-9]*.csv"))
     MANIFEST.write_text(
         json.dumps(
-            {"updated": iso(int(time.time() * 1000)), "months": months, "devices": devices},
+            {
+                "updated": iso(int(time.time() * 1000)),
+                "months": months,
+                "daily": DAILY.name if DAILY.exists() else None,
+                "devices": devices,
+            },
             ensure_ascii=False, indent=2,
         ) + "\n", encoding="utf-8"
     )
@@ -448,12 +562,20 @@ def main() -> int:
         print("Uruchom `python fetch.py --discover` i sprawdź listę.", file=sys.stderr)
         return 1
     if args.dry_run:
-        print(f"\n[dry-run] {len(collected)} odczytów, nic nie zapisano.")
+        extra, _ = fetch_outdoor(args.days)
+        print(f"\n[dry-run] {len(collected) + len(extra)} odczytów, nic nie zapisano.")
         return 0
 
+    outdoor_rows, outdoor_entry = fetch_outdoor(args.days)
+    if outdoor_entry:
+        collected.extend(outdoor_rows)
+        manifest_devices[OUTDOOR_ID] = outdoor_entry
+
     added = merge(collected)
+    days_written = write_daily()
     write_manifest(manifest_devices)
     print(f"\nDopisano {added} nowych odczytów ({len(collected) - added} już było).")
+    print(f"Agregaty dobowe: {days_written} wierszy w {DAILY}.")
     if failed:
         print(f"Pominięte czujniki: {', '.join(failed)}.")
         print("Dane pozostałych zostały zapisane. Następny przebieg nadrobi resztę — okno 7 dni jeszcze się nie zamknęło.")
