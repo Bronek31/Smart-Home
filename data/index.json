@@ -1,9 +1,10 @@
 {
-  "updated": "2026-08-13T11:01:51Z",
+  "updated": "2026-08-13T11:40:04Z",
   "months": [
     "2026-08"
   ],
   "daily": "dzienne.csv",
+  "weather": "pogoda.json",
   "devices": {
     "bfd6f4f87fea9d866dvpve": {
       "name": "Łazienka",
