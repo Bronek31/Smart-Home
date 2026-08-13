@@ -106,13 +106,16 @@ const ico=k=>`<svg viewBox="0 0 24 24" aria-hidden="true">${WMO_ICO[k]||WMO_ICO.
 const absHum=(t,rh)=>![t,rh].every(v=>v!=null&&isFinite(v))?null:2.1674*6.112*Math.exp(17.62*t/(243.12+t))*rh/(273.15+t);
 function aqiBand(v){if(v==null||!isFinite(v))return null;
   return v<=20?['dobra','--ok']:v<=40?['dostateczna','--ok']:v<=60?['umiarkowana','--warn']:v<=80?['słaba','--warn']:v<=100?['zła','--bad']:['bardzo zła','--bad']}
+/* Pokój wiąże się z czujnikiem przez dev (identyfikator Tuya) — nazwa jest tylko
+   zapasem. Inaczej zmiana nazwy czujnika w aplikacji Tuya po cichu wygasza pokój
+   na rzucie. Identyfikatory podejrzysz przez `python fetch.py --discover`. */
 const PLAN={w:400,h:500,door:[20,192,20,246],rooms:[
   // przedpokój pierwszy, żeby pokoje rysowały się na jego kresce
   {name:'Przedpokój',poly:'240,135 292,135 292,282 240,282 240,235 75,235 75,359 20,359 20,175 240,175',label:[132,212]},
-  {name:'Sypialnia',x:195,y:0,w:195,h:135},
-  {name:'Łazienka',x:292,y:135,w:88,h:147},
-  {name:'Salon',x:226,y:282,w:154,h:148},
-  {name:'Kuchnia',x:0,y:359,w:174,h:135}
+  {name:'Sypialnia',dev:'bf7e2a70935af7de78mjqt',x:195,y:0,w:195,h:135},
+  {name:'Łazienka',dev:'bfd6f4f87fea9d866dvpve',x:292,y:135,w:88,h:147},
+  {name:'Salon',dev:'bf43cf664d6644420axva3',x:226,y:282,w:154,h:148},
+  {name:'Kuchnia',dev:'bf5741c97c96fa85b1d7do',x:0,y:359,w:174,h:135}
 ]};
 const HEAT_MIN=19,HEAT_MAX=28,HUE_COLD=205,HUE_HOT=22;   // skala cieplna rzutu — dopasuj do swojego zakresu
 function heat(t){if(t==null||!isFinite(t))return null;const k=Math.max(0,Math.min(1,(t-HEAT_MIN)/(HEAT_MAX-HEAT_MIN)));return HUE_COLD+(HUE_HOT-HUE_COLD)*k}
@@ -264,7 +267,7 @@ function renderMap(){
   const svg=[`<svg viewBox="-3 -3 ${PLAN.w+6} ${PLAN.h+6}" xmlns="http://www.w3.org/2000/svg">`];
   PLAN.rooms.forEach(rm=>{
     if(rm.poly){svg.push(`<polygon class="rm-quiet" points="${rm.poly}"/><text class="rm-quiet-t" x="${rm.label[0]}" y="${rm.label[1]}" text-anchor="middle">${rm.name}</text>`);return}
-    const d=state.devices.find(x=>x.name===rm.name),h=state.health.find(x=>x.d.id===d?.id);
+    const d=state.devices.find(x=>x.id===rm.dev)||state.devices.find(x=>x.name===rm.name),h=state.health.find(x=>x.d.id===d?.id);
     const t=d?readings(d,'temp').last:null,hu=d?readings(d,'hum').last:null;
     const c=heat(t?.v),cx=rm.x+rm.w/2,size=Math.min(30,rm.w*0.29);
     const st=h?.status==='bad'?'--bad':h?.status==='warn'?'--warn':'--ok';
