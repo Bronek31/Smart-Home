@@ -279,19 +279,34 @@ function seriesAbs(){
 // godzinę, więc ostatni cichy odczyt trzeba zestawić z pierwszym już przy otwartym oknie.
 // Krótsze okno po prostu nie ma czego porównać. Rozdzielczość wykrywania jest więc
 // ograniczona częstością raportów — wietrzenia krótsze niż godzina mogą umknąć.
-const WIETRZ={zmiana:0.7,okno:2*HEARTBEAT,luka:0.5};
-const naZewnatrz=(zew,t)=>{
-  if(!zew.length)return null;
-  let lo=0,hi=zew.length-1;
-  while(lo<hi){const mid=(lo+hi)>>1;zew[mid].x<t?lo=mid+1:hi=mid}
-  const a=zew[Math.max(0,lo-1)],b=zew[lo];
+const WIETRZ={zmiana:0.7,okno:2*HEARTBEAT,luka:0.5,lukaT:0.5,luzT:0.3};
+// najbliższa w czasie wartość z posortowanej serii
+const wartoscW=(seria,t)=>{
+  if(!seria.length)return null;
+  let lo=0,hi=seria.length-1;
+  while(lo<hi){const mid=(lo+hi)>>1;seria[mid].x<t?lo=mid+1:hi=mid}
+  const a=seria[Math.max(0,lo-1)],b=seria[lo];
   return Math.abs(a.x-t)<=Math.abs(b.x-t)?a.y:b.y;
 };
-function wietrzenia(pts,zew){
+/* Klimatyzator też osusza powietrze, więc po samej wilgotności nie odróżnisz go od
+   otwartego okna. Odróżnia je temperatura, i to dwoma niezależnymi sposobami, bo
+   wymiana powietrza potrafi tylko jedno: przyciągnąć pokój do warunków na dworze.
+   1. Nie może pchać go w drugą stronę — a właśnie to robi chłodzenie w upał,
+      gdy na dworze jest goręcej niż w środku.
+   2. Nie może przeciągnąć pokoju poniżej temperatury dworu — a klimatyzator owszem,
+      i po to się go włącza także wtedy, gdy na dworze jest już chłodniej. */
+function nieChlodzenie(od,doKiedy,T,Tzew){
+  const t0=wartoscW(T,od),t1=wartoscW(T,doKiedy),z0=wartoscW(Tzew,od),z1=wartoscW(Tzew,doKiedy);
+  if(t0==null||t1==null||z0==null)return true;      // bez temperatury nie mamy czym orzekać
+  if(Math.abs(z0-t0)>=WIETRZ.lukaT&&(t1-t0)*Math.sign(z0-t0)<-WIETRZ.luzT)return false;
+  if(t1<Math.min(z0,z1??z0)-WIETRZ.luzT)return false;
+  return true;
+}
+function wietrzenia(pts,zew,T,Tzew){
   if(pts.length<2||!zew.length)return[];
   const out=[];let i=0;
   while(i<pts.length-1){
-    const naDworze=naZewnatrz(zew,pts[i].x);
+    const naDworze=wartoscW(zew,pts[i].x);
     // gdy po obu stronach ściany jest tyle samo pary, "w stronę dworu" nic nie znaczy
     if(naDworze==null||Math.abs(naDworze-pts[i].y)<WIETRZ.luka){i++;continue}
     const kierunek=Math.sign(naDworze-pts[i].y);
@@ -301,7 +316,7 @@ function wietrzenia(pts,zew){
       j++;
     }
     const zmiana=(pts[skraj].y-pts[i].y)*kierunek;
-    if(skraj>i&&zmiana>=WIETRZ.zmiana){out.push({od:pts[i].x,do:pts[skraj].x,zmiana});i=skraj+1;continue}
+    if(skraj>i&&zmiana>=WIETRZ.zmiana&&nieChlodzenie(pts[i].x,pts[skraj].x,T,Tzew)){out.push({od:pts[i].x,do:pts[skraj].x,zmiana});i=skraj+1;continue}
     i++;
   }
   return out;
@@ -483,7 +498,9 @@ async function render(){await ensureRows();computeHealth();renderStatus();render
   if(!useDaily()){
     const od=state.hours?Date.now()-state.hours*3600e3:0;
     const zewn=state.devices.find(d=>d.ext&&d.temp&&d.hum),odn=zewn?absPoints(zewn,od,false):[];
-    state.devices.filter(d=>!d.ext&&d.temp&&d.hum).forEach(d=>{state.wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn)});
+    const tempPkt=d=>state.rows.filter(r=>r.id===d.id&&r.code===d.temp&&r.t>=od&&isFinite(r.v)).map(r=>({x:r.t,y:r.v}));
+    const Tzew=zewn?tempPkt(zewn):[];
+    state.devices.filter(d=>!d.ext&&d.temp&&d.hum).forEach(d=>{state.wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn,tempPkt(d),Tzew)});
   }
   state.wietrzPasma=scalPasma(Object.values(state.wietrz));
   document.getElementById('wietrz-abs').textContent=state.wietrzPasma.length?` · ${plWietrz(state.wietrzPasma.length)}`:'';
