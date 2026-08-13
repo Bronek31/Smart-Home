@@ -1,8 +1,9 @@
 {
-  "updated": "2026-08-13T09:44:08Z",
+  "updated": "2026-08-13T10:29:21Z",
   "months": [
     "2026-08"
   ],
+  "daily": "dzienne.csv",
   "devices": {
     "bfd6f4f87fea9d866dvpve": {
       "name": "Łazienka",
@@ -79,6 +80,22 @@
         },
         "battery_state": {
           "kind": "battery",
+          "unit": "%",
+          "scale": 0
+        }
+      }
+    },
+    "zewnatrz": {
+      "name": "Na zewnątrz",
+      "external": true,
+      "codes": {
+        "va_temperature": {
+          "kind": "temp",
+          "unit": "°C",
+          "scale": 0
+        },
+        "va_humidity": {
+          "kind": "hum",
           "unit": "%",
           "scale": 0
         }
