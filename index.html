@@ -148,7 +148,11 @@ const plSkok=n=>n===1?'1 skok':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} s
 const plRap=n=>n===1?'1 raport':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} raporty`:`${n} raportów`;
 const fmtNum=(v,d=1)=>v==null||!isFinite(v)?'–':v.toFixed(d).replace('.',',');const pad=n=>String(n).padStart(2,'0');const isMidnight=d=>d.getHours()===0&&d.getMinutes()===0;
 function fmtWhen(d,span){if(isMidnight(d)||span>24*14)return `${pad(d.getDate())}.${pad(d.getMonth()+1)}`;if(span<=36)return `${pad(d.getHours())}:${pad(d.getMinutes())}`;return `${pad(d.getHours())}:00`}
-const STEPS_H=[1,2,3,6,12,24,48,72,96,120,168,336,720];function timeTicks(min,max,width){const target=width<420?5:width<760?8:11,spanH=(max-min)/3600e3,step=STEPS_H.find(s=>spanH/s<=target)||STEPS_H.at(-1),first=new Date(min);first.setHours(0,0,0,0);const out=[];for(let t=first.getTime();t<=max;t+=step*3600e3)if(t>=min)out.push({value:t});return out}
+const STEPS_H=[1,2,3,6,12,24,48,72,96,120,168,336,720];
+// Krok liczony po zegarze lokalnym, nie po milisekundach: zmiana czasu dokłada albo
+// zabiera godzinę, więc stały krok w ms przestaje trafiać w północ i podziałka
+// pokazuje "23:00" tam, gdzie powinna być data.
+function timeTicks(min,max,width){const target=width<420?5:width<760?8:11,spanH=(max-min)/3600e3,step=STEPS_H.find(s=>spanH/s<=target)||STEPS_H.at(-1),d=new Date(min);d.setHours(0,0,0,0);const out=[];for(;d.getTime()<=max;d.setHours(d.getHours()+step))if(d.getTime()>=min)out.push({value:d.getTime()});return out}
 function fmtDur(ms){if(ms==null||!isFinite(ms))return'–';const min=ms/60000;if(min<1)return`${Math.round(ms/1000)} s`;if(min<90)return`${Math.round(min)} min`;const h=min/60;if(h<36)return`${h.toFixed(1).replace('.',',')} godz.`;return`${Math.round(h/24)} dni`}
 function fmtAgo(ms){const min=Math.round((Date.now()-ms)/60000);if(min<2)return'przed chwilą';if(min<60)return`${min} min temu`;const h=Math.round(min/60);if(h<48)return`${h} godz. temu`;return`${Math.round(h/24)} dni temu`}
 function fail(title,...paras){document.getElementById('stamp').textContent='brak danych';const n=document.getElementById('notice');n.innerHTML=`<h2>${title}</h2>`+paras.map(p=>`<p>${p}</p>`).join('');n.hidden=false}
