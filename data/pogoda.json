@@ -1,11 +1,11 @@
 {
-  "updated": "2026-08-14T18:07:45Z",
+  "updated": "2026-08-14T19:16:00Z",
   "current": {
-    "time": "2026-08-14T20:00",
+    "time": "2026-08-14T21:15",
     "interval": 900,
-    "temperature_2m": 24.4,
-    "relative_humidity_2m": 37,
-    "apparent_temperature": 22.1,
+    "temperature_2m": 23.2,
+    "relative_humidity_2m": 42,
+    "apparent_temperature": 21.1,
     "weather_code": 0,
     "wind_speed_10m": 14.0
   },
@@ -42,10 +42,10 @@
     ]
   },
   "air": {
-    "time": "2026-08-14T20:00",
+    "time": "2026-08-14T21:00",
     "interval": 3600,
-    "european_aqi": 31,
-    "pm2_5": 11.5,
-    "pm10": 16.1
+    "european_aqi": 26,
+    "pm2_5": 13.0,
+    "pm10": 17.7
   }
 }
