@@ -131,6 +131,11 @@ identycznie. Końce skali są podpisane w legendzie pod rzutem, więc widać, co
 dany odcień. `SKALA_ROZPIETOSC` pilnuje, żeby przy bardzo równej dobie nie rozdmuchać
 szumu czujnika, a `RAMPA` to sama paleta.
 
+**Rytm doby** to mapa cieplna godzina × doba dla wybranego pokoju: wiersz to doba,
+kolumna godzina. Wykres liniowy przy kilku tygodniach zamienia się w kłębek, a mapa
+rośnie o jeden wiersz dziennie i zostaje czytelna. Doba i godzina liczone po zegarze
+lokalnym, bo rytm mieszkania chodzi za mieszkańcami, nie za południkiem zerowym.
+
 ## Co strona radzi i skąd to wie
 
 Poza wykresami dashboard odpowiada na dwa pytania. **Czy wietrzyć teraz** — przez
@@ -141,6 +146,12 @@ mieszkania odpadają: wietrzenie ma osuszyć, nie dogrzać.
 
 Progi (`WIETRZ_ZYSK`, `WIETRZ_CIEPLO`, `SLONCE_MOCNE`) siedzą w `index.html` obok
 tych funkcji.
+
+Kafel pokoju dopisuje też, **dokąd temperatura zmierza**: regresja liniowa z ostatnich
+czterech godzin wyciągnięta naprzód. Gdy z przedłużenia wychodzi przekroczenie progu
+komfortu, pokazuje godzinę (`↗ 28° ok. 17:00`) zamiast samego tempa — to ta informacja,
+po którą się sięga. Poniżej `TREND_MIN` kafel milczy, bo nachylenia mniejszego niż
+0,25 °C/godz. nie da się przy godzinnych raportach odróżnić od szumu czujnika.
 
 ---
 

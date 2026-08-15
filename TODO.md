@@ -22,31 +22,7 @@ cykle dobowe, wszystkie w jednej fali upałów.
 
 ---
 
-## 1. Ekstrapolacja trendu na 2–4 godziny
-
-Regresja liniowa z ostatnich 2–3 godzin, wynik w kaflu pokoju:
-
-> Sypialnia +0,5 °C/godz. — przy tym tempie 28 °C ok. 17:00.
-
-Nie potrzebuje historii, bo liczy się z odczytów, które właśnie przyszły. Uczciwe od
-pierwszego dnia. W upale najbardziej praktyczna rzecz, jaką ten dashboard może
-powiedzieć, bo mówi, kiedy zamknąć rolety, zanim zrobi się gorąco.
-
-Do przemyślenia: przy stabilnej temperaturze prognoza jest bez treści — lepiej ją
-wtedy chować, niż pisać „za 4 godziny bez zmian".
-
-## 2. Mapa cieplna godzina × doba
-
-Wiersze to dni, kolumny godziny, kolor to temperatura. Standardowa odpowiedź na
-pytanie „kiedy w tym pokoju jest gorąco" — ma ją Grafana, Home Assistant i każdy
-dashboard energetyczny, i nie jest to przypadek: rytm dobowy widać na niej
-natychmiast, a wykres liniowy przy dwóch tygodniach zamienia się w kłębek.
-
-Zaleta: **degraduje się łagodnie.** Dziś to trzy wiersze, za miesiąc trzydzieści,
-i przez cały ten czas jest czytelna. Liczona wprost z miesięcznych CSV, jedna seria
-na pokój, przełącznik temperatura/wilgotność.
-
-## 3. Skutek wietrzenia, nie tylko fakt wietrzenia
+## 1. Skutek wietrzenia, nie tylko fakt wietrzenia
 
 Epizody już wykrywamy i rysujemy pasmami. Brakuje domknięcia pętli: **o ile** każde
 wietrzenie ścięło wilgotność bezwzględną i **jak długo** efekt się trzymał.
@@ -59,7 +35,7 @@ nie ma, bo wymaga wykrywania wietrzeń — a to już stoi.
 
 Sensowne, gdy uzbiera się kilkanaście epizodów.
 
-## 4. Model cieplny pokój ↔ dwór
+## 2. Model cieplny pokój ↔ dwór
 
 **Wymaga 2–4 tygodni danych, najlepiej obejmujących różną pogodę.**
 
@@ -77,6 +53,13 @@ tylko strona „mieszkanie", więc zwlekanie nic nie kosztuje. *(Do zweryfikowan
 sprawdzone z pamięci, nie na żywym API.)*
 
 ---
+
+## Przypomnienie
+
+Do obu pozostałych pozycji wracamy **1 września 2026** — tyle mniej więcej potrzeba,
+żeby uzbierało się 2–4 tygodnie danych, najlepiej z jakimś chłodniejszym okresem
+w środku. Przypomnienie jest ustawione poza repozytorium, więc jeśli przepadnie,
+ta sekcja zostaje jako ślad.
 
 ## Świadomie odrzucone
 
@@ -99,8 +82,12 @@ sprawdzone z pamięci, nie na żywym API.)*
   (mieszkanie mieści się w 0,9 °C), a przejście błękit → pomarańcz prowadziło przez
   zieleń, więc wszystko lądowało w zielonym środku. Skala dobiera się teraz do okna,
   paleta nie ma martwego miejsca, a rozstaw barw między pokojami wzrósł z 46 na 170.
-
-- **Tryb odchyłki, pasek kontekstu i okno domyślnie na cały zakres** — trzeci podejście
+- **Tryb odchyłki, pasek kontekstu i okno domyślnie na cały zakres** — trzecie podejście
   do czytelności animacji, tym razem po zmierzeniu, co w danych w ogóle jest.
   Przez dobę pokój rusza się o 0,2–0,4 °C, a pokoje różnią się o 0,67 °C, więc obraz
   był w 2/3 statyczny. Odjęcie średniej pokoju podniosło ruch barwy Salonu z 29 na 133.
+- **Ekstrapolacja trendu** — regresja z ostatnich czterech godzin w kaflu pokoju,
+  z godziną przekroczenia progu komfortu zamiast samego tempa. Milczy poniżej
+  0,25 °C/godz., bo tyle wynosi próg odróżnialności od szumu przy raportach co godzinę.
+- **Rytm doby** — mapa cieplna godzina × doba z przełącznikiem pokoju. Przy trzech
+  dobach to trzy wiersze, ale rośnie sama i nie wymaga już żadnej pracy.

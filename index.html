@@ -31,6 +31,15 @@
 .trace .hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);max-width:52rem}
 /* komunikat zamiast wykresu nie potrzebuje 300 px wysokości zarezerwowanych na płótno */
 .plot-blad{margin:0;padding:1.1rem 1.2rem;font-size:.82rem;line-height:1.5;color:var(--faint)}.plot:has(.plot-blad){height:auto}
+.rytm-wybor{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.6rem;font-family:"IBM Plex Sans Condensed",sans-serif}
+.rytm-wybor .range{font-size:.76rem;padding:.16rem .55rem}
+.mapa{display:grid;gap:1px;background:var(--edge);border:1px solid var(--edge);font-family:"IBM Plex Mono",monospace}
+.mapa .lbl{background:var(--panel);color:var(--faint);font-size:.62rem;padding:0 .45rem;text-align:right;white-space:nowrap;display:flex;align-items:center;justify-content:flex-end}
+.mapa .hh{background:var(--panel);color:var(--faint);font-size:.56rem;text-align:center;line-height:1.9;letter-spacing:-.02em}
+.mapa .cell{height:15px;background:#0d141a}
+.rytm-skala{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .8rem;margin-top:.5rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}
+.rytm-skala em{font-style:normal;font-family:"IBM Plex Mono",monospace;color:var(--faint)}
+.rytm-skala i{display:inline-block;width:80px;height:8px}
 .pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-strona{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;fill:var(--faint);opacity:.7}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.replay{margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--edge)}
@@ -94,6 +103,13 @@
     <div class="pasma-legenda" id="pasma-legenda" hidden></div>
     <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, więc po niej nie poznasz, czy wietrzenie cokolwiek dało — po tej owszem: linia mieszkania zbliża się wtedy do linii dworu. Błękitne pasma to wykryta wymiana powietrza — nie zawsze przez okno: łazienka i kuchnia siedzą na pionie wentylacyjnym, więc powietrze potrafi im ujść samą kratką i otwartymi drzwiami.</p></div>
 
+  <div class="trace" id="rytm" hidden><h2>Rytm doby <small>&deg;C</small><small id="rytm-info"></small></h2>
+    <div class="rytm-wybor" id="rytm-wybor"></div>
+    <div class="mapa" id="mapa"></div>
+    <div class="rytm-skala" id="rytm-skala"></div>
+    <p class="hint">Każdy wiersz to doba, każda kolumna godzina. Wykres liniowy przy kilku tygodniach zamienia się w kłębek, a tutaj powtarzalny rytm widać od razu: o której pokój się nagrzewa, o której stygnie i czy któraś doba wypadła z rytmu.</p>
+  </div>
+
   <table class="summary" id="summary"></table><table class="summary" id="health"></table>
 
   <div class="bottom-layout">
@@ -138,7 +154,7 @@ const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długoś�
 const OKNO_DOBA=24;  // wartość przycisku "ostatnia doba"; 0 znaczy cały zakres
 const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null,
   // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
-  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:0,normy:null,trybBarwy:'temp'};const monthCache=new Map();
+  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:0,normy:null,trybBarwy:'temp',rytmDev:null};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -317,6 +333,7 @@ function despike(pts,kind){
 }
 const plSkok=n=>n===1?'1 skok':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} skoki`:`${n} skoków`;
 const plWietrz=n=>n===1?'1 wietrzenie':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} wietrzenia`:`${n} wietrzeń`;
+const plDoba=n=>n===1?'1 doba':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} doby`:`${n} dób`;
 const plRap=n=>n===1?'1 raport':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} raporty`:`${n} raportów`;
 // Nazwy czujników pochodzą z aplikacji Tuya i lądują w innerHTML oraz w SVG.
 // To własne dane, więc nie chodzi o atak — po prostu nazwa ze znakiem < rozjeżdża widok.
@@ -556,7 +573,48 @@ function healthFor(d,from){
 function computeHealth(){const from=Date.now()-24*3600e3;state.health=state.devices.filter(d=>!d.ext).map(d=>healthFor(d,from));return state.health}
 function renderStatus(){const hs=state.health,ok=hs.filter(r=>r.status==='ok').length,warn=hs.filter(r=>r.status==='warn').length,bad=hs.filter(r=>r.status==='bad').length,last=Math.max(0,...hs.map(r=>r.last||0));const lag=state.updated?Date.now()-state.updated:null;const box=(k,v,cls='')=>`<div class="statusbox"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;document.getElementById('statusbar').innerHTML=box('Czujniki',`<span class="dot ${bad?'bad':warn?'warn':''}"></span>${ok}/${hs.length} OK${warn?` · ${warn} uwaga`:''}${bad?` · ${bad} problem`:''}`)+box('Ostatni raport czujnika',last?fmtAgo(last):'brak danych')+box('Ostatnia zbiórka',state.updated?fmtAgo(state.updated):'–',lag!=null&&lag>STALE_WARN?'warn-text':'')+box('Najdłuższa przerwa',fmtDur(Math.max(0,...hs.map(r=>r.worst||0))))}
 
-function renderPens(){const box=document.getElementById('pens');box.innerHTML='';state.devices.forEach(d=>{const t=readings(d,'temp'),h=readings(d,'hum'),when=Math.max(t.last?.t||0,h.last?.t||0),r=state.health.find(x=>x.d.id===d.id);let trend='';if(t.last&&t.dayAgo){const diff=t.last.v-t.dayAgo.v;const arrow=diff>.05?'▲':diff<-.05?'▼':'=';trend=`<span class="trend">${arrow} ${fmtNum(Math.abs(diff))}° 24h</span>`}const el=document.createElement('div');el.className='pen';el.style.setProperty('--c',d.color);el.innerHTML=`<b>${d.ext?'':`<span class="dot ${r?.status==='bad'?'bad':r?.status==='warn'?'warn':''}"></span>`}${esc(d.name)}</b><div class="read"><span class="t">${fmtNum(t.last?.v,1)}&deg;</span><span class="h">${fmtNum(h.last?.v,0)}%</span></div><div class="foot"><span>${when?fmtAgo(when):'brak odczytu'}</span>${trend}${d.ext?'<span>Open-Meteo</span>':`<span>bateria: ${r?.batt||'–'}</span>`}</div>`;box.appendChild(el)})}
+/* --- Dokąd to zmierza ---
+   Regresja liniowa z ostatnich godzin, wyciągnięta kilka godzin naprzód. Nie potrzebuje
+   historii, bo liczy się z odczytów, które właśnie przyszły — działa więc od pierwszego
+   dnia zbierania, w przeciwieństwie do wszystkiego, co uczy się z przeszłości.
+
+   Kafel odzywa się tylko wtedy, gdy ma co powiedzieć. Poniżej TREND_MIN nachylenie
+   jest nieodróżnialne od szumu: czujnik ma rozdzielczość 0,1 °C, a przy raportach co
+   godzinę niepewność nachylenia z czterech punktów to jakieś 0,05–0,1 °C/godz., więc
+   próg trzykrotnie wyższy nie przepuszcza przypadków. Sam odczyt „+0,3 °C/godz." też
+   niewiele mówi, dlatego gdy z przedłużenia wychodzi przekroczenie progu komfortu,
+   pokazujemy godzinę zamiast tempa — to jest ta informacja, po którą się sięga. */
+const TREND_OKNO=4*3600e3;    // z jakiego okna liczymy nachylenie
+const TREND_MIN=0.25;         // °C/godz.; poniżej tego nie odróżnimy trendu od szumu
+const TREND_HORYZONT=4;       // na ile godzin naprzód wolno przedłużać
+const KOMFORT={gora:28,dol:18};
+function nachylenie(d){
+  const kod=d.temp;if(!kod)return null;
+  const seria=state.indeks?.[`${d.id}|${kod}`];
+  if(!seria?.length)return null;
+  const teraz=Date.now(),pkt=seria.filter(r=>r.t>=teraz-TREND_OKNO);
+  if(pkt.length<3||teraz-pkt.at(-1).t>MISS_GAP)return null;
+  // najmniejsze kwadraty; czas w godzinach, żeby nachylenie wyszło wprost w °C/godz.
+  const x=pkt.map(r=>(r.t-pkt[0].t)/3600e3),y=pkt.map(r=>r.v);
+  const sx=x.reduce((a,b)=>a+b,0)/x.length,sy=y.reduce((a,b)=>a+b,0)/y.length;
+  let gora=0,dol=0;
+  for(let i=0;i<x.length;i++){gora+=(x[i]-sx)*(y[i]-sy);dol+=(x[i]-sx)**2}
+  if(!dol)return null;
+  return{tempo:gora/dol,teraz:pkt.at(-1).v};
+}
+function dokadZmierza(d){
+  const n=nachylenie(d);
+  if(!n||Math.abs(n.tempo)<TREND_MIN)return'';
+  const strzalka=n.tempo>0?'↗':'↘';
+  const prog=n.tempo>0?KOMFORT.gora:KOMFORT.dol;
+  const godzin=(prog-n.teraz)/n.tempo;
+  if(godzin>0&&godzin<=TREND_HORYZONT){
+    const kiedy=new Date(Date.now()+godzin*3600e3);
+    return `<span class="trend">${strzalka} ${prog}° ok. ${pad(kiedy.getHours())}:${pad(Math.floor(kiedy.getMinutes()/10)*10)}</span>`;
+  }
+  return `<span class="trend">${strzalka} ${fmtNum(Math.abs(n.tempo))}°/godz.</span>`;
+}
+function renderPens(){const box=document.getElementById('pens');box.innerHTML='';state.devices.forEach(d=>{const t=readings(d,'temp'),h=readings(d,'hum'),when=Math.max(t.last?.t||0,h.last?.t||0),r=state.health.find(x=>x.d.id===d.id);let trend='';if(t.last&&t.dayAgo){const diff=t.last.v-t.dayAgo.v;const arrow=diff>.05?'▲':diff<-.05?'▼':'=';trend=`<span class="trend">${arrow} ${fmtNum(Math.abs(diff))}° 24h</span>`}const el=document.createElement('div');el.className='pen';el.style.setProperty('--c',d.color);el.innerHTML=`<b>${d.ext?'':`<span class="dot ${r?.status==='bad'?'bad':r?.status==='warn'?'warn':''}"></span>`}${esc(d.name)}</b><div class="read"><span class="t">${fmtNum(t.last?.v,1)}&deg;</span><span class="h">${fmtNum(h.last?.v,0)}%</span></div><div class="foot"><span>${when?fmtAgo(when):'brak odczytu'}</span>${trend}${d.ext?'':dokadZmierza(d)}${d.ext?'<span>Open-Meteo</span>':`<span>bateria: ${r?.batt||'–'}</span>`}</div>`;box.appendChild(el)})}
 /* --- Dymek z odczytem a dotyk ---
    Chart.js nasłuchuje touchstart i touchmove, ale nie touchend (patrz jego
    defaults.events), więc po oderwaniu palca nikt dymka nie chowa — zostawał na
@@ -1026,6 +1084,70 @@ function renderEvents(){
   box.innerHTML=ev.slice(0,7).map(e=>`<div class="event ${e.status}"><i class="edot"></i><div class="et">${e.text}</div><div class="es">${e.t?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(e.t)):''}</div></div>`).join('')||'<div class="empty">Wszystko w normie w ostatnich 24 godzinach.</div>';
 }
 
+/* --- Rytm doby: mapa cieplna godzina × doba ---
+   Standardowa odpowiedź na pytanie „kiedy w tym pokoju jest gorąco" i nie przypadkiem
+   ma ją każdy dashboard energetyczny. Wykres liniowy przy dwóch tygodniach zamienia się
+   w kłębek, a mapa rośnie o jeden wiersz na dobę i pozostaje czytelna. Przy trzech
+   dobach historii to trzy wiersze — mało, ale nie kłamie, i z każdym dniem robi się
+   lepsza bez dokładania pracy.
+
+   Doba i godzina liczone po zegarze lokalnym, nie po UTC: rytm mieszkania chodzi za
+   zegarem mieszkańców, a nie za południkiem zerowym. */
+const MAPA_GODZ=24;
+function siatkaDoby(d){
+  if(!d?.temp)return null;
+  const od=zakresOd(),kubelki=new Map();
+  for(const r of state.indeks?.[`${d.id}|${d.temp}`]||[]){
+    if(r.t<od)continue;
+    const dt=new Date(r.t),dzien=`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;
+    const klucz=`${dzien}|${dt.getHours()}`,b=kubelki.get(klucz);
+    if(b){b.n++;b.suma+=r.v}else kubelki.set(klucz,{n:1,suma:r.v,dzien,godz:dt.getHours()});
+  }
+  if(!kubelki.size)return null;
+  const dni=[...new Set([...kubelki.values()].map(b=>b.dzien))].sort();
+  let min=Infinity,max=-Infinity;
+  for(const b of kubelki.values()){const v=b.suma/b.n;if(v<min)min=v;if(v>max)max=v}
+  if(max-min<SKALA_ROZPIETOSC){const brak=(SKALA_ROZPIETOSC-(max-min))/2;min-=brak;max+=brak}
+  return{kubelki,dni,min,max};
+}
+function renderRytm(){
+  const sekcja=document.getElementById('rytm');
+  const wewn=state.devices.filter(d=>!d.ext&&d.temp);
+  if(!wewn.length)return void(sekcja.hidden=true);
+  // domyślnie pokój z najszerszym zakresem w oknie — na nim widać najwięcej
+  if(!wewn.some(d=>d.id===state.rytmDev)){
+    let naj=null,szer=-1;
+    for(const d of wewn){const s=siatkaDoby(d);if(!s)continue;
+      if(s.max-s.min>szer){szer=s.max-s.min;naj=d.id}}
+    state.rytmDev=naj||wewn[0].id;
+  }
+  const d=wewn.find(x=>x.id===state.rytmDev),s=siatkaDoby(d);
+  sekcja.hidden=!s;
+  if(!s)return;
+  document.getElementById('rytm-wybor').innerHTML=wewn.map(x=>
+    `<button class="range" data-rytm="${esc(x.id)}"${x.id===state.rytmDev?' aria-pressed="true"':''}>${esc(x.name)}</button>`).join('');
+  document.getElementById('rytm-info').textContent=` · ${esc(d.name.toLowerCase())} · ${plDoba(s.dni.length)}`;
+  const mapa=document.getElementById('mapa');
+  mapa.style.gridTemplateColumns=`auto repeat(${MAPA_GODZ},minmax(0,1fr))`;
+  const kom=['<span class="lbl"></span>'];
+  for(let g=0;g<MAPA_GODZ;g++)kom.push(`<span class="hh">${g%3?'':g}</span>`);
+  for(const dzien of s.dni){
+    kom.push(`<span class="lbl">${dzien.slice(8)}.${dzien.slice(5,7)}</span>`);
+    for(let g=0;g<MAPA_GODZ;g++){
+      const b=s.kubelki.get(`${dzien}|${g}`);
+      if(!b){kom.push('<span class="cell"></span>');continue}
+      const v=b.suma/b.n;
+      kom.push(`<span class="cell" style="background:${rgba(barwaK((v-s.min)/(s.max-s.min)),.85)}" title="${dzien.slice(8)}.${dzien.slice(5,7)} ${pad(g)}:00 · ${fmtNum(v,1)} °C"></span>`);
+    }
+  }
+  mapa.innerHTML=kom.join('');
+  document.getElementById('rytm-skala').innerHTML=
+    `<span><em>${fmtNum(s.min,1)}°</em><i style="background:linear-gradient(90deg,${gradientRampy(.85)})"></i><em>${fmtNum(s.max,1)}°</em></span>`
+    +`<span>ciemne pole — brak odczytu w tej godzinie</span>`;
+  document.getElementById('rytm-wybor').querySelectorAll('[data-rytm]').forEach(b=>{
+    b.onclick=()=>{state.rytmDev=b.dataset.rytm;renderRytm()};
+  });
+}
 function renderSummary(tempSets,humSets){const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||zakresy(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel()}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th><th>wietrzenia</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td><td>${d.ext||useDaily()?"–":(state.wietrz?.[d.id]?.length??0)}</td></tr>`}).join('')+'</tbody>'}
 function renderHealth(){document.getElementById('health').innerHTML=`<caption>Łączność z bramką · diagnostyka ostatnich 24 h · alarm dopiero powyżej ${fmtDur(MISS_GAP)} ciszy</caption><thead><tr><th>Czujnik</th><th>temp.</th><th>wilg.</th><th>mediana odstępu</th><th>najdłuższa przerwa</th><th>para t+w</th><th>bateria</th><th>ostatni</th></tr></thead><tbody>`+state.health.map(r=>`<tr style="--c:${r.d.color}"><td>${esc(r.d.name)}</td><td>${r.nT}</td><td>${r.nH}</td><td>${fmtDur(r.median)}</td><td class="${r.suspicious?'warn-text':''}">${fmtDur(r.worst)}</td><td class="${r.paired!=null&&r.paired<.9?'warn-text':''}">${r.paired==null?'–':Math.round(r.paired*100)+'%'}</td><td class="${r.batt==='niski'?'warn-text':''}">${r.batt||'–'}</td><td class="${r.age>STALE_BAD?'bad-text':r.age>STALE_WARN?'warn-text':''}">${r.last?fmtAgo(r.last):'–'}</td></tr>`).join('')+'</tbody>'}
 // „dane od” ma podawać pierwszy prawdziwy odczyt z mieszkania. W widoku „całość”
@@ -1057,7 +1179,7 @@ async function render(){await ensureRows();state.indeks=indeksSerii();computeHea
   if(state.wietrzPasma.length)legenda.push('<span><i style="background:rgba(95,184,224,.32)"></i>wietrzenie</span>');
   if(state.klima.length)legenda.push(`<span><i style="background:rgba(226,112,143,.30)"></i>${esc(state.klimaNazwy.join(', ')||'urządzenie')} w pracy</span>`);
   const box=document.getElementById('pasma-legenda');box.innerHTML=legenda.join('');box.hidden=!legenda.length;
-  ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
+  ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();renderRytm();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
   rysujWykresy(T,H,A)}
 boot();
 // Instalacja na ekranie głównym i tryb offline. Rejestracja po load, żeby nie
