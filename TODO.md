@@ -95,3 +95,15 @@ sprawdzone z pamięci, nie na żywym API.)*
   pionowa kreska „jesteś tutaj" na wykresach. Pokazuje, jak ciepło wędruje przez
   mieszkanie: słońce wchodzi w sypialnię od południa, salon i kuchnia od północy idą
   z opóźnieniem. Tego cztery nałożone linie nie pokazują.
+- **Widoczna skala kolorów** — stała 19–28 °C była o rząd wielkości za szeroka na dobę
+  (mieszkanie mieści się w 0,9 °C), a przejście błękit → pomarańcz prowadziło przez
+  zieleń, więc wszystko lądowało w zielonym środku. Skala dobiera się teraz do okna,
+  paleta nie ma martwego miejsca, a rozstaw barw między pokojami wzrósł z 46 na 170.
+
+## Gdyby animacja nadal była za mało czytelna
+
+Zapasowy pomysł, którego nie wdrożyłem, bo obecna wersja wystarcza: kolorować pokoje
+**odchyleniem od średniej mieszkania**, a nie temperaturą bezwzględną. Znika wtedy
+wspólny dryf dobowy, który dotyczy wszystkich pokoi naraz, i zostaje sama struktura
+przestrzenna — który pokój prowadzi, a który się opóźnia. Kosztem tego, że kolor
+przestaje odpowiadać odczytowi, więc musiałby być przełącznikiem, nie zamiennikiem.

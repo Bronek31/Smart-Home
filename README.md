@@ -97,9 +97,18 @@ temperatury nie pokazuje. Obok są `dop` i `bier` — nazwy pokoi w dopełniaczu
 i bierniku, bo podpowiedzi wklejają je wprost w zdanie.
 
 Pod rzutem siedzi **odtwarzanie historii**: suwak przewija mieszkanie w czasie, a
-przycisk odtwarza cały widoczny zakres jednym przebiegiem. Pokazuje to, czego cztery
-nałożone linie nie pokazują — którędy ciepło wędruje przez mieszkanie. Klatki idą
-stałym krokiem dobranym do zakresu (`KLATKI_CEL`, `KROKI_MIN`, `KLATKA_MS`).
+przycisk odtwarza je jednym przebiegiem. Pokazuje to, czego cztery nałożone linie nie
+pokazują — którędy ciepło wędruje przez mieszkanie. Domyślnie obejmuje ostatnią dobę,
+bo o to chodzi: jeden pełny cykl. Przełącznik obok rozciąga je na cały wybrany zakres.
+Klatki idą stałym krokiem dobranym do okna (`KLATKI_CEL`, `KROKI_MIN`, `KLATKA_MS`),
+a wartości między odczytami są interpolowane, bo czujniki raportują raz na godzinę
+i bez tego byłby to pokaz slajdów.
+
+**Skala kolorów rzutu dobiera się do danych w oknie**, a nie stoi na stałych 19–28 °C:
+spokojna doba mieści się w jednym stopniu i na stałej skali wszystkie pokoje wyglądały
+identycznie. Końce skali są podpisane w legendzie pod rzutem, więc widać, co znaczy
+dany odcień. `SKALA_ROZPIETOSC` pilnuje, żeby przy bardzo równej dobie nie rozdmuchać
+szumu czujnika, a `RAMPA` to sama paleta.
 
 ## Co strona radzi i skąd to wie
 

@@ -33,7 +33,10 @@
 .plot-blad{margin:0;padding:1.1rem 1.2rem;font-size:.82rem;line-height:1.5;color:var(--faint)}.plot:has(.plot-blad){height:auto}
 .pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
-.floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-strona{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;fill:var(--faint);opacity:.7}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.replay{display:flex;align-items:center;gap:.6rem;margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--edge)}
+.floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-strona{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;fill:var(--faint);opacity:.7}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.replay{margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--edge)}
+.replay-row{display:flex;align-items:center;gap:.6rem}
+.replay-okna{display:flex;gap:.3rem;margin-top:.55rem;font-family:"IBM Plex Sans Condensed",sans-serif}
+.replay-okna .range{font-size:.76rem;padding:.16rem .55rem}
 .replay .play,.replay .teraz{appearance:none;border:1px solid var(--edge);background:transparent;color:var(--dim);font:inherit;font-size:.78rem;padding:.2rem .6rem;cursor:pointer;border-radius:0;line-height:1.5;transition:.15s}
 .replay .play{font-size:.7rem;min-width:2.1rem}
 .replay .play:hover,.replay .teraz:hover{border-color:var(--grid-day);color:var(--text)}
@@ -92,9 +95,15 @@
     <section class="panel"><h2 id="plan-tytul">Plan mieszkania · aktualny stan</h2>
       <div class="floor" id="floor" role="img" aria-label="Rzut mieszkania: temperatura, wilgotność i status łączności w każdym pokoju"></div>
       <div class="replay" id="replay" hidden>
-        <button class="play" id="play" aria-pressed="false" aria-label="Odtwórz historię">&#9654;</button>
-        <input type="range" id="suwak" min="0" max="0" value="0" step="1" aria-label="Moment w historii mieszkania">
-        <button class="teraz" id="teraz" hidden>teraz</button>
+        <div class="replay-row">
+          <button class="play" id="play" aria-pressed="false" aria-label="Odtwórz historię">&#9654;</button>
+          <input type="range" id="suwak" min="0" max="0" value="0" step="1" aria-label="Moment w historii mieszkania">
+          <button class="teraz" id="teraz" hidden>teraz</button>
+        </div>
+        <div class="replay-okna" id="replay-okna" hidden>
+          <button class="range" data-okno="24" aria-pressed="true">ostatnia doba</button>
+          <button class="range" data-okno="0">cały zakres</button>
+        </div>
       </div>
       <div class="map-legend" id="maplegend"></div>
     </section>
@@ -108,9 +117,10 @@
 <script>
 const PENS=['#e8a13c','#5fb8e0','#5fce9e','#e2708f','#b79ae8','#d4c95f'];const CSS=getComputedStyle(document.documentElement);const C=n=>CSS.getPropertyValue(n).trim();
 const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długość rośnie w ciągu dnia
+const OKNO_DOBA=24;  // domyślne okno odtwarzania historii w godzinach; 0 znaczy cały zakres
 const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null,
   // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
-  klatka:null,os:null,timer:null,indeks:{}};const monthCache=new Map();
+  klatka:null,os:null,timer:null,indeks:{},skala:null,oknoOdtw:OKNO_DOBA};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -174,10 +184,64 @@ const PLAN={w:400,h:500,door:[20,192,20,246],
    nie ma nic wspólnego z klimatyzatorem w salonie. Tu wiążemy urządzenie z czujnikiem
    w jego pokoju; sprzęt bez wpisu nie tłumi wykrywania nigdzie. */
 const SPRZET_POKOJ={'bfe38c4af789b0c8fbxte4':'bf43cf664d6644420axva3'};   // FERSK VIND 2 → Salon
-const HEAT_MIN=19,HEAT_MAX=28,HUE_COLD=205,HUE_HOT=22;   // skala cieplna rzutu — dopasuj do swojego zakresu
-function heat(t){if(t==null||!isFinite(t))return null;const k=Math.max(0,Math.min(1,(t-HEAT_MIN)/(HEAT_MAX-HEAT_MIN)));return HUE_COLD+(HUE_HOT-HUE_COLD)*k}
-function hsl2rgb(h,s,l){s/=100;l/=100;const k=n=>(n+h/30)%12,a=s*Math.min(l,1-l),f=n=>l-a*Math.max(-1,Math.min(k(n)-3,9-k(n),1));return[f(0),f(8),f(4)].map(v=>Math.round(v*255))}
-const rgba=(h,a)=>{const c=h==null?[125,141,155]:hsl2rgb(h,58,57);return `rgba(${c[0]},${c[1]},${c[2]},${a})`};
+/* Skala cieplna rzutu. Stała 19–28 °C brzmiała rozsądnie, ale była o rząd wielkości
+   za szeroka na to, co dzieje się w mieszkaniu: przez ostatnią dobę wszystkie pokoje
+   zmieściły się w 0,9 °C, czyli w 10% skali. Wychodził z tego przesuw barwy o 18°
+   ze 183 dostępnych, a na pojedynczy pokój 4–8° — różnica, której oko nie łapie,
+   więc animacja wyglądała na nieruchomą.
+
+   Skalę dobieramy teraz do tego, co w oknie faktycznie jest. Dwa zabezpieczenia:
+   dolna granica rozpiętości, żeby spokojna doba nie zamieniła szumu czujnika w tęczę
+   (rozdzielczość to 0,1 °C, więc przy 2 °C jeden krok czujnika to 9° barwy — nadal
+   subtelnie), i podpisane końce w legendzie, bo skala względna bez podpisu kłamie. */
+const HEAT_MIN=19,HEAT_MAX=28;   // skala awaryjna, gdy w oknie nie ma odczytów
+const SKALA_ROZPIETOSC=1.0,SKALA_MARGINES=0.15;
+function skalaCieplna(od,koniec){
+  let min=Infinity,max=-Infinity;
+  for(const d of state.devices){
+    if(d.ext||!d.temp)continue;      // pogoda waha się o kilkanaście stopni i rozwaliłaby skalę
+    for(const r of state.indeks?.[`${d.id}|${d.temp}`]||[]){
+      if(r.t<od||r.t>koniec)continue;
+      if(r.v<min)min=r.v;
+      if(r.v>max)max=r.v;
+    }
+  }
+  if(!isFinite(min))return{min:HEAT_MIN,max:HEAT_MAX};
+  min-=SKALA_MARGINES;max+=SKALA_MARGINES;
+  const brak=SKALA_ROZPIETOSC-(max-min);
+  if(brak>0){min-=brak/2;max+=brak/2}
+  return{min,max};
+}
+/* Paleta rzutu: błękit → cyjan → żółć → pomarańcz.
+   Dwie rzeczy trzeba było poprawić naraz, bo każda z osobna nie wystarczała.
+
+   Po pierwsze, pierwotna wersja jechała jednym kanałem barwy z błękitu w pomarańcz,
+   a taka droga prowadzi przez zieleń. Przy wąskim zakresie wszystkie pokoje lądowały
+   w zielonym środku i różniły się odcieniem zieleni, czyli niczym. Wersja z szarym
+   środkiem była nie lepsza: mieszkanie siedziało wtedy w strefie bez nasycenia
+   i wychodziło rgb(137,146,156) obok rgb(157,146,136). Ta rampa nie ma martwego
+   miejsca — każde dwa sąsiednie przystanki są wyraźnie różne, więc kontrast jest
+   wszędzie, nie tylko przy końcach.
+
+   Po drugie, przez spokojną dobę pokój przesuwa się o 0,2–0,4 °C. Przy dolnej granicy
+   rozpiętości 2 °C zajmowało to 10–20% rampy i dalej było niewidoczne. Zeszliśmy do
+   1 °C: prawdziwy ruch pokoju zajmuje wtedy 20–40% rampy, a szum czujnika (0,1 °C)
+   ledwie 10% — widać go, ale nie on rządzi obrazem. */
+const RAMPA=[[0,[62,124,196]],[.35,[86,190,206]],[.7,[222,200,110]],[1,[235,140,66]]],SZARY=[125,141,155];
+const mieszaj=(a,b,k)=>a.map((v,i)=>Math.round(v+(b[i]-v)*k));
+function barwaK(k){
+  k=Math.max(0,Math.min(1,k));
+  let i=1;while(i<RAMPA.length-1&&k>RAMPA[i][0])i++;
+  const[p0,c0]=RAMPA[i-1],[p1,c1]=RAMPA[i];
+  return mieszaj(c0,c1,(k-p0)/(p1-p0));
+}
+function barwa(t){
+  if(t==null||!isFinite(t))return SZARY;
+  const{min,max}=state.skala||{min:HEAT_MIN,max:HEAT_MAX};
+  return barwaK((t-min)/(max-min));
+}
+const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const gradientRampy=a=>RAMPA.map(([p,c])=>`${rgba(c,a)} ${Math.round(p*100)}%`).join(',');
 /* Wyskok = nagły skok, po którym wartość wraca tam, skąd wyszła.
    Trwała zmiana (grzejnik, otwarte okno) nie wraca, więc zostaje nietknięta. */
 const SPIKE={temp:{jump:1.5,back:1.0},hum:{jump:8,back:5},rise:12*60000,max:90*60000};
@@ -522,7 +586,7 @@ function brakWykresow(tekst){
    różnym rytmem, więc klatka na znacznik dawałaby przebieg raz szybszy, raz wolniejszy,
    bez związku z upływem czasu — a właśnie o pokazanie upływu czasu tu chodzi. */
 const KLATKI_CEL=150;             // ile mniej więcej klatek ma liczyć przebieg
-const KROKI_MIN=[15,30,60,120,180,360,720,1440];
+const KROKI_MIN=[5,10,15,30,60,120,180,360,720,1440];   // krok drobniejszy niż raport ma sens, bo interpolujemy
 const KLATKA_MS=90;               // tempo odtwarzania; 150 klatek to ok. 13 sekund
 // Odczyty poukładane w serie, żeby odtwarzanie nie przemiatało całej tablicy 150 razy
 // na sekundę. Budowane raz na render, bo tylko wtedy state.rows się zmienia.
@@ -531,15 +595,24 @@ function indeksSerii(){
   for(const r of state.rows)if(isFinite(r.v))(idx[`${r.id}|${r.code}`]??=[]).push(r);
   return idx;   // state.rows jest posortowane, więc każda seria też
 }
-/* Wartość obowiązująca o zadanej porze: ostatni odczyt nie starszy niż MISS_GAP.
-   Bez tego limitu pokój, którego czujnik zamilkł, trzymałby ostatnią znaną temperaturę
-   przez cały przebieg i wyglądałby na sprawny. */
+/* Wartość obowiązująca o zadanej porze, interpolowana liniowo między sąsiednimi
+   odczytami. Czujniki raportują raz na godzinę, więc bez interpolacji przy kroku
+   dziesięciominutowym wychodzi pokaz slajdów: pięć nieruchomych klatek, potem skok.
+   Temperatura zmienia się płynnie, więc prosta między dwoma pomiarami jest uczciwym
+   przybliżeniem — ale tylko w granicach MISS_GAP. Dłuższa dziura to cisza czujnika,
+   a nie gładka zmiana, i wtedy nie ma czego rysować: bez tego limitu pokój, którego
+   czujnik zamilkł, przeciągnąłby ostatnią znaną temperaturę przez cały przebieg
+   i wyglądałby na sprawny. */
 function wartoscNa(d,kind,t){
   const seria=state.indeks?.[`${d.id}|${d[kind]}`];
   if(!seria?.length)return null;
   let lo=0,hi=seria.length-1,best=-1;
   while(lo<=hi){const m=(lo+hi)>>1;if(seria[m].t<=t){best=m;lo=m+1}else hi=m-1}
-  return best<0||t-seria[best].t>MISS_GAP?null:seria[best].v;
+  if(best<0)return null;
+  const a=seria[best],b=seria[best+1];
+  if(t-a.t>MISS_GAP)return null;
+  if(!b||b.t-a.t>MISS_GAP)return a.v;
+  return a.v+(b.v-a.v)*(t-a.t)/(b.t-a.t);
 }
 /* Zakres suwaka: od pierwszego odczytu z mieszkania w widocznym zakresie do teraz.
    Wcześniejsze klatki byłyby pustym rzutem, bo czujników jeszcze nie było.
@@ -547,10 +620,16 @@ function wartoscNa(d,kind,t){
    chwilowe, a dobowymi średnimi nie ma czym wypełnić klatki. */
 function osCzasu(){
   const ext=new Set(state.devices.filter(d=>d.ext).map(d=>d.id));
-  const od=Math.max(zakresOd(),state.rows.find(r=>!ext.has(r.id))?.t||0),koniec=Date.now();
-  if(!od||koniec-od<2*3600e3)return null;
+  const koniec=Date.now(),pelny=Math.max(zakresOd(),state.rows.find(r=>!ext.has(r.id))?.t||0);
+  if(!pelny)return null;
+  /* Domyślnie ostatnia doba, nie cały wybrany zakres. Przez tydzień mieszkanie waha
+     się o 5,9 °C, więc skala rozciąga się na wielodniowy trend i to on zjada kontrast,
+     a dobowy rytm — właściwy bohater tego przebiegu — ginie. Doba pokazuje jeden pełny
+     cykl i mieści się w kilku sekundach. */
+  const od=state.oknoOdtw?Math.max(pelny,koniec-state.oknoOdtw*3600e3):pelny;
+  if(koniec-od<2*3600e3)return null;
   const krok=(KROKI_MIN.find(m=>(koniec-od)/60000/m<=KLATKI_CEL)||KROKI_MIN.at(-1))*60000;
-  return{od,koniec,krok,n:Math.floor((koniec-od)/krok)};
+  return{od,koniec,pelny,krok,n:Math.floor((koniec-od)/krok)};
 }
 const fmtStamp=t=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
 // pionowa kreska „jesteś tutaj" na wykresach — bez niej nie wiadomo, której chwili
@@ -572,7 +651,7 @@ function renderMap(){
     if(rm.poly){svg.push(`<polygon class="rm-quiet" points="${rm.poly}"/><text class="rm-quiet-t" x="${rm.label[0]}" y="${rm.label[1]}" text-anchor="middle">${rm.name}</text>`);return}
     const d=state.devices.find(x=>x.id===rm.dev)||state.devices.find(x=>x.name===rm.name),h=state.health.find(x=>x.d.id===d?.id);
     const tv=odczyt(d,'temp'),hv=odczyt(d,'hum');
-    const c=heat(tv),cx=rm.x+rm.w/2,size=Math.min(30,rm.w*0.29);
+    const c=barwa(tv),cx=rm.x+rm.w/2,size=Math.min(30,rm.w*0.29);
     // przy odtwarzaniu kropka mówi o tamtej chwili, nie o teraz: brak świeżego odczytu
     // znaczy, że czujnik wtedy milczał, a nie że milczy dzisiaj
     const st=t!=null?(tv==null?'--bad':'--ok'):(h?.status==='bad'?'--bad':h?.status==='warn'?'--warn':'--ok');
@@ -595,7 +674,7 @@ function renderMap(){
   svg.push(`<line class="rm-door" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><title>drzwi wejściowe</title></line></svg>`);
   document.getElementById('floor').innerHTML=svg.join('');
   const out=state.devices.find(d=>d.ext),ot=odczyt(out,'temp');
-  document.getElementById('maplegend').innerHTML=(ot!=null?`<span><em>${esc(out.name.toLowerCase())} ${fmtNum(ot,1)}°</em></span>`:'')+`<span><em>${HEAT_MIN}°</em><i class="bar" style="background:linear-gradient(90deg,${rgba(HUE_COLD,.9)},${rgba((HUE_COLD+HUE_HOT)/2,.9)},${rgba(HUE_HOT,.9)})"></i><em>${HEAT_MAX}°</em></span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-2)"></i> okno</span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-1)"></i> drzwi</span><span><i class="legend-dot ok"></i> OK</span><span><i class="legend-dot warn"></i> uwaga</span><span><i class="legend-dot bad"></i> problem</span>`;
+  document.getElementById('maplegend').innerHTML=(ot!=null?`<span><em>${esc(out.name.toLowerCase())} ${fmtNum(ot,1)}°</em></span>`:'')+`<span><em>${fmtNum(state.skala?.min??HEAT_MIN,1)}°</em><i class="bar" style="background:linear-gradient(90deg,${gradientRampy(.9)})"></i><em>${fmtNum(state.skala?.max??HEAT_MAX,1)}°</em></span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-2)"></i> okno</span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-1)"></i> drzwi</span><span><i class="legend-dot ok"></i> OK</span><span><i class="legend-dot warn"></i> uwaga</span><span><i class="legend-dot bad"></i> problem</span>`;
 }
 
 /* Sterowanie odtwarzaniem. Suwak i tak jest polem formularza, więc strzałki i Home/End
@@ -620,11 +699,22 @@ function resetReplay(){
   const box=document.getElementById('replay'),suwak=document.getElementById('suwak');
   box.hidden=!state.os;                        // za mało historii, żeby było co odtwarzać
   document.getElementById('teraz').hidden=true;
+  // skala kolorów idzie za oknem odtwarzania, żeby rzut na żywo i przebieg mówiły
+  // tym samym językiem — ten sam odcień znaczy w obu tę samą temperaturę
+  state.skala=skalaCieplna(state.os?state.os.od:zakresOd(),Date.now());
   if(!state.os)return;
   suwak.max=state.os.n;suwak.value=state.os.n;
+  // wybór okna ma sens dopiero, gdy jest z czego wybierać
+  const okna=document.getElementById('replay-okna');
+  okna.hidden=Date.now()-state.os.pelny<=OKNO_DOBA*3600e3;
+  okna.querySelectorAll('[data-okno]').forEach(b=>
+    b.setAttribute('aria-pressed',String(+b.dataset.okno===state.oknoOdtw)));
 }
 function wireReplay(){
   const suwak=document.getElementById('suwak'),play=document.getElementById('play');
+  document.getElementById('replay-okna').querySelectorAll('[data-okno]').forEach(b=>{
+    b.onclick=()=>{state.oknoOdtw=+b.dataset.okno;resetReplay();renderMap()};
+  });
   suwak.oninput=()=>{stopKlatek();pokazKlatke(+suwak.value)};
   document.getElementById('teraz').onclick=()=>{stopKlatek();suwak.value=state.os?.n??0;pokazKlatke(suwak.max)};
   play.onclick=()=>{
