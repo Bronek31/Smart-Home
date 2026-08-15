@@ -587,7 +587,7 @@ function brakWykresow(tekst){
    bez związku z upływem czasu — a właśnie o pokazanie upływu czasu tu chodzi. */
 const KLATKI_CEL=150;             // ile mniej więcej klatek ma liczyć przebieg
 const KROKI_MIN=[5,10,15,30,60,120,180,360,720,1440];   // krok drobniejszy niż raport ma sens, bo interpolujemy
-const KLATKA_MS=90;               // tempo odtwarzania; 150 klatek to ok. 13 sekund
+const KLATKA_MS=40;               // 25 klatek na sekundę, czyli przebieg w jakieś sześć sekund
 // Odczyty poukładane w serie, żeby odtwarzanie nie przemiatało całej tablicy 150 razy
 // na sekundę. Budowane raz na render, bo tylko wtedy state.rows się zmienia.
 function indeksSerii(){
@@ -628,7 +628,11 @@ function osCzasu(){
      cykl i mieści się w kilku sekundach. */
   const od=state.oknoOdtw?Math.max(pelny,koniec-state.oknoOdtw*3600e3):pelny;
   if(koniec-od<2*3600e3)return null;
-  const krok=(KROKI_MIN.find(m=>(koniec-od)/60000/m<=KLATKI_CEL)||KROKI_MIN.at(-1))*60000;
+  /* Krok najbliższy docelowej liczbie klatek, nie pierwszy, który się pod nią mieści.
+     Zaokrąglanie w dół potrafiło zejść z 150 na 84 i wtedy tydzień przelatywał w trzy
+     sekundy, a doba szła dwa razy dłużej — przy tym samym tempie klatek. */
+  const minuty=(koniec-od)/60000,celnie=m=>Math.abs(minuty/m-KLATKI_CEL);
+  const krok=KROKI_MIN.reduce((a,b)=>celnie(b)<celnie(a)?b:a)*60000;
   return{od,koniec,pelny,krok,n:Math.floor((koniec-od)/krok)};
 }
 const fmtStamp=t=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
@@ -690,7 +694,10 @@ function pokazKlatke(i){
 }
 function stopKlatek(){
   clearInterval(state.timer);state.timer=null;
-  document.getElementById('play').setAttribute('aria-pressed','false');
+  const play=document.getElementById('play');
+  play.setAttribute('aria-pressed','false');
+  play.innerHTML='&#9654;';                     // trójkąt: kliknięcie puści przebieg
+  play.setAttribute('aria-label','Odtwórz historię');
 }
 function resetReplay(){
   stopKlatek();
@@ -718,16 +725,21 @@ function wireReplay(){
   suwak.oninput=()=>{stopKlatek();pokazKlatke(+suwak.value)};
   document.getElementById('teraz').onclick=()=>{stopKlatek();suwak.value=state.os?.n??0;pokazKlatke(suwak.max)};
   play.onclick=()=>{
-    if(state.timer)return stopKlatek();
+    if(state.timer)return stopKlatek();        // druga pauza zatrzymuje tam, gdzie akurat jest
     if(!state.os)return;
     // od początku, gdy suwak stoi na końcu — inaczej nic by się nie wydarzyło
     if(+suwak.value>=state.os.n)suwak.value=0;
     play.setAttribute('aria-pressed','true');
+    play.innerHTML='&#10074;&#10074;';         // dwie kreski: kliknięcie zatrzyma
+    play.setAttribute('aria-label','Zatrzymaj odtwarzanie');
+    /* Przebieg chodzi w kółko aż do pauzy. Doba mija w kilka sekund, więc zatrzymanie
+       się na końcu znaczyło tyle, że ledwie się nadążyło popatrzeć i już było po
+       wszystkim. Pętla omija ostatnią pozycję suwaka, bo ta oznacza stan bieżący —
+       przeskok przez nią gasiłby na jedną klatkę podpis i przycisk "teraz". */
     state.timer=setInterval(()=>{
-      const next=+suwak.value+1;
-      suwak.value=next;
-      pokazKlatke(next);
-      if(next>=state.os.n)stopKlatek();       // koniec przebiegu wraca do stanu bieżącego
+      const next=+suwak.value+1,i=next>=state.os.n?0:next;
+      suwak.value=i;
+      pokazKlatke(i);
     },KLATKA_MS);
   };
 }

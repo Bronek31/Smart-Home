@@ -97,7 +97,8 @@ temperatury nie pokazuje. Obok są `dop` i `bier` — nazwy pokoi w dopełniaczu
 i bierniku, bo podpowiedzi wklejają je wprost w zdanie.
 
 Pod rzutem siedzi **odtwarzanie historii**: suwak przewija mieszkanie w czasie, a
-przycisk odtwarza je jednym przebiegiem. Pokazuje to, czego cztery nałożone linie nie
+przycisk puszcza je w pętli — chodzi w kółko, aż klikniesz pauzę, a wtedy zatrzymuje
+się tam, gdzie akurat jest. Pokazuje to, czego cztery nałożone linie nie
 pokazują — którędy ciepło wędruje przez mieszkanie. Domyślnie obejmuje ostatnią dobę,
 bo o to chodzi: jeden pełny cykl. Przełącznik obok rozciąga je na cały wybrany zakres.
 Klatki idą stałym krokiem dobranym do okna (`KLATKI_CEL`, `KROKI_MIN`, `KLATKA_MS`),
