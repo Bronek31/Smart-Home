@@ -97,8 +97,11 @@ temperatury nie pokazuje. Obok są `dop` i `bier` — nazwy pokoi w dopełniaczu
 i bierniku, bo podpowiedzi wklejają je wprost w zdanie.
 
 Pod rzutem siedzi **odtwarzanie historii**: suwak przewija mieszkanie w czasie, a
-przycisk puszcza je w pętli — chodzi w kółko, aż klikniesz pauzę, a wtedy zatrzymuje
-się tam, gdzie akurat jest. Pokazuje to, czego cztery nałożone linie nie
+przycisk puszcza je w pętli. Przebieg powtarza się trzy razy, z krótkim przystankiem
+na końcu każdego okrążenia, i wraca do stanu bieżącego; pauza zatrzymuje go wcześniej,
+tam gdzie akurat jest. Jeden przebieg to za mało, żeby cokolwiek wyłapać, a pętla bez
+końca miele w tle bez powodu — stąd `PETLE_MAX` i `PAUZA_KONCA`. Odtwarzanie zatrzymuje
+się też samo, gdy karta przestaje być widoczna. Pokazuje to, czego cztery nałożone linie nie
 pokazują — którędy ciepło wędruje przez mieszkanie. Pasek pod suwakiem to średnia
 mieszkania przez całe okno ze znacznikiem bieżącej klatki; wykresy są półtora tysiąca
 pikseli wyżej, więc bez niego nie wiadomo, czy ogląda się szczyt dnia, czy noc.

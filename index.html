@@ -138,7 +138,7 @@ const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długoś�
 const OKNO_DOBA=24;  // wartość przycisku "ostatnia doba"; 0 znaczy cały zakres
 const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null,
   // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
-  klatka:null,os:null,timer:null,indeks:{},skala:null,oknoOdtw:0,normy:null,trybBarwy:'temp'};const monthCache=new Map();
+  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:0,normy:null,trybBarwy:'temp'};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -635,6 +635,8 @@ function brakWykresow(tekst){
 const KLATKI_CEL=150;             // ile mniej więcej klatek ma liczyć przebieg
 const KROKI_MIN=[5,10,15,30,60,120,180,360,720,1440];   // krok drobniejszy niż raport ma sens, bo interpolujemy
 const KLATKA_MS=40;               // 25 klatek na sekundę, czyli przebieg w jakieś sześć sekund
+const PETLE_MAX=3;                // tyle okrążeń, potem rzut wraca do stanu bieżącego
+const PAUZA_KONCA=800;            // ms przystanku na końcu okrążenia, żeby zawinięcie było widać
 // Odczyty poukładane w serie, żeby odtwarzanie nie przemiatało całej tablicy 150 razy
 // na sekundę. Budowane raz na render, bo tylko wtedy state.rows się zmienia.
 function indeksSerii(){
@@ -771,12 +773,16 @@ function pokazKlatke(i){
   Object.values(state.charts).forEach(ch=>{try{ch.render()}catch{}});
 }
 function stopKlatek(){
-  clearInterval(state.timer);state.timer=null;
+  clearInterval(state.timer);clearTimeout(state.pauza);
+  state.timer=state.pauza=null;state.gra=false;
   const play=document.getElementById('play');
   play.setAttribute('aria-pressed','false');
   play.innerHTML='&#9654;';                     // trójkąt: kliknięcie puści przebieg
   play.setAttribute('aria-label','Odtwórz historię');
 }
+// Przebieg w niewidocznej karcie nie ma komu nic pokazać, a mieli baterię telefonu.
+// Nasłuch na dokumencie, bo to on jest celem tego zdarzenia.
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopKlatek()});
 function resetReplay(){
   stopKlatek();
   state.klatka=null;
@@ -816,23 +822,40 @@ function wireReplay(){
   });
   suwak.oninput=()=>{stopKlatek();pokazKlatke(+suwak.value)};
   document.getElementById('teraz').onclick=()=>{stopKlatek();suwak.value=state.os?.n??0;pokazKlatke(suwak.max)};
+  /* Przebieg powtarza się kilka razy, a nie w nieskończoność i nie raz jeden.
+
+     Raz jeden to za mało: sześć sekund mija, zanim oko zdąży się zorientować, gdzie
+     patrzeć. Bez końca to za dużo: zostawiona karta miele w kółko, a po którymś
+     okrążeniu i tak przestaje się patrzeć. Trzy przebiegi to jakieś dwadzieścia
+     sekund — tyle, żeby zobaczyć to samo trzy razy i wychwycić, co się powtarza.
+
+     Na końcu każdego okrążenia jest przystanek. Bez niego kolor skakał z końca okna
+     na jego początek w ciągu jednej klatki, więc zawinięcie wyglądało jak usterka,
+     a nie jak powrót na start.
+
+     Pętla omija ostatnią pozycję suwaka, bo ta oznacza stan bieżący — przeskok przez
+     nią gasiłby na jedną klatkę podpis z godziną i przycisk "teraz". Za to po ostatnim
+     okrążeniu wracamy właśnie tam: rzut ma domyślnie pokazywać, co jest teraz. */
+  const klatkuj=()=>{
+    const next=+suwak.value+1;
+    if(next<state.os.n){suwak.value=next;pokazKlatke(next);return}
+    clearInterval(state.timer);state.timer=null;
+    if(++state.petla>=PETLE_MAX){suwak.value=state.os.n;pokazKlatke(state.os.n);return stopKlatek()}
+    state.pauza=setTimeout(()=>{
+      suwak.value=0;pokazKlatke(0);
+      state.timer=setInterval(klatkuj,KLATKA_MS);
+    },PAUZA_KONCA);
+  };
   play.onclick=()=>{
-    if(state.timer)return stopKlatek();        // druga pauza zatrzymuje tam, gdzie akurat jest
+    if(state.gra)return stopKlatek();          // druga pauza zatrzymuje tam, gdzie akurat jest
     if(!state.os)return;
     // od początku, gdy suwak stoi na końcu — inaczej nic by się nie wydarzyło
     if(+suwak.value>=state.os.n)suwak.value=0;
+    state.gra=true;state.petla=0;
     play.setAttribute('aria-pressed','true');
     play.innerHTML='&#10074;&#10074;';         // dwie kreski: kliknięcie zatrzyma
     play.setAttribute('aria-label','Zatrzymaj odtwarzanie');
-    /* Przebieg chodzi w kółko aż do pauzy. Doba mija w kilka sekund, więc zatrzymanie
-       się na końcu znaczyło tyle, że ledwie się nadążyło popatrzeć i już było po
-       wszystkim. Pętla omija ostatnią pozycję suwaka, bo ta oznacza stan bieżący —
-       przeskok przez nią gasiłby na jedną klatkę podpis i przycisk "teraz". */
-    state.timer=setInterval(()=>{
-      const next=+suwak.value+1,i=next>=state.os.n?0:next;
-      suwak.value=i;
-      pokazKlatke(i);
-    },KLATKA_MS);
+    state.timer=setInterval(klatkuj,KLATKA_MS);
   };
 }
 /* Które okna otworzyć. Powietrze musi mieć gdzie wejść i gdzie wyjść: wychodzi
