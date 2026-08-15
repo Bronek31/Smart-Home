@@ -42,6 +42,7 @@ stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
 |---|---|
 | `fetch.py` | kolektor: pobiera logi z Tuya, pogodę i smog z Open-Meteo, przelicza agregaty |
 | `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
+| `zapisz.sh` | pobiera odczyty i zapisuje je na gałąź, przeżywając wyścig dwóch przebiegów |
 | `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
 | `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
@@ -217,6 +218,7 @@ po którą się sięga. Poniżej `TREND_MIN` kafel milczy, bo nachylenia mniejsz
 |---|---|
 | Strona: „Nie ma jeszcze żadnych odczytów" | Kolektor nie zrobił jeszcze udanego przebiegu. Zakładka Actions |
 | Zamiast wykresów: „Nie udało się wczytać biblioteki wykresów" | Sieć blokuje `cdn.jsdelivr.net` albo CDN ma awarię. Kafle, tabele i rzut działają dalej; wykresy wrócą same |
+| „Zbieranie odczytów" na czerwono z „Push odrzucony" | Dwa przebiegi kolektora weszły sobie w drogę. `zapisz.sh` liczy wtedy odczyty jeszcze raz na drzewie zwycięzcy i próbuje trzy razy; czerwień znaczy, że nie udało się ani razu. Odczyty nie giną — następny przebieg i tak bierze okno 7 dni |
 | Pulpit: „Kolektor nie zapisał nic od…" | Problem po stronie Actions albo Tuya, nie czujników |
 | Błąd `28841002` w logu | Wygasł trial IoT Core. Wniosek o przedłużenie na iot.tuya.com, 1-2 dni robocze |
 | Błąd `1004` | Access Secret przepisany z ucięciem znaku |

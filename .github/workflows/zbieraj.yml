@@ -38,7 +38,7 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Pobierz odczyty z chmury Tuya
+      - name: Pobierz odczyty z chmury Tuya i zapisz
         env:
           TUYA_CLIENT_ID: ${{ secrets.TUYA_CLIENT_ID }}
           TUYA_CLIENT_SECRET: ${{ secrets.TUYA_CLIENT_SECRET }}
@@ -58,29 +58,9 @@ jobs:
           OUTDOOR_NAME: 'Na zewnątrz'
           # Strefa, według której tną się doby w agregatach data/dzienne.csv
           TZ_LOCAL: 'Europe/Warsaw'
-        # Pełne okno, jakie daje Tuya. Przy postoju kolektora dopiero to pozwala
-        # nadrobić wszystko, co jeszcze jest do odzyskania.
-        run: python fetch.py --days 7
-
-      - name: Zapisz zmiany
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add data/
-          if git diff --staged --quiet; then
-            echo "Brak nowych odczytów — nic do zapisania."
-            exit 0
-          fi
-          git commit -m "odczyty: $(date -u '+%Y-%m-%d %H:%M') UTC"
-          # Ktoś mógł commitnąć na main w trakcie przebiegu — wtedy push leci odrzucony
-          # i przebieg świeci na czerwono, choć nic złego się nie stało. Dociągamy więc
-          # i próbujemy ponownie. Rebase jest bezpieczny, bo ruszamy wyłącznie data/.
-          for proba in 1 2 3; do
-            if git push; then
-              exit 0
-            fi
-            echo "Push odrzucony (próba $proba) — dociągam main i powtarzam."
-            git pull --rebase --autostash origin main || break
-          done
-          echo "Nie udało się zapisać odczytów po trzech próbach." >&2
-          exit 1
+        # Pobranie i zapis w jednym kroku, bo przy przegranym wyścigu o gałąź trzeba
+        # policzyć odczyty jeszcze raz — na drzewie tego, kto zapisał pierwszy. Pełne
+        # okno 7 dni, jakie daje Tuya: przy postoju kolektora dopiero to pozwala nadrobić
+        # wszystko, co jeszcze jest do odzyskania. Logika siedzi w zapisz.sh, żeby dała
+        # się przetestować — patrz tests/test_zapisz.py.
+        run: sh zapisz.sh
