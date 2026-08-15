@@ -1,11 +1,11 @@
 {
-  "updated": "2026-08-15T08:35:15Z",
+  "updated": "2026-08-15T08:46:29Z",
   "current": {
-    "time": "2026-08-15T10:30",
+    "time": "2026-08-15T10:45",
     "interval": 900,
-    "temperature_2m": 25.6,
-    "relative_humidity_2m": 34,
-    "apparent_temperature": 24.7,
+    "temperature_2m": 26.2,
+    "relative_humidity_2m": 33,
+    "apparent_temperature": 25.5,
     "weather_code": 0,
     "wind_speed_10m": 7.9
   },
