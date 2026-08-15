@@ -37,6 +37,9 @@ jobs:
               opis = f"ostatni zapis {last:%Y-%m-%d %H:%M} UTC, czyli {godzin:.1f} godz. temu"
           except Exception as blad:
               godzin, opis = 999.0, f"nie da sie odczytac data/index.json ({blad})"
+          # opis bywa cytatem z wyjątku, a wieloliniowa wartość rozwala GITHUB_OUTPUT —
+          # to jedno zdanie, więc spłaszczamy je do jednej linii
+          opis = " ".join(opis.split())
           print(f"godzin={godzin:.1f}")
           print(f"alarm={'tak' if godzin > prog else 'nie'}")
           print(f"opis={opis}")

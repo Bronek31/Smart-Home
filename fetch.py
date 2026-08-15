@@ -552,13 +552,12 @@ def fetch_weather() -> dict | None:
     return snapshot
 
 
-def code_kinds(devices: dict) -> dict[tuple[str, str], str]:
-    """Mapa (urządzenie, kod DP) -> rodzaj odczytu.
+def device_sources(devices: dict) -> list[dict]:
+    """Manifest z poprzedniego przebiegu, a po nim to, co widać teraz.
 
-    Bierze pod uwagę także manifest z poprzedniego przebiegu, żeby czujnik zdjęty
-    z TUYA_DEVICE_IDS nie stracił nagle odszumiania w historycznych agregatach.
+    Manifest wchodzi do gry, żeby czujnik zdjęty z TUYA_DEVICE_IDS nie stracił nagle
+    odszumiania w historycznych agregatach.
     """
-    kinds: dict[tuple[str, str], str] = {}
     sources = []
     if MANIFEST.exists():
         try:
@@ -566,13 +565,29 @@ def code_kinds(devices: dict) -> dict[tuple[str, str], str]:
         except (ValueError, OSError):
             pass
     sources.append(devices or {})
-    for source in sources:
+    return sources
+
+
+def code_kinds(devices: dict) -> dict[tuple[str, str], str]:
+    """Mapa (urządzenie, kod DP) -> rodzaj odczytu."""
+    kinds: dict[tuple[str, str], str] = {}
+    for source in device_sources(devices):
         for device_id, entry in source.items():
             for code, meta in ((entry or {}).get("codes") or {}).items():
                 kind = (meta or {}).get("kind")
                 if kind:
                     kinds[(device_id, code)] = kind
     return kinds
+
+
+def external_ids(devices: dict) -> set[str]:
+    """Źródła spoza mieszkania — dziś tylko pogoda z Open-Meteo."""
+    return {
+        device_id
+        for source in device_sources(devices)
+        for device_id, entry in source.items()
+        if (entry or {}).get("external")
+    }
 
 
 def write_daily(devices: dict | None = None) -> int:
@@ -583,6 +598,7 @@ def write_daily(devices: dict | None = None) -> int:
     """
     zone = os.environ.get("TZ_LOCAL", "Europe/Warsaw")
     kinds = code_kinds(devices or {})
+    zewnetrzne = external_ids(devices or {})
     try:
         tz = ZoneInfo(zone)
     except Exception:
@@ -609,7 +625,10 @@ def write_daily(devices: dict | None = None) -> int:
         kind = kinds.get((device, code)) or classify(code, "")
         if kind in ("power", "battery"):
             continue      # dobowa średnia z włącznika albo poziomu baterii nic nie znaczy
-        bad = drop_spikes([(t, v) for t, v, _ in points], kind)
+        # Pogoda przychodzi już wygładzona z modelu, a przeglądarka jej nie filtruje.
+        # Filtr po tej stronie zjadałby prawdziwe załamania pogody i rozjeżdżał widok
+        # "całość" z 7-dniowym — a te dwa mają pokazywać to samo.
+        bad = set() if device in zewnetrzne else drop_spikes([(t, v) for t, v, _ in points], kind)
         skipped += len(bad)
         for index, (_, value, day) in enumerate(points):
             if index in bad:
@@ -755,6 +774,9 @@ def main() -> int:
             od_kiedy = max(start_ms, end_ms - SPRZET_OKNO)
             if ostatni_log.get(device_id):
                 od_kiedy = max(od_kiedy, ostatni_log[device_id] + 1000)
+                # Znacznik przepisujemy od razu: gdyby pobranie poniżej się wywaliło,
+                # wypadnie z manifestu i następny przebieg znów ciągnąłby pełne 12 godz.
+                manifest_devices[device_id]["last_log"] = iso(ostatni_log[device_id])
         try:
             logs = fetch_logs(client, device_id, od_kiedy, end_ms)
         except (TuyaError, requests.RequestException) as err:

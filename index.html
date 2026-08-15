@@ -29,6 +29,8 @@
 /* przewijanie w pionie i szczypanie zostają przy przeglądarce, poziome przeciąganie jest nasze — bez tego podwójne stuknięcie w wykres przybliża stronę */
 .plot canvas{touch-action:pan-y pinch-zoom}
 .trace .hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);max-width:52rem}
+/* komunikat zamiast wykresu nie potrzebuje 300 px wysokości zarezerwowanych na płótno */
+.plot-blad{margin:0;padding:1.1rem 1.2rem;font-size:.82rem;line-height:1.5;color:var(--faint)}.plot:has(.plot-blad){height:auto}
 .pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
@@ -240,11 +242,24 @@ function wireRanges(){const btns=[...document.querySelectorAll('.range[data-hour
   btns.forEach(b=>b.onclick=()=>{state.hours=wartosc(b);mark();writeHash();render()});mark();
   const f=document.getElementById('filtr');f.checked=state.filtr;f.onchange=()=>{state.filtr=f.checked;writeHash();render()};
   state.markRanges=mark}
+/* min/śr/max z surowych punktów. Tabela nie może liczyć ich z tego, co idzie na
+   wykres: powyżej 900 punktów bucket() uśrednia sąsiadów, więc skrajne wartości są
+   przycinane i kolumny „min”/„max” pokazują cieplejsze minimum i chłodniejsze
+   maksimum, niż było naprawdę — tym mocniej, im ostrzejszy skok.
+   Pętla zamiast Math.min(...ys) — spread na kilkudziesięciu tysiącach punktów wywala
+   się na limicie argumentów, a tyle ich uzbiera się po kilku latach zbierania. */
+function zakresy(pts){if(!pts.length)return null;
+  let min=Infinity,max=-Infinity,sum=0;
+  for(const p of pts){if(p.y<min)min=p.y;if(p.y>max)max=p.y;sum+=p.y}
+  return{min,max,avg:sum/pts.length}}
 function bucket(points,limit=900){if(points.length<=limit)return points;const size=Math.ceil(points.length/limit),out=[];for(let i=0;i<points.length;i+=size){const s=points.slice(i,i+size);out.push({x:s[Math.floor(s.length/2)].x,y:s.reduce((a,p)=>a+p.y,0)/s.length})}return out}
-function indoorStart(){const ext=new Set(state.devices.filter(d=>d.ext).map(d=>d.id));
-  if(useDaily())return state.daily.find(r=>!ext.has(r.id))?.t||0;
-  const from=zakresOd();
-  return state.rows.find(r=>!ext.has(r.id)&&r.t>=from)?.t||0}
+/* Pierwszy odczyt z mieszkania w danych, które akurat mamy pod ręką.
+   Z granicą zakresu — tam równamy start krzywej pogodowej, żeby nie ciągnęła się
+   samotnie przed pierwszym odczytem z mieszkania. Bez granicy — do podpisu tabeli
+   „dane od”, bo tam chodzi o początek historii, nie o początek widoku. */
+function wewnOd(od=0){const ext=new Set(state.devices.filter(d=>d.ext).map(d=>d.id));
+  return (useDaily()?state.daily:state.rows).find(r=>!ext.has(r.id)&&r.t>=od)?.t||0}
+const indoorStart=()=>wewnOd(useDaily()?0:zakresOd());
 function series(kind){const from=zakresOd(),since=indoorStart();state.cut[kind]=0;
   return state.devices.filter(d=>d[kind]&&!state.off.has(d.id)).map(d=>{
     const cut=d.ext?Math.max(from,since):from;   // pogoda startuje tam, gdzie zaczynają się odczyty z mieszkania
@@ -256,7 +271,7 @@ function series(kind){const from=zakresOd(),since=indoorStart();state.cut[kind]=
     }
     let pts=state.rows.filter(r=>r.id===d.id&&r.code===d[kind]&&r.t>=cut&&isFinite(r.v)).map(r=>({x:r.t,y:r.v}));
     if(state.filtr&&!d.ext){const f=despike(pts,kind);pts=f.pts;state.cut[kind]+=f.cut}
-    return{device:d,points:bucket(pts),stats:null};
+    return{device:d,points:bucket(pts),stats:zakresy(pts)};
   }).filter(s=>s.points.length)}
 
 /* Wilgotność bezwzględna: trzeba sparować temperaturę z wilgotnością z tego samego
@@ -453,6 +468,21 @@ const pustka={id:'pustka',afterDraw(chart){
   ctx.restore();
 }};
 function draw(canvasId,sets,unit,decimals,extra=[]){const span=zakresGodzin();const cfg={type:'line',plugins:[dotyk,pustka,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:s.points.length<=SAMOTNE?2.6:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{s.ticks=timeTicks(s.min,s.max,s.chart.width)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),span)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg)}
+/* Chart.js leci z CDN, więc jedna zablokowana domena albo jego awaria i wykresów
+   nie ma. Bez tej klamry wyjątek z draw() przerywał render() w połowie i zabierał ze
+   sobą obie tabele oraz stempel w nagłówku — czyli rzeczy, które z wykresami nie mają
+   nic wspólnego. Teraz rysowanie idzie na końcu render() i we własnym try, a w miejscu
+   wykresu staje wyjaśnienie zamiast pustej kratki. */
+function rysujWykresy(T,H,A){
+  if(typeof Chart==='undefined')return brakWykresow('Nie udało się wczytać biblioteki wykresów z cdn.jsdelivr.net. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.');
+  try{draw('temp',T,'°C',1);draw('hum',H,'%',0);draw('abs',A,'g/m³',1,[pasma])}
+  catch(blad){console.error(blad);brakWykresow(`Wykresy się nie narysowały: ${blad.message}. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.`)}
+}
+function brakWykresow(tekst){
+  state.charts={};
+  document.querySelectorAll('.plot').forEach(p=>{p.innerHTML=`<p class="plot-blad">${esc(tekst)}</p>`});
+  document.getElementById('pasma-legenda').hidden=true;
+}
 function renderMap(){
   const svg=[`<svg viewBox="-3 -3 ${PLAN.w+6} ${PLAN.h+6}" xmlns="http://www.w3.org/2000/svg">`];
   PLAN.rooms.forEach(rm=>{
@@ -550,18 +580,23 @@ function renderEvents(){
   box.innerHTML=ev.slice(0,7).map(e=>`<div class="event ${e.status}"><i class="edot"></i><div class="et">${e.text}</div><div class="es">${e.t?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(e.t)):''}</div></div>`).join('')||'<div class="empty">Wszystko w normie w ostatnich 24 godzinach.</div>';
 }
 
-function renderSummary(tempSets,humSets){const stats=pts=>{const ys=pts.map(p=>p.y);return ys.length?{min:Math.min(...ys),max:Math.max(...ys),avg:ys.reduce((a,b)=>a+b,0)/ys.length}:null};const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||stats(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel()}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th><th>wietrzenia</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td><td>${d.ext||useDaily()?"–":(state.wietrz?.[d.id]?.length??0)}</td></tr>`}).join('')+'</tbody>'}
+function renderSummary(tempSets,humSets){const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||zakresy(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel()}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th><th>wietrzenia</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td><td>${d.ext||useDaily()?"–":(state.wietrz?.[d.id]?.length??0)}</td></tr>`}).join('')+'</tbody>'}
 function renderHealth(){document.getElementById('health').innerHTML=`<caption>Łączność z bramką · diagnostyka ostatnich 24 h · alarm dopiero powyżej ${fmtDur(MISS_GAP)} ciszy</caption><thead><tr><th>Czujnik</th><th>temp.</th><th>wilg.</th><th>mediana odstępu</th><th>najdłuższa przerwa</th><th>para t+w</th><th>bateria</th><th>ostatni</th></tr></thead><tbody>`+state.health.map(r=>`<tr style="--c:${r.d.color}"><td>${esc(r.d.name)}</td><td>${r.nT}</td><td>${r.nH}</td><td>${fmtDur(r.median)}</td><td class="${r.suspicious?'warn-text':''}">${fmtDur(r.worst)}</td><td class="${r.paired!=null&&r.paired<.9?'warn-text':''}">${r.paired==null?'–':Math.round(r.paired*100)+'%'}</td><td class="${r.batt==='niski'?'warn-text':''}">${r.batt||'–'}</td><td class="${r.age>STALE_BAD?'bad-text':r.age>STALE_WARN?'warn-text':''}">${r.last?fmtAgo(r.last):'–'}</td></tr>`).join('')+'</tbody>'}
-function rangeLabel(){const base={[DZIS]:'dzisiaj od północy',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[state.hours]+(useDaily()?' · dobowe min/śr/max':''),oldest=state.since??state.rows[0]?.t,from=zakresOd();if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
+// „dane od” ma podawać pierwszy prawdziwy odczyt z mieszkania. W widoku „całość”
+// wypada on w południe, bo tak stemplowane są doby w agregatach; w pozostałych
+// widokach rysujemy z surowych wierszy, więc i podpis musi iść z surowych.
+function rangeLabel(){const base={[DZIS]:'dzisiaj od północy',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[state.hours]+(useDaily()?' · dobowe min/śr/max':''),oldest=wewnOd()||state.since||state.rows[0]?.t,from=zakresOd();if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
 async function render(){await ensureRows();computeHealth();renderStatus();renderPens();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();
   // odniesienie z dworu liczymy niezależnie od przełączników — wyłączenie krzywej
   // pogodowej z wykresu nie może wyłączać wykrywania wietrzenia
-  state.wietrz={};state.klima=[];
+  state.wietrz={};state.klima=[];state.klimaNazwy=[];
   // w widoku "całość" mamy dobowe średnie — wietrzenia po nich wykryć się nie da
   if(!useDaily()){
     const od=zakresOd();
     const praca=state.appliances.map(d=>({d,okresy:okresyPracy(d,od)}));
     state.klima=scalPasma(praca.map(p=>p.okresy));
+    // legenda ma nazywać te urządzenia, które faktycznie dały pasma, a nie pierwsze z brzegu
+    state.klimaNazwy=praca.filter(p=>p.okresy.length).map(p=>p.d.name);
     const wPokoju={};   // czujnik → okresy pracy sprzętu stojącego akurat u niego
     praca.forEach(({d,okresy})=>{const cel=SPRZET_POKOJ[d.id];if(cel)(wPokoju[cel]??=[]).push(...okresy)});
     const zewn=state.devices.find(d=>d.ext&&d.temp&&d.hum),odn=zewn?absPoints(zewn,od,false):[];
@@ -574,9 +609,10 @@ async function render(){await ensureRows();computeHealth();renderStatus();render
   document.getElementById('wietrz-abs').textContent=state.wietrzPasma.length?` · ${plWietrz(state.wietrzPasma.length)}`:'';
   const legenda=[];
   if(state.wietrzPasma.length)legenda.push('<span><i style="background:rgba(95,184,224,.32)"></i>wietrzenie</span>');
-  if(state.klima.length)legenda.push(`<span><i style="background:rgba(226,112,143,.30)"></i>${esc(state.appliances[0]?.name||'urządzenie')} w pracy</span>`);
+  if(state.klima.length)legenda.push(`<span><i style="background:rgba(226,112,143,.30)"></i>${esc(state.klimaNazwy.join(', ')||'urządzenie')} w pracy</span>`);
   const box=document.getElementById('pasma-legenda');box.innerHTML=legenda.join('');box.hidden=!legenda.length;
-  draw('temp',T,'°C',1);draw('hum',H,'%',0);draw('abs',A,'g/m³',1,[pasma]);['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–')}
+  ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
+  rysujWykresy(T,H,A)}
 boot();
 // Instalacja na ekranie głównym i tryb offline. Rejestracja po load, żeby nie
 // konkurowała o łącze z pierwszym wczytaniem danych. Brak wsparcia albo blokada
