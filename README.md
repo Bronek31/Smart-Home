@@ -43,9 +43,11 @@ stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
 | `fetch.py` | kolektor: pobiera logi z Tuya, pogodę i smog z Open-Meteo, przelicza agregaty |
 | `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
 | `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
+| `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.github/workflows/zbieraj.yml` | harmonogram zbierania, co godzinę o :19 |
 | `.github/workflows/watchdog.yml` | raz na dobę sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
 | `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
+| `.github/workflows/testy.yml` | testy przy każdej zmianie kodu i raz na dobę na żywych danych |
 | `manifest.json`, `sw.js`, `ikona*` | instalacja na ekranie głównym telefonu i tryb offline |
 | `data/RRRR-MM.csv` | surowe odczyty: `ts,device_id,code,value` |
 | `data/dzienne.csv` | dobowe min/średnia/max — z tego rysuje się widok „całość" |
@@ -194,6 +196,39 @@ po którą się sięga. Poniżej `TREND_MIN` kafel milczy, bo nachylenia mniejsz
 | Bateria: `niski` | Wymień ogniwo. Słabnąca bateria gubi raporty, zanim czujnik zniknie zupełnie |
 | Zgłoszenie „Czujniki wymagają uwagi" | Watchdog wyłapał słabą baterię, milczący czujnik albo wilgotność trzymającą się za wysoko od doby. Treść odświeża się co dobę, zgłoszenie zamknie się samo |
 | Przebiegi w ogóle nie ruszają | GitHub wyłącza harmonogramy po 60 dniach bezczynności. Jedno ręczne uruchomienie je wskrzesza |
+
+---
+
+## Testy
+
+```bash
+python -m unittest discover -s tests -v        # kolektor, sama biblioteka standardowa
+cd tests/frontend && npm ci && npx playwright test
+```
+
+Dwie warstwy, bo są dwa różne rodzaje ryzyka.
+
+**Kolektor** ma testy jednostkowe czystych funkcji — rozpoznawanie pól Tuya, filtr
+wyskoków, przeliczanie stref w prognozie, progi diagnostyki — plus zestaw sprawdzający
+**prawdziwe `data/`**: czy pliki miesięczne są posortowane i bez duplikatów, czy każde
+urządzenie z odczytów jest w manifeście, czy włącznik ma wyłącznie zmiany stanu i czy
+`dzienne.csv` da się odtworzyć z surowych odczytów co do bajtu. Ta druga grupa nie
+zależy od żadnej zmiany w kodzie, więc chodzi też raz na dobę z harmonogramu.
+
+**Strona** jest testowana w prawdziwej przeglądarce, bo `index.html` to jeden plik bez
+budowania — nie ma czego importować w oderwaniu od DOM-u. Dane są podstawiane
+(`tests/frontend/dane.js`) i układane pod konkretne zjawisko: pokój, który się nagrzewa,
+czujnik, który zamilkł, parna prognoza bez okna na wietrzenie, nazwa urządzenia ze
+znacznikiem HTML. Każdy test wywraca się też na dowolnym błędzie w konsoli.
+
+Dwie rzeczy warte zapamiętania przy pisaniu kolejnych testów:
+
+- **Service worker musi być zablokowany** (`serviceWorkers: 'block'`). Inaczej
+  przechwytuje `fetch` strony i idzie prosto do sieci, omijając podstawione dane —
+  manifest przychodzi z fikstury, CSV prawdziwy z repozytorium i pokoje wyglądają na
+  martwe. Sam worker ma jeden własny test, który go włącza.
+- **Czekaj na stempel w nagłówku, nie na `#app`.** `boot()` odsłania stronę przed
+  `render()`, więc oglądanie samej widoczności łapie ją w połowie rysowania.
 
 ---
 

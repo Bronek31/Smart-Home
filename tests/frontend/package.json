@@ -1,0 +1,15 @@
+{
+  "name": "smart-home-testy",
+  "private": true,
+  "description": "Testy strony. Tylko do rozwoju — GitHub Pages serwuje wyłącznie katalog główny.",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1",
+    "chart.js": "4.4.1",
+    "chartjs-adapter-date-fns": "3.0.0",
+    "date-fns": "4.1.0"
+  }
+}

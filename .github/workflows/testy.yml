@@ -1,0 +1,132 @@
+name: Testy
+
+# Kiedy i po co:
+#
+# push — po każdej zmianie kodu, ale z pominięciem data/**. Kolektor commituje co
+#   godzinę i te commity nie ruszają logiki, więc odpalanie na nich testów byłoby
+#   dwudziestoma czterema przebiegami dziennie bez żadnej nowej informacji.
+# schedule — raz na dobę, bo część testów kolektora sprawdza prawdziwe data/
+#   w repozytorium: czy pliki miesięczne są posortowane, czy agregaty dobowe dają się
+#   odtworzyć z surowych odczytów, czy włącznik ma wyłącznie zmiany stanu. To wyłapie
+#   zepsucie danych, którego żadna zmiana kodu nie wywoła.
+# workflow_dispatch — do ręcznego sprawdzenia po grzebaniu w ustawieniach.
+
+on:
+  push:
+    paths-ignore:
+      - 'data/**'
+      - '**.md'
+  pull_request:
+  schedule:
+    - cron: '17 4 * * *'     # 6:17 czasu polskiego latem, przed watchdogiem
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kolektor:
+    name: Kolektor (Python)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Testy jednostkowe i niezmienniki danych
+        run: python -m unittest discover -s tests -v
+
+      - name: Czy fetch.py w ogóle się uruchamia
+        # bez sekretów ma wyjść czytelnym komunikatem i kodem 2, a nie wyjątkiem
+        run: |
+          set +e
+          python fetch.py --days 1 > wyjscie.txt 2>&1
+          kod=$?
+          cat wyjscie.txt
+          if [ "$kod" -ne 2 ]; then echo "::error::spodziewany kod 2 przy braku sekretów, był $kod"; exit 1; fi
+          grep -q "TUYA_CLIENT_ID" wyjscie.txt || { echo "::error::brak podpowiedzi o sekretach"; exit 1; }
+
+  strona:
+    name: Strona (przeglądarka)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: tests/frontend/package-lock.json
+
+      - run: npm ci
+        working-directory: tests/frontend
+
+      - name: Wersja Playwrighta do klucza pamięci podręcznej
+        id: pw
+        working-directory: tests/frontend
+        run: echo "wersja=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v4
+        id: przegladarki
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.pw.outputs.wersja }}
+
+      - name: Pobierz Chromium
+        if: steps.przegladarki.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+        working-directory: tests/frontend
+
+      - name: Same zależności systemowe, gdy przeglądarka z pamięci
+        if: steps.przegladarki.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+        working-directory: tests/frontend
+
+      - run: npx playwright test
+        working-directory: tests/frontend
+
+      - name: Ślady nieudanych testów
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: slady-playwright
+          path: |
+            tests/frontend/test-results/
+            tests/frontend/playwright-report/
+          retention-days: 7
+
+  strona-bez-budowania:
+    name: Strona zostaje jednym plikiem
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pilnuj, czym ta strona jest
+        # Cały sens tego projektu polega na tym, że index.html działa prosto z repozytorium.
+        # Gdyby ktoś kiedyś dołożył krok budowania albo lokalny import, Pages wystawi
+        # połowę strony i nikt się nie zorientuje, dopóki nie otworzy jej w przeglądarce.
+        run: |
+          python3 - <<'PY'
+          import re, sys, pathlib
+          html = pathlib.Path("index.html").read_text(encoding="utf-8")
+          bledy = []
+          if re.search(r'<script[^>]+type=["\']module["\']', html):
+              bledy.append("index.html używa modułów ES — Pages nie ma czego zbudować")
+          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)', html):
+              if not src.startswith("https://"):
+                  bledy.append(f"skrypt spoza HTTPS: {src}")
+          for plik in ("manifest.json", "sw.js", "ikona.svg", "ikona-192.png", "ikona-512.png"):
+              if not pathlib.Path(plik).exists():
+                  bledy.append(f"brak pliku {plik}, na który wskazuje strona")
+          for b in bledy:
+              print(f"::error::{b}")
+          sys.exit(1 if bledy else 0)
+          PY

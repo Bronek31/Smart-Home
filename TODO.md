@@ -89,6 +89,9 @@ ta sekcja zostaje jako ślad.
 - **Ekstrapolacja trendu** — regresja z ostatnich czterech godzin w kaflu pokoju,
   z godziną przekroczenia progu komfortu zamiast samego tempa. Milczy poniżej
   0,25 °C/godz., bo tyle wynosi próg odróżnialności od szumu przy raportach co godzinę.
+- **Testy** — 51 testów kolektora (biblioteka standardowa) i 35 testów strony
+  w przeglądarce, wpięte w GitHub Actions: przy każdej zmianie kodu i raz na dobę na
+  żywych danych. Szczegóły w README.
 - **Rytm doby** — mapa cieplna godzina × doba z przełącznikiem pokoju. Przy trzech
   dobach to trzy wiersze, ale rośnie sama i nie wymaga już żadnej pracy. Skala wspólna
   dla wszystkich pokoi, żeby przełączanie zakładek dało się czytać jako porównanie;
