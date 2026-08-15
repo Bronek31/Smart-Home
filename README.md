@@ -146,14 +146,14 @@ sam jego rytm.
 
 ## Który fragment jaki okres pokazuje
 
-Przełącznik u góry nazywa się **Zakres wykresów** i tyle obejmuje: trzy wykresy oraz
-tabelę zakresów, która jest ich podsumowaniem i sama podpisuje wybrany okres. Reszta
-strony odpowiada na inne pytania, więc ma własne, stałe okresy — inaczej wybór „dziś"
-po cichu obcinałby diagnostykę i rytm doby do kilku godzin.
+Przełącznik u góry nazywa się **Zakres wykresów** i tyle obejmuje — same wykresy.
+Każdy fragment strony, który patrzy na inny okres, mówi o tym wprost albo ma własny
+przełącznik; inaczej wybór „dziś" po cichu obcinałby połowę strony do kilku godzin.
 
 | Fragment | Okres | Skąd |
 |---|---|---|
-| Wykresy i tabela zakresów | wybrany przełącznikiem | to jego zadanie |
+| Wykresy | **Zakres wykresów** u góry | to jego zadanie |
+| Tabela zakresów | **Zakres tabeli** nad tabelą | własny, bo skrajne wartości ogląda się dla innego okresu niż przebieg |
 | Kafle pokoi | teraz, zmiana z 24 h, trend z 4 h | stały |
 | Rzut i odtwarzanie | tydzień albo doba | własny przełącznik pod rzutem |
 | Rytm doby | ostatnie 30 dób | stały, liczba dób w nagłówku |

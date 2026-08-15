@@ -88,6 +88,8 @@
 .wx-okno span{font-size:.78rem;line-height:1.45;color:var(--dim)}
 .events{display:flex;flex-direction:column;gap:0}.event{display:grid;grid-template-columns:8px 1fr auto;gap:.55rem;align-items:start;padding:.55rem 0;border-bottom:1px solid var(--edge)}.event:last-child{border-bottom:0}.event .edot{width:7px;height:7px;border-radius:50%;margin-top:.4rem;background:var(--ok)}.event.warn .edot{background:var(--warn);box-shadow:0 0 7px var(--warn)}.event.bad .edot{background:var(--bad);box-shadow:0 0 7px var(--bad)}.event .et{font-size:.82rem}.event .es{font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint);white-space:nowrap}.empty{color:var(--faint);font-size:.84rem;padding:.5rem 0}
 .summary{width:100%;border-collapse:collapse;margin-top:2.1rem;font-size:.85rem}.summary caption{text-align:left;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding-bottom:.55rem}.summary th,.summary td{text-align:right;padding:.45rem .5rem;border-bottom:1px solid var(--edge);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:300;color:var(--text)}.summary th{font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}.summary th:first-child,.summary td:first-child{text-align:left}.summary td:first-child{font-family:"Familjen Grotesk",sans-serif;font-weight:400;border-left:3px solid var(--c);padding-left:.7rem}.warn-text{color:var(--warn)!important}.bad-text{color:var(--bad)!important}
+.tabela-zakres{margin-top:2.1rem}
+.summary{margin-top:.9rem}
 .notice{margin:2.5rem 0;padding:1.4rem 1.5rem;border:1px solid var(--edge);background:var(--panel);max-width:44rem}.notice h2{margin:0 0 .55rem;font-size:1.05rem}.notice p{margin:.45rem 0;color:var(--dim);font-size:.92rem}.notice code{font-family:"IBM Plex Mono",monospace;font-size:.85em;color:var(--pen-1);background:#0b1015;padding:.12em .42em;border:1px solid var(--edge)}[hidden]{display:none!important}@media(max-width:720px){.statusbar{grid-template-columns:1fr}.bottom-layout{grid-template-columns:1fr}.summary{font-size:.75rem;display:block;overflow-x:auto;white-space:nowrap}.summary th,.summary td{padding:.4rem .35rem}}
 </style>
 </head>
@@ -111,6 +113,7 @@
     <p class="hint">Każdy wiersz to doba, każda kolumna godzina. Wykres liniowy przy kilku tygodniach zamienia się w kłębek, a tutaj powtarzalny rytm widać od razu: o której pokój się nagrzewa, o której stygnie i czy któraś doba wypadła z rytmu.</p>
   </div>
 
+  <div class="controls tabela-zakres"><span class="lbl">Zakres tabeli</span><button class="range" data-tab="dzis">dziś</button><button class="range" data-tab="168" aria-pressed="true">7 dni</button><button class="range" data-tab="720">30 dni</button><button class="range" data-tab="0">całość</button></div>
   <table class="summary" id="summary"></table><table class="summary" id="health"></table>
 
   <div class="bottom-layout">
@@ -155,7 +158,7 @@ const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długoś�
 const OKNO_DOBA=24,OKNO_TYDZIEN=168;   // wartości przycisków okna odtwarzania, w godzinach
 const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null,
   // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
-  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:OKNO_TYDZIEN,normy:null,trybBarwy:'temp',rytmDev:null,rytmSkala:'wspolna'};const monthCache=new Map();
+  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:OKNO_TYDZIEN,normy:null,trybBarwy:'temp',rytmDev:null,rytmSkala:'wspolna',tabHours:168};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -359,7 +362,11 @@ const monthKey=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.get
 // pierwszego dnia miesiąca sam bieżący plik ma dopiero kilka godzin historii.
 function neededMonths(){const all=state.months,newest=all.at(-1);if(!all.length)return[];if(!state.daily.length)return all;if(!state.hours)return all.slice(-2);const from=monthKey(Math.min(zakresOd(),Date.now()-24*3600e3)),need=all.filter(m=>m>=from);return need.includes(newest)?need:need.concat(newest)}
 async function ensureRows(){state.rows=(await Promise.all(neededMonths().map(loadMonth))).flat().sort((a,b)=>a.t-b.t)}
-const useDaily=()=>state.daily.length>0&&!state.hours;
+/* Zakres jako parametr, nie jako globalna prawda. Wykresy i tabela zakresów mają
+   od teraz własne przełączniki, więc każda z tych funkcji musi umieć policzyć się dla
+   dowolnego okresu, a nie tylko dla tego jednego wybranego u góry. */
+const dobowe=h=>state.daily.length>0&&!h;
+const useDaily=()=>dobowe(state.hours);
 async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;const wszystkie=ids.map(id=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,ext:!!d.external,appliance:!!d.appliance,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery'),power:Object.keys(codes).find(c=>codes[c].kind==='power')}});state.appliances=wszystkie.filter(d=>d.appliance);state.devices=wszystkie.filter(d=>!d.appliance);state.devices.forEach((d,i)=>d.color=PENS[i%PENS.length]);state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;state.hours=DZIS;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();wireReplay();['temp','hum','abs'].forEach(wireTouch);await render()}
 // ktoś wkleił adres z innym widokiem albo cofnął się po historii
 addEventListener('hashchange',()=>{if(!state.devices.length)return;readHash();buildToggles();state.markRanges?.();document.getElementById('filtr').checked=state.filtr;render()});
@@ -370,7 +377,8 @@ addEventListener('hashchange',()=>{if(!state.devices.length)return;readHash();bu
 const ZAKRESY={'dzis':DZIS,'24h':DZIS,'7d':168,'30d':720,'all':0};   // 24h zostaje jako alias dla starych adresów
 const odPolnocy=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()};
 // początek widocznego zakresu; 0 znaczy "od początku historii"
-const zakresOd=()=>state.hours===DZIS?odPolnocy():state.hours?Date.now()-state.hours*3600e3:0;
+const odKiedy=h=>h===DZIS?odPolnocy():h?Date.now()-h*3600e3:0;
+const zakresOd=()=>odKiedy(state.hours);
 // ile godzin obejmuje widok — do doboru gęstości podziałki i formatu etykiet
 const zakresGodzin=()=>state.hours===DZIS?Math.max(1,(Date.now()-odPolnocy())/3600e3):state.hours||24*400;
 function readHash(){
@@ -399,6 +407,13 @@ function wireRanges(){const btns=[...document.querySelectorAll('.range[data-hour
   const mark=()=>btns.forEach(b=>wartosc(b)===state.hours?b.setAttribute('aria-pressed','true'):b.removeAttribute('aria-pressed'));
   btns.forEach(b=>b.onclick=()=>{state.hours=wartosc(b);mark();writeHash();render()});mark();
   const f=document.getElementById('filtr');f.checked=state.filtr;f.onchange=()=>{state.filtr=f.checked;writeHash();render()};
+  // tabela ma własny zakres: przerysowuje wyłącznie siebie, bez ruszania wykresów
+  const tab=[...document.querySelectorAll('[data-tab]')];
+  tab.forEach(b=>b.onclick=()=>{
+    state.tabHours=b.dataset.tab===DZIS?DZIS:+b.dataset.tab;
+    tab.forEach(x=>x===b?x.setAttribute('aria-pressed','true'):x.removeAttribute('aria-pressed'));
+    renderSummary();
+  });
   state.markRanges=mark}
 /* min/śr/max z surowych punktów. Tabela nie może liczyć ich z tego, co idzie na
    wykres: powyżej 900 punktów bucket() uśrednia sąsiadów, więc skrajne wartości są
@@ -415,20 +430,20 @@ function bucket(points,limit=900){if(points.length<=limit)return points;const si
    Z granicą zakresu — tam równamy start krzywej pogodowej, żeby nie ciągnęła się
    samotnie przed pierwszym odczytem z mieszkania. Bez granicy — do podpisu tabeli
    „dane od”, bo tam chodzi o początek historii, nie o początek widoku. */
-function wewnOd(od=0){const ext=new Set(state.devices.filter(d=>d.ext).map(d=>d.id));
-  return (useDaily()?state.daily:state.rows).find(r=>!ext.has(r.id)&&r.t>=od)?.t||0}
-const indoorStart=()=>wewnOd(useDaily()?0:zakresOd());
-function series(kind){const from=zakresOd(),since=indoorStart();state.cut[kind]=0;
+function wewnOd(od=0,h=state.hours){const ext=new Set(state.devices.filter(d=>d.ext).map(d=>d.id));
+  return (dobowe(h)?state.daily:state.rows).find(r=>!ext.has(r.id)&&r.t>=od)?.t||0}
+const indoorStart=(h=state.hours)=>wewnOd(dobowe(h)?0:odKiedy(h),h);
+function series(kind,h=state.hours,liczCiecia=true){const from=odKiedy(h),since=indoorStart(h);if(liczCiecia)state.cut[kind]=0;
   return state.devices.filter(d=>d[kind]&&!state.off.has(d.id)).map(d=>{
     const cut=d.ext?Math.max(from,since):from;   // pogoda startuje tam, gdzie zaczynają się odczyty z mieszkania
-    if(useDaily()){
+    if(dobowe(h)){
       const rows=state.daily.filter(r=>r.id===d.id&&r.code===d[kind]&&r.t>=cut&&isFinite(r.avg));
       const total=rows.reduce((a,r)=>a+r.n,0);
       return{device:d,points:rows.map(r=>({x:r.t,y:r.avg})),
         stats:rows.length?{min:Math.min(...rows.map(r=>r.min)),max:Math.max(...rows.map(r=>r.max)),avg:total?rows.reduce((a,r)=>a+r.avg*r.n,0)/total:null}:null};
     }
     let pts=state.rows.filter(r=>r.id===d.id&&r.code===d[kind]&&r.t>=cut&&isFinite(r.v)).map(r=>({x:r.t,y:r.v}));
-    if(state.filtr&&!d.ext){const f=despike(pts,kind);pts=f.pts;state.cut[kind]+=f.cut}
+    if(state.filtr&&!d.ext){const f=despike(pts,kind);pts=f.pts;if(liczCiecia)state.cut[kind]+=f.cut}
     return{device:d,points:bucket(pts),stats:zakresy(pts)};
   }).filter(s=>s.points.length)}
 
@@ -1177,30 +1192,47 @@ function renderRytm(){
   wybor.querySelectorAll('[data-rytm]').forEach(b=>{b.onclick=()=>{state.rytmDev=b.dataset.rytm;renderRytm()}});
   wybor.querySelectorAll('[data-rskala]').forEach(b=>{b.onclick=()=>{state.rytmSkala=b.dataset.rskala;renderRytm()}});
 }
-function renderSummary(tempSets,humSets){const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||zakresy(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel()}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th><th>wietrzenia</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td><td>${d.ext||useDaily()?"–":(state.wietrz?.[d.id]?.length??0)}</td></tr>`}).join('')+'</tbody>'}
+/* Tabela ma własny zakres, niezależny od wykresów. Wcześniej dziedziczyła ten z góry,
+   więc żeby zobaczyć skrajne wartości z tygodnia, trzeba było przestawić wykresy — a
+   wtedy traciło się widok, po który się je otwierało. Liczy więc własne serie; gdy oba
+   przełączniki stoją tak samo, wychodzi dokładnie to, co wychodziło wcześniej. */
+function renderSummary(){
+  const h=state.tabHours;
+  const tempSets=series('temp',h,false),humSets=series('hum',h,false);
+  const wietrz=dobowe(h)?{}:policzWietrzenia(odKiedy(h)).wietrz;
+  return rysujSummary(tempSets,humSets,h,wietrz);
+}
+function rysujSummary(tempSets,humSets,okres,wietrz){const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||zakresy(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel(okres)}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th><th>wietrzenia</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td><td>${d.ext||dobowe(okres)?"–":(wietrz?.[d.id]?.length??0)}</td></tr>`}).join('')+'</tbody>'}
 function renderHealth(){document.getElementById('health').innerHTML=`<caption>Łączność z bramką · diagnostyka ostatnich 24 h · alarm dopiero powyżej ${fmtDur(MISS_GAP)} ciszy</caption><thead><tr><th>Czujnik</th><th>temp.</th><th>wilg.</th><th>mediana odstępu</th><th>najdłuższa przerwa</th><th>para t+w</th><th>bateria</th><th>ostatni</th></tr></thead><tbody>`+state.health.map(r=>`<tr style="--c:${r.d.color}"><td>${esc(r.d.name)}</td><td>${r.nT}</td><td>${r.nH}</td><td>${fmtDur(r.median)}</td><td class="${r.suspicious?'warn-text':''}">${fmtDur(r.worst)}</td><td class="${r.paired!=null&&r.paired<.9?'warn-text':''}">${r.paired==null?'–':Math.round(r.paired*100)+'%'}</td><td class="${r.batt==='niski'?'warn-text':''}">${r.batt||'–'}</td><td class="${r.age>STALE_BAD?'bad-text':r.age>STALE_WARN?'warn-text':''}">${r.last?fmtAgo(r.last):'–'}</td></tr>`).join('')+'</tbody>'}
 // „dane od” ma podawać pierwszy prawdziwy odczyt z mieszkania. W widoku „całość”
 // wypada on w południe, bo tak stemplowane są doby w agregatach; w pozostałych
 // widokach rysujemy z surowych wierszy, więc i podpis musi iść z surowych.
-function rangeLabel(){const base={[DZIS]:'dzisiaj od północy',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[state.hours]+(useDaily()?' · dobowe min/śr/max':''),oldest=wewnOd()||state.since||state.rows[0]?.t,from=zakresOd();if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
+function rangeLabel(h=state.hours){const base={[DZIS]:'dzisiaj od północy',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[h]+(dobowe(h)?' · dobowe min/śr/max':''),oldest=wewnOd(0,h)||state.since||state.rows[0]?.t,from=odKiedy(h);if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
+/* Wykrywanie wietrzeń dla dowolnego okresu. Wyciągnięte z render(), bo od kiedy tabela
+   zakresów ma własny przełącznik, to samo trzeba policzyć dwa razy: raz dla pasm na
+   wykresie, raz dla kolumny w tabeli. Okresy zwykle są te same, ale nie muszą. */
+function policzWietrzenia(od){
+  const praca=state.appliances.map(d=>({d,okresy:okresyPracy(d,od)}));
+  const wPokoju={};   // czujnik → okresy pracy sprzętu stojącego akurat u niego
+  praca.forEach(({d,okresy})=>{const cel=SPRZET_POKOJ[d.id];if(cel)(wPokoju[cel]??=[]).push(...okresy)});
+  const zewn=state.devices.find(d=>d.ext&&d.temp&&d.hum),odn=zewn?absPoints(zewn,od,false):[];
+  const wietrz={};
+  // spadek zaczęty przy pracującym sprzęcie w tym samym pokoju to jego osuszanie, nie okno
+  state.devices.filter(d=>!d.ext&&d.temp&&d.hum).forEach(d=>{
+    wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn).filter(e=>!pracowalWtedy(e.od,wPokoju[d.id]||[]));
+  });
+  return{wietrz,klima:scalPasma(praca.map(p=>p.okresy)),
+    // legenda ma nazywać te urządzenia, które faktycznie dały pasma, a nie pierwsze z brzegu
+    nazwy:praca.filter(p=>p.okresy.length).map(p=>p.d.name)};
+}
 async function render(){await ensureRows();state.indeks=indeksSerii();computeHealth();renderStatus();renderPens();resetReplay();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();
   // odniesienie z dworu liczymy niezależnie od przełączników — wyłączenie krzywej
   // pogodowej z wykresu nie może wyłączać wykrywania wietrzenia
   state.wietrz={};state.klima=[];state.klimaNazwy=[];
   // w widoku "całość" mamy dobowe średnie — wietrzenia po nich wykryć się nie da
   if(!useDaily()){
-    const od=zakresOd();
-    const praca=state.appliances.map(d=>({d,okresy:okresyPracy(d,od)}));
-    state.klima=scalPasma(praca.map(p=>p.okresy));
-    // legenda ma nazywać te urządzenia, które faktycznie dały pasma, a nie pierwsze z brzegu
-    state.klimaNazwy=praca.filter(p=>p.okresy.length).map(p=>p.d.name);
-    const wPokoju={};   // czujnik → okresy pracy sprzętu stojącego akurat u niego
-    praca.forEach(({d,okresy})=>{const cel=SPRZET_POKOJ[d.id];if(cel)(wPokoju[cel]??=[]).push(...okresy)});
-    const zewn=state.devices.find(d=>d.ext&&d.temp&&d.hum),odn=zewn?absPoints(zewn,od,false):[];
-    // spadek zaczęty przy pracującym sprzęcie w tym samym pokoju to jego osuszanie, nie okno
-    state.devices.filter(d=>!d.ext&&d.temp&&d.hum).forEach(d=>{
-      state.wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn).filter(e=>!pracowalWtedy(e.od,wPokoju[d.id]||[]));
-    });
+    const w=policzWietrzenia(zakresOd());
+    state.wietrz=w.wietrz;state.klima=w.klima;state.klimaNazwy=w.nazwy;
   }
   state.wietrzPasma=scalPasma(Object.values(state.wietrz));
   document.getElementById('wietrz-abs').textContent=state.wietrzPasma.length?` · ${plWietrz(state.wietrzPasma.length)}`:'';
@@ -1208,7 +1240,7 @@ async function render(){await ensureRows();state.indeks=indeksSerii();computeHea
   if(state.wietrzPasma.length)legenda.push('<span><i style="background:rgba(95,184,224,.32)"></i>wietrzenie</span>');
   if(state.klima.length)legenda.push(`<span><i style="background:rgba(226,112,143,.30)"></i>${esc(state.klimaNazwy.join(', ')||'urządzenie')} w pracy</span>`);
   const box=document.getElementById('pasma-legenda');box.innerHTML=legenda.join('');box.hidden=!legenda.length;
-  ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary(T,H);renderHealth();renderRytm();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
+  ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary();renderHealth();renderRytm();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
   rysujWykresy(T,H,A)}
 boot();
 // Instalacja na ekranie głównym i tryb offline. Rejestracja po load, żeby nie
