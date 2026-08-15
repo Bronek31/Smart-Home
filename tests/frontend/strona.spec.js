@@ -453,6 +453,62 @@ test.describe('osie wykresów', () => {
   });
 });
 
+/* Podpis pod wykresem ma wskazywać jedną chwilę. Dwa razy „14.08" pod tym samym
+   wykresem nie mówi nic — a dokładnie to wychodziło przy krótkiej historii w widoku
+   „całość": krok podziałki liczy się z rozpiętości danych (doba), a format podpisu
+   z wybranego zakresu (umowne 24*400 godz., czyli daty). */
+test.describe('podziałka osi czasu', () => {
+  const podpisy = (page) => page.evaluate(() => state.charts.temp.scales.x.ticks.map((t) => t.label));
+
+  const DATA = /^\d\d\.\d\d$/;
+
+  for (const [zakres, opis] of [['dzis', 'dziś'], ['168', '7 dni'], ['720', '30 dni'], ['0', 'całość']]) {
+    test(`${opis}: data pod wykresem wskazuje jedną dobę`, async ({ page }) => {
+      // Dwie doby historii — tyle zostało po ucięciu TUYA_SINCE i właśnie przy tak
+      // krótkiej historii podpisy się dublowały. Powtórzona godzina na dwóch różnych
+      // dobach jest w porządku, bo granice dób znaczy osobno data i jaśniejsza siatka;
+      // powtórzona data nie, bo tych podziałek nie da się od siebie odróżnić.
+      const bledy = await otworz(page, { dni: 2 });
+      await page.click(`.range[data-hours="${zakres}"]`);
+      await page.waitForTimeout(400);
+      const p = await podpisy(page);
+      expect(p.length, 'oś bez żadnego podpisu').toBeGreaterThan(0);
+      const daty = p.filter((x) => DATA.test(x));
+      expect(daty, `powtórzona data w podpisach: ${p.join(' ')}`).toEqual([...new Set(daty)]);
+      expect(bledy).toEqual([]);
+    });
+  }
+
+  test('data pojawia się tylko o północy albo przy kroku dobowym', async ({ page }) => {
+    const bledy = await otworz(page, { dni: 2 });
+    for (const zakres of ['dzis', '168', '720', '0']) {
+      await page.click(`.range[data-hours="${zakres}"]`);
+      await page.waitForTimeout(400);
+      const zle = await page.evaluate(() => {
+        const t = state.charts.temp.scales.x.ticks;
+        const krok = t.length > 1 ? (t[1].value - t[0].value) / 3600e3 : 24;
+        return t.filter((x) => /^\d\d\.\d\d$/.test(x.label)
+          && new Date(x.value).getHours() !== 0 && krok < 24)
+          .map((x) => `${x.label} o ${new Date(x.value).getHours()}:00`);
+      });
+      expect(zle, `zakres ${zakres}`).toEqual([]);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('przy agregatach dobowych podziałka nie schodzi poniżej doby', async ({ page }) => {
+    const bledy = await otworz(page, { dni: 2 });
+    await page.click('.range[data-hours="0"]');
+    await page.waitForTimeout(400);
+    const odstepy = await page.evaluate(() => {
+      const t = state.charts.temp.scales.x.ticks.map((x) => x.value);
+      return t.slice(1).map((v, i) => (v - t[i]) / 3600e3);
+    });
+    odstepy.forEach((h) => expect(h).toBeGreaterThanOrEqual(24));
+    expect(bledy).toEqual([]);
+  });
+});
+
 /* Łuk doby ma odpowiadać na „która to była pora dnia" bez czytania stempla. */
 test.describe('łuk doby', () => {
   test('rysuje łuk z horyzontem, wschodem i zachodem', async ({ page }) => {

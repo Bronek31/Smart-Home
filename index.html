@@ -345,12 +345,23 @@ const plRap=n=>n===1?'1 raport':(n%10>=2&&n%10<=4&&(n%100<10||n%100>=20))?`${n} 
 // To własne dane, więc nie chodzi o atak — po prostu nazwa ze znakiem < rozjeżdża widok.
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const fmtNum=(v,d=1)=>v==null||!isFinite(v)?'–':v.toFixed(d).replace('.',',');const pad=n=>String(n).padStart(2,'0');const isMidnight=d=>d.getHours()===0&&d.getMinutes()===0;
-function fmtWhen(d,span){if(isMidnight(d)||span>24*14)return `${pad(d.getDate())}.${pad(d.getMonth()+1)}`;if(span<=36)return `${pad(d.getHours())}:${pad(d.getMinutes())}`;return `${pad(d.getHours())}:00`}
+/* Format podpisu wynika z kroku podziałki, nie z wybranego zakresu. Wcześniej decydował
+   zakres i przy „30 dniach" z dwoma dobami historii wychodziło osiem podziałek co
+   6 godzin, wszystkie podpisane samą datą: „14.08 14.08 14.08 14.08 15.08…". Data bez
+   godziny odmierza dobę, więc wolno ją postawić tylko o północy albo gdy krok naprawdę
+   wynosi dobę lub więcej. */
+function fmtWhen(d,krokH){if(isMidnight(d)||krokH>=24)return `${pad(d.getDate())}.${pad(d.getMonth()+1)}`;return `${pad(d.getHours())}:${pad(d.getMinutes())}`}
 const STEPS_H=[1,2,3,6,12,24,48,72,96,120,168,336,720];
 // Krok liczony po zegarze lokalnym, nie po milisekundach: zmiana czasu dokłada albo
 // zabiera godzinę, więc stały krok w ms przestaje trafiać w północ i podziałka
 // pokazuje "23:00" tam, gdzie powinna być data.
-function timeTicks(min,max,width){const target=width<420?5:width<760?8:11,spanH=(max-min)/3600e3,step=STEPS_H.find(s=>spanH/s<=target)||STEPS_H.at(-1),d=new Date(min);d.setHours(0,0,0,0);const out=[];for(;d.getTime()<=max;d.setHours(d.getHours()+step))if(d.getTime()>=min)out.push({value:d.getTime()});return out}
+/* minKrok chroni przed podziałką gęstszą, niż dane mają rozdzielczość. Przy widoku
+   „całość" wykres stoi na agregatach dobowych — jeden punkt na dobę — a rozpiętość
+   liczy się z danych, nie z wybranego zakresu. Przy krótkiej historii wychodziło z tego
+   spanH rzędu doby i krok 3 godzin, podczas gdy fmtWhen dostaje umowne 24*400 godz.
+   i formatuje wszystko jako daty. Efekt: „14.08 14.08 15.08 15.08" pod wykresem. */
+function krokPodzialki(min,max,width,minKrok=1){const target=width<420?5:width<760?8:11,spanH=(max-min)/3600e3;return STEPS_H.find(s=>s>=minKrok&&spanH/s<=target)||STEPS_H.at(-1)}
+function timeTicks(min,max,width,minKrok=1){const step=krokPodzialki(min,max,width,minKrok),d=new Date(min);d.setHours(0,0,0,0);const out=[];for(;d.getTime()<=max;d.setHours(d.getHours()+step))if(d.getTime()>=min)out.push({value:d.getTime()});return out}
 function fmtDur(ms){if(ms==null||!isFinite(ms))return'–';const min=ms/60000;if(min<1)return`${Math.round(ms/1000)} s`;if(min<90)return`${Math.round(min)} min`;const h=min/60;if(h<36)return`${h.toFixed(1).replace('.',',')} godz.`;return`${Math.round(h/24)} dni`}
 function fmtAgo(ms){const min=Math.round((Date.now()-ms)/60000);if(min<2)return'przed chwilą';if(min<60)return`${min} min temu`;const h=Math.round(min/60);if(h<48)return`${h} godz. temu`;return`${Math.round(h/24)} dni temu`}
 function fail(title,...paras){document.getElementById('stamp').textContent='brak danych';const n=document.getElementById('notice');n.innerHTML=`<h2>${title}</h2>`+paras.map(p=>`<p>${p}</p>`).join('');n.hidden=false}
@@ -382,7 +393,6 @@ const odPolnocy=()=>{const d=new Date();d.setHours(0,0,0,0);return d.getTime()};
 const odKiedy=h=>h===DZIS?odPolnocy():h?Date.now()-h*3600e3:0;
 const zakresOd=()=>odKiedy(state.hours);
 // ile godzin obejmuje widok — do doboru gęstości podziałki i formatu etykiet
-const zakresGodzin=()=>state.hours===DZIS?Math.max(1,(Date.now()-odPolnocy())/3600e3):state.hours||24*400;
 function readHash(){
   const p=new URLSearchParams(location.hash.slice(1)),z=p.get('zakres');
   const znany=z!=null&&z in ZAKRESY;
@@ -694,9 +704,11 @@ const pustka={id:'pustka',afterDraw(chart){
    Wilgotność bezwzględna zostaje na jednej osi świadomie. Tam cały sens wykresu
    polega na tym, że linia mieszkania zbliża się do linii dworu przy wietrzeniu —
    na dwóch skalach ta odległość przestałaby cokolwiek znaczyć. */
-function draw(canvasId,sets,unit,decimals,extra=[],dwieOsie=false){const span=zakresGodzin();
+function draw(canvasId,sets,unit,decimals,extra=[],dwieOsie=false){
+  // krok podziałki ustala się przy każdym przeliczeniu osi i stąd bierze go format podpisu
+  let krokH=24;
   const zewn=dwieOsie?sets.find(s=>s.device.ext):null,barwaZ=zewn?zewn.device.color:null;
-  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,yAxisID:zewn&&s.device.ext?'y2':'y',borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:s.points.length<=SAMOTNE?2.6:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:zewn?4:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{s.ticks=timeTicks(s.min,s.max,s.chart.width)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),span)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}},...(zewn?{y2:{position:'right',border:{color:barwaZ},grid:{drawOnChartArea:false},ticks:{color:barwaZ,font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}}:{})},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);return !!zewn}
+  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,yAxisID:zewn&&s.device.ext?'y2':'y',borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:s.points.length<=SAMOTNE?2.6:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:zewn?4:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{const mk=useDaily()?24:1;krokH=krokPodzialki(s.min,s.max,s.chart.width,mk);s.ticks=timeTicks(s.min,s.max,s.chart.width,mk)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),krokH)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}},...(zewn?{y2:{position:'right',border:{color:barwaZ},grid:{drawOnChartArea:false},ticks:{color:barwaZ,font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}}:{})},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);return !!zewn}
 /* Chart.js leci z CDN, więc jedna zablokowana domena albo jego awaria i wykresów
    nie ma. Bez tej klamry wyjątek z draw() przerywał render() w połowie i zabierał ze
    sobą obie tabele oraz stempel w nagłówku — czyli rzeczy, które z wykresami nie mają
