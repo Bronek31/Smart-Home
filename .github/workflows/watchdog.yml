@@ -93,3 +93,64 @@ jobs:
             exit 0
           fi
           gh issue close "$NUMER" --comment "Kolektor znowu zapisuje: $OPIS."
+
+      # Kolektor może chodzić bez zarzutu, a mimo to coś wymagać ręki: bateria na
+      # wyczerpaniu, czujnik, który zamilkł, wilgotność trzymająca się za wysoko od doby.
+      # Dashboard to pokazuje, ale trzeba go otworzyć — a bateria pada wtedy, gdy nikt
+      # nie patrzy. Listę wylicza kolektor przy każdym przebiegu i zostawia w index.json.
+      - name: Wypisz, co wymaga ręki
+        id: czujniki
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, pathlib
+          try:
+              alerty = json.load(open("data/index.json")).get("alerty") or []
+          except Exception as blad:
+              alerty = []
+              print(f"nie da sie odczytac alertow ({blad})", file=__import__("sys").stderr)
+          pathlib.Path(os.environ["RUNNER_TEMP"], "alerty.md").write_text(
+              "\n".join(f"- {a}" for a in alerty) + "\n", encoding="utf-8")
+          print(f"sa={'tak' if alerty else 'nie'}")
+          print(f"ile={len(alerty)}")
+          PY
+
+      - name: Podsumowanie diagnostyki
+        run: echo "Do sprawdzenia - ${{ steps.czujniki.outputs.ile }} rzecz(y)."
+
+      # Gdy stoi kolektor, wszystkie czujniki wyglądają na martwe — wtedy milczymy,
+      # bo zgłoszenie o kolektorze mówi już wszystko. Tak samo robi dashboard.
+      - name: Zgłoś, co wymaga ręki
+        if: steps.wiek.outputs.alarm == 'nie' && steps.czujniki.outputs.sa == 'tak'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create czujniki --color D93F0B --description "Czujnik albo mieszkanie wymaga uwagi" 2>/dev/null || true
+          {
+            echo "Diagnostyka ostatniej doby wyłapała to:"
+            echo
+            cat "$RUNNER_TEMP/alerty.md"
+            echo
+            echo "Szerszy obraz na <https://bronek31.github.io/Smart-Home/>, w tabeli *Łączność z bramką*."
+            echo "Treść tego zgłoszenia odświeża się co dobę, a zamknie się samo, gdy lista opustoszeje."
+          } > "$RUNNER_TEMP/tresc.md"
+          NUMER=$(gh issue list --label czujniki --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          if [ -n "$NUMER" ]; then
+            # podmiana treści zamiast komentarza: bateria potrafi konać tygodniami,
+            # a codzienny komentarz o tym samym to powiadomienie, które przestaje się czytać
+            gh issue edit "$NUMER" --body-file "$RUNNER_TEMP/tresc.md"
+            echo "Odświeżono zgłoszenie #$NUMER."
+          else
+            gh issue create --title "Czujniki wymagają uwagi" --label czujniki --body-file "$RUNNER_TEMP/tresc.md"
+          fi
+
+      - name: Zamknij, gdy czujniki wróciły do normy
+        if: steps.wiek.outputs.alarm == 'nie' && steps.czujniki.outputs.sa == 'nie'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NUMER=$(gh issue list --label czujniki --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          if [ -z "$NUMER" ]; then
+            echo "Diagnostyka czysta, nie ma czego zamykać."
+            exit 0
+          fi
+          gh issue close "$NUMER" --comment "Diagnostyka czysta — czujniki raportują, baterie w porządku, wilgotność w normie."

@@ -33,7 +33,7 @@
 .plot-blad{margin:0;padding:1.1rem 1.2rem;font-size:.82rem;line-height:1.5;color:var(--faint)}.plot:has(.plot-blad){height:auto}
 .pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
-.floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
+.floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-strona{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;fill:var(--faint);opacity:.7}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
 .rightcol{display:flex;flex-direction:column;gap:1.2rem;min-width:0}
 .wx{display:flex;flex-direction:column;gap:1rem}
 .wx-now{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
@@ -56,6 +56,9 @@
 .wx-tip{padding:.7rem .85rem;border-left:3px solid var(--c);background:#0d141a}
 .wx-tip b{display:block;font-size:.85rem;font-weight:500;color:var(--c);margin-bottom:.25rem}
 .wx-tip span{font-size:.78rem;line-height:1.45;color:var(--dim)}
+.wx-okno{padding-top:.9rem;border-top:1px solid var(--edge)}
+.wx-okno b{display:block;font:600 .78rem "IBM Plex Sans Condensed",sans-serif;letter-spacing:.04em;color:var(--text);margin-bottom:.25rem}
+.wx-okno span{font-size:.78rem;line-height:1.45;color:var(--dim)}
 .events{display:flex;flex-direction:column;gap:0}.event{display:grid;grid-template-columns:8px 1fr auto;gap:.55rem;align-items:start;padding:.55rem 0;border-bottom:1px solid var(--edge)}.event:last-child{border-bottom:0}.event .edot{width:7px;height:7px;border-radius:50%;margin-top:.4rem;background:var(--ok)}.event.warn .edot{background:var(--warn);box-shadow:0 0 7px var(--warn)}.event.bad .edot{background:var(--bad);box-shadow:0 0 7px var(--bad)}.event .et{font-size:.82rem}.event .es{font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint);white-space:nowrap}.empty{color:var(--faint);font-size:.84rem;padding:.5rem 0}
 .summary{width:100%;border-collapse:collapse;margin-top:2.1rem;font-size:.85rem}.summary caption{text-align:left;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding-bottom:.55rem}.summary th,.summary td{text-align:right;padding:.45rem .5rem;border-bottom:1px solid var(--edge);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:300;color:var(--text)}.summary th{font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}.summary th:first-child,.summary td:first-child{text-align:left}.summary td:first-child{font-family:"Familjen Grotesk",sans-serif;font-weight:400;border-left:3px solid var(--c);padding-left:.7rem}.warn-text{color:var(--warn)!important}.bad-text{color:var(--bad)!important}
 .notice{margin:2.5rem 0;padding:1.4rem 1.5rem;border:1px solid var(--edge);background:var(--panel);max-width:44rem}.notice h2{margin:0 0 .55rem;font-size:1.05rem}.notice p{margin:.45rem 0;color:var(--dim);font-size:.92rem}.notice code{font-family:"IBM Plex Mono",monospace;font-size:.85em;color:var(--pen-1);background:#0b1015;padding:.12em .42em;border:1px solid var(--edge)}[hidden]{display:none!important}@media(max-width:720px){.statusbar{grid-template-columns:1fr}.bottom-layout{grid-template-columns:1fr}.summary{font-size:.75rem;display:block;overflow-x:auto;white-space:nowrap}.summary th,.summary td{padding:.4rem .35rem}}
@@ -123,9 +126,16 @@ function aqiBand(v){if(v==null||!isFinite(v))return null;
 /* Pokój wiąże się z czujnikiem przez dev (identyfikator Tuya) — nazwa jest tylko
    zapasem. Inaczej zmiana nazwy czujnika w aplikacji Tuya po cichu wygasza pokój
    na rzucie. Identyfikatory podejrzysz przez `python fetch.py --discover`. */
-/* Okna: sypialnia wychodzi na przeciwną stronę mieszkania niż salon i kuchnia,
-   więc otwarcie sypialni razem z którymkolwiek z tamtych daje przewiew na wylot.
-   Łazienka okna nie ma — wymienia powietrze wentylacją i drzwiami. */
+/* Okna i strony świata. Sypialnia patrzy na POŁUDNIE, salon i kuchnia na PÓŁNOC —
+   czyli na rzucie góra to południe, dół to północ. Otwarcie sypialni razem z
+   którymkolwiek z tamtych daje przewiew na wylot. Łazienka okna nie ma, wymienia
+   powietrze wentylacją i drzwiami.
+
+   To nie jest sama etykietka: strona decyduje, którędy w upał wchodzi słońce. Okno
+   od południa w bezchmurne popołudnie wpuszcza nie tylko ciepłe powietrze, ale i
+   promieniowanie, którego termometr na dworze nie widzi. Dlatego podpowiedź o
+   wietrzeniu w takich godzinach wysyła Cię najpierw na stronę północną. */
+const STRONY={pld:{nazwa:'południe',skrot:'płd.',slonce:true},pln:{nazwa:'północ',skrot:'płn.',slonce:false}};
 const PLAN={w:400,h:500,door:[20,192,20,246],
   okna:[[245,0,355,0],[265,430,355,430],[30,494,100,494]],
   rooms:[
@@ -134,12 +144,15 @@ const PLAN={w:400,h:500,door:[20,192,20,246],
   // strona: na którą ścianę mieszkania wychodzi okno. Otwarte razem po obu stronach
   // dają przewiew na wylot. wywiew: pion wentylacyjny, czyli którędy powietrze ucieka —
   // wpisany w miejscowniku, bo wchodzi wprost do zdania podpowiedzi.
+  // dop/bier: te same nazwy w dopełniaczu i bierniku, z tego samego powodu — podpowiedzi
+  // wklejają je w zdanie („zacznij od kuchni", „sypialnię otwieraj krótko"), a polskiej
+  // odmiany nie da się zgadnąć z mianownika.
   // Salon i sypialnia mają własne kratki, ale bez pionu ciągną na tyle słabo, że nie
   // ma sensu na nich polegać przy doradzaniu.
-  {name:'Sypialnia',dev:'bf7e2a70935af7de78mjqt',okno:'pln',x:195,y:0,w:195,h:135},
-  {name:'Łazienka',dev:'bfd6f4f87fea9d866dvpve',wywiew:'łazience',x:292,y:135,w:88,h:147},
-  {name:'Salon',dev:'bf43cf664d6644420axva3',okno:'pld',x:226,y:282,w:154,h:148},
-  {name:'Kuchnia',dev:'bf5741c97c96fa85b1d7do',okno:'pld',wywiew:'kuchni',x:0,y:359,w:174,h:135}
+  {name:'Sypialnia',dev:'bf7e2a70935af7de78mjqt',okno:'pld',dop:'sypialni',bier:'sypialnię',x:195,y:0,w:195,h:135},
+  {name:'Łazienka',dev:'bfd6f4f87fea9d866dvpve',wywiew:'łazience',dop:'łazienki',bier:'łazienkę',x:292,y:135,w:88,h:147},
+  {name:'Salon',dev:'bf43cf664d6644420axva3',okno:'pln',dop:'salonu',bier:'salon',x:226,y:282,w:154,h:148},
+  {name:'Kuchnia',dev:'bf5741c97c96fa85b1d7do',okno:'pln',wywiew:'kuchni',dop:'kuchni',bier:'kuchnię',x:0,y:359,w:174,h:135}
 ]};
 /* Sprzęt osusza albo dogrzewa wyłącznie pokój, w którym stoi — wietrzenie w sypialni
    nie ma nic wspólnego z klimatyzatorem w salonie. Tu wiążemy urządzenie z czujnikiem
@@ -500,6 +513,11 @@ function renderMap(){
       +`<circle cx="${rm.x+rm.w-14}" cy="${rm.y+rm.h-14}" r="4.5" fill="var(${st})" stroke="var(--bg)" stroke-width="1.5"/></g>`);
   });
   PLAN.okna.forEach(([a,b,c,d])=>svg.push(`<line class="rm-okno" x1="${a}" y1="${b}" x2="${c}" y2="${d}"><title>okno</title></line>`));
+  // Strony świata na rzucie: bez nich nie wiadomo, czy „góra” to północ, czy południe,
+  // a od tego zależy, którędy w upał wchodzi słońce.
+  // rogi po przekątnej, bo tylko one zostają wolne od pokoi przy tym układzie
+  svg.push(`<text class="rm-strona" x="0" y="10">${STRONY.pld.nazwa}</text>`
+    +`<text class="rm-strona" x="${PLAN.w}" y="${PLAN.h}" text-anchor="end">${STRONY.pln.nazwa}</text>`);
   const[x1,y1,x2,y2]=PLAN.door;
   svg.push(`<line class="rm-door" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><title>drzwi wejściowe</title></line></svg>`);
   document.getElementById('floor').innerHTML=svg.join('');
@@ -519,16 +537,110 @@ function jakWietrzyc(){
   const pierwszy=zOknem[0],drugi=zOknem.find(x=>x.r.okno!==pierwszy.r.okno);
   const wywiew=PLAN.rooms.filter(r=>r.wywiew).map(r=>esc(r.wywiew));
   const przez=wywiew.length?` Wywiew i tak idzie kratkami w ${wywiew.join(' i ')}, więc zostaw otwarte drzwi.`:'';
+  const strona=r=>STRONY[r.okno]?.skrot?` (${STRONY[r.okno].skrot})`:'';
   return drugi
-    ? ` Na wylot najszybciej: ${esc(pierwszy.r.name.toLowerCase())} i ${esc(drugi.r.name.toLowerCase())} — okna po przeciwnych stronach.${przez}`
-    : ` Zacznij od ${esc(pierwszy.r.name.toLowerCase())} — tam najwilgotniej.${przez}`;
+    ? ` Na wylot najszybciej: ${esc(pierwszy.r.name.toLowerCase())}${strona(pierwszy.r)} i ${esc(drugi.r.name.toLowerCase())}${strona(drugi.r)} — okna po przeciwnych stronach.${przez}`
+    : ` Zacznij od ${esc(pierwszy.r.dop||pierwszy.r.name.toLowerCase())}${strona(pierwszy.r)} — tam najwilgotniej.${przez}`;
 }
-function airingTip(now){
+// średnia wilgotność bezwzględna w mieszkaniu — punkt odniesienia dla wszystkiego,
+// co porównuje powietrze w środku z tym za oknem
+function wilgWMieszkaniu(){
   const inside=state.devices.filter(d=>!d.ext)
     .map(d=>absHum(readings(d,'temp').last?.v,readings(d,'hum').last?.v)).filter(v=>v!=null);
+  return inside.length?inside.reduce((a,b)=>a+b,0)/inside.length:null;
+}
+const listaPL=a=>a.length<2?(a[0]||''):`${a.slice(0,-1).join(', ')} i ${a.at(-1)}`;
+/* --- Kiedy dziś wietrzyć ---
+   airingTip odpowiada na „czy teraz”. To odpowiada na „o której”, bo rano
+   przydatniejsza jest godzina niż werdykt na tę jedną chwilę. Z prognozy godzinowej
+   liczymy wilgotność bezwzględną na dworze na najbliższą dobę i szukamy momentu,
+   w którym powietrze z zewnątrz najmocniej osuszy mieszkanie.
+
+   Wilgotność w środku bierzemy jako stałą — tę z teraz. Przez dobę oczywiście się
+   zmieni, ale bez wietrzenia dryfuje wolno, a i tak porównujemy godziny między sobą,
+   więc wspólne przesunięcie nic w rankingu nie zmienia. */
+const WIETRZ_ZYSK=0.7;      // g/m³ różnicy; poniżej wymiana powietrza nic nie osuszy
+const SLONCE_MOCNE=120;     // W/m² — od tyle południowa strona zaczyna dokładać ciepła
+/* Sucho na dworze to za mało: w upał powietrze o 15:00 bywa i suchsze, i o pięć stopni
+   cieplejsze, więc otwarte okno owszem osuszy, ale zamieni mieszkanie w piekarnik.
+   Odcinamy godziny cieplejsze od mieszkania — w drugą stronę progu nie ma, bo zimą
+   właśnie zimne powietrze jest narzędziem, a wietrzy się wtedy krótko. */
+const WIETRZ_CIEPLO=1.0;    // °C ponad temperaturę w mieszkaniu, które jeszcze przepuszczamy
+function prognozaGodzinowa(){
+  const h=state.weather?.hourly;
+  if(!h?.time?.length)return[];
+  const out=[];
+  for(let i=0;i<h.time.length;i++){
+    const t=Date.parse(h.time[i]),temp=h.temperature_2m?.[i],abs=absHum(temp,h.relative_humidity_2m?.[i]);
+    if(isFinite(t)&&abs!=null&&t>=Date.now()-3600e3)out.push({t,temp,abs,slonce:h.shortwave_radiation?.[i]??0});
+  }
+  return out.sort((a,b)=>a.t-b.t);
+}
+function oknoWietrzenia(home,dom){
+  const g=prognozaGodzinowa();
+  if(home==null||g.length<2)return null;
+  const zysk=g.map(x=>({...x,zysk:home-x.abs,
+    upal:dom!=null&&x.temp!=null&&x.temp>dom+WIETRZ_CIEPLO}));
+  const dobra=x=>x.zysk>=WIETRZ_ZYSK&&!x.upal;
+  let best=-1;
+  zysk.forEach((x,i)=>{if(dobra(x)&&(best<0||x.zysk>zysk[best].zysk))best=i});
+  // godziny suche, ale za ciepłe, to inna historia niż doba bez suchego powietrza
+  if(best<0)return{brak:true,upal:zysk.some(x=>x.zysk>=WIETRZ_ZYSK&&x.upal)};
+  // szczyt rozciągamy na sąsiednie godziny, dopóki wietrzenie ma jeszcze sens —
+  // z jednej godziny nie zrobisz planu, z sześciu owszem
+  let a=best,b=best;
+  while(a>0&&dobra(zysk[a-1]))a--;
+  while(b<zysk.length-1&&dobra(zysk[b+1]))b++;
+  const pasmo=zysk.slice(a,b+1),temps=pasmo.map(x=>x.temp).filter(v=>v!=null);
+  return{od:pasmo[0].t,do:pasmo.at(-1).t+3600e3,szczyt:zysk[best],
+    tmin:temps.length?Math.min(...temps):null,tmax:temps.length?Math.max(...temps):null,
+    // słońce sprawdzamy w godzinie szczytu, nie w całym paśmie: rada „zacznij od
+    // północy" dotyczy chwili, w której naprawdę otworzysz okno
+    slonce:zysk[best].slonce>=SLONCE_MOCNE};
+}
+const gdy=t=>{const d=new Date(t),dzis=new Date();dzis.setHours(0,0,0,0);
+  const dni=Math.round((new Date(d).setHours(0,0,0,0)-dzis.getTime())/864e5);
+  const kiedy=dni<=0?'dziś':dni===1?'jutro':new Intl.DateTimeFormat('pl-PL',{weekday:'short'}).format(d);
+  return `${kiedy} ${pad(d.getHours())}:00`};
+/* Prognoza temperatury nie widzi słońca, które wpada oknem. W bezchmurne popołudnie
+   okno od południa dokłada ciepła niezależnie od tego, ile jest stopni w cieniu —
+   dlatego wtedy wysyłamy najpierw na stronę północną. */
+function stronaStartowa(slonce){
+  if(!slonce)return'';
+  const pokoje=(s,forma)=>PLAN.rooms.filter(r=>r.okno===s&&r.dev).map(r=>esc(r[forma]||r.name.toLowerCase()));
+  const pln=pokoje('pln','dop'),pld=pokoje('pld','bier');
+  if(!pln.length||!pld.length)return'';
+  return ` Słońce stoi wtedy od południa, więc zacznij od ${listaPL(pln)} (${STRONY.pln.skrot}), a ${listaPL(pld)} otwieraj krótko.`;
+}
+// średnia temperatura w mieszkaniu — próg, powyżej którego wietrzenie zaczyna dogrzewać
+function tempWMieszkaniu(){
+  const t=state.devices.filter(d=>!d.ext).map(d=>readings(d,'temp').last?.v).filter(v=>v!=null&&isFinite(v));
+  return t.length?t.reduce((a,b)=>a+b,0)/t.length:null;
+}
+function oknoTekst(home){
+  const w=oknoWietrzenia(home,tempWMieszkaniu());
+  if(!w)return'';
+  if(w.brak)return`<div class="wx-okno"><b>Brak dobrego okna w najbliższej dobie</b><span>`
+    +(w.upal
+      ? 'Sucho na dworze owszem bywa, ale w każdej z tych godzin jest tam cieplej niż u Ciebie — otwarte okno osuszyłoby i zarazem dogrzało. Poczekaj na chłodniejszą noc.'
+      : 'Na dworze cały czas nie robi się na tyle sucho, żeby wietrzenie cokolwiek osuszyło. Na świeże powietrze — owszem, na osuszenie — nie w tej dobie.')
+    +`</span></div>`;
+  const stopnie=w.tmin!=null?`, ${fmtNum(w.tmin,0)}–${fmtNum(w.tmax,0)} °C`:'';
+  const szczyt=`${fmtNum(w.szczyt.abs)} g/m³ na dworze przy ${fmtNum(home)} w mieszkaniu`;
+  // Pasmo ciągnące się przez całą prognozę to nie jest żaden termin — wtedy przydatna
+  // jest informacja, że pora nie ma znaczenia, i sama godzina najsuchszego powietrza.
+  // Krótsze pasmo, choćby i dwunastogodzinne, podajemy jako zakres: "dziś 20:00 –
+  // jutro 08:00" mówi więcej niż "o dowolnej porze", bo to jednak tylko noc.
+  const godzin=Math.round((w.do-w.od)/3600e3);
+  const naglowek=godzin>=24
+    ? `<b>Wietrzyć można o dowolnej porze</b><span>Sucho na dworze nieprzerwanie przez ${godzin} godz., od ${gdy(w.od)}. Najsuchsze powietrze o ${gdy(w.szczyt.t)} — ${szczyt}${stopnie}.`
+    : `<b>Najlepiej wietrzyć: ${gdy(w.od)} – ${gdy(w.do)}</b><span>Szczyt o ${gdy(w.szczyt.t)} — ${szczyt}${stopnie}.`;
+  return `<div class="wx-okno">${naglowek}${stronaStartowa(w.slonce)}</span></div>`;
+}
+function airingTip(now,home){
   const out=absHum(now.temperature_2m,now.relative_humidity_2m);
-  if(!inside.length||out==null)return null;
-  const home=inside.reduce((a,b)=>a+b,0)/inside.length,diff=out-home;
+  if(home==null||out==null)return null;
+  const diff=out-home;
   const aqi=state.weather?.air?.european_aqi,band=aqiBand(aqi);
   if(band&&aqi>60)return{c:'--bad',title:'Lepiej nie otwierać okien',
     text:`Jakość powietrza na zewnątrz jest ${band[0]} — indeks ${Math.round(aqi)}. Wietrz krótko albo poczekaj.`};
@@ -558,8 +670,9 @@ function renderWeather(){
   const band=aqiBand(air.european_aqi);
   if(band)out.push(`<div class="wx-air"><span class="wx-aqi" style="color:var(${band[1]})">AQI ${Math.round(air.european_aqi)}</span><span>jakość ${band[0]}</span>`
     +`<span>PM2,5 <em>${fmtNum(air.pm2_5,0)}</em></span><span>PM10 <em>${fmtNum(air.pm10,0)}</em> µg/m³</span></div>`);
-  const tip=airingTip(now);
+  const home=wilgWMieszkaniu(),tip=airingTip(now,home);
   if(tip)out.push(`<div class="wx-tip" style="--c:var(${tip.c})"><b>${tip.title}</b><span>${tip.text}</span></div>`);
+  out.push(oknoTekst(home));
   document.getElementById('wx').innerHTML=out.join('');
 }
 function renderEvents(){

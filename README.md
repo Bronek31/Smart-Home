@@ -43,13 +43,13 @@ stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
 | `fetch.py` | kolektor: pobiera logi z Tuya, pogodę i smog z Open-Meteo, przelicza agregaty |
 | `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
 | `.github/workflows/zbieraj.yml` | harmonogram zbierania, co godzinę o :19 |
-| `.github/workflows/watchdog.yml` | raz na dobę sprawdza, czy kolektor żyje |
+| `.github/workflows/watchdog.yml` | raz na dobę sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
 | `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
 | `manifest.json`, `sw.js`, `ikona*` | instalacja na ekranie głównym telefonu i tryb offline |
 | `data/RRRR-MM.csv` | surowe odczyty: `ts,device_id,code,value` |
 | `data/dzienne.csv` | dobowe min/średnia/max — z tego rysuje się widok „całość" |
-| `data/pogoda.json` | migawka: teraz, prognoza na 3 dni, jakość powietrza. Nadpisywana co przebieg |
-| `data/index.json` | lista urządzeń, miesięcy i czas ostatniej zbiórki |
+| `data/pogoda.json` | migawka: teraz, prognoza na 3 dni i godzinowa na dobę, jakość powietrza. Nadpisywana co przebieg |
+| `data/index.json` | lista urządzeń, miesięcy, czas ostatniej zbiórki i diagnostyka dla watchdoga |
 
 ---
 
@@ -87,6 +87,25 @@ Proporcje pokoi na rzucie mieszkania siedzą w stałej `PLAN` w `index.html` —
 to `x, y, w, h` w siatce 400×500. Progi alarmów (`HEARTBEAT`, `STALE_WARN`)
 i filtra chwilowych skoków (`SPIKE`) są tuż obok.
 
+Tam też stoi **orientacja mieszkania**: pole `okno` mówi, na którą stronę świata
+patrzy pokój (`pld` albo `pln`, opisane w `STRONY`). Sypialnia wychodzi na południe,
+salon i kuchnia na północ — na rzucie góra to więc południe. To nie jest ozdoba:
+z tego bierze się rada, żeby w upalne, słoneczne godziny zaczynać wietrzenie od
+strony północnej, bo okno od południa wpuszcza wtedy ciepło, którego prognoza
+temperatury nie pokazuje. Obok są `dop` i `bier` — nazwy pokoi w dopełniaczu
+i bierniku, bo podpowiedzi wklejają je wprost w zdanie.
+
+## Co strona radzi i skąd to wie
+
+Poza wykresami dashboard odpowiada na dwa pytania. **Czy wietrzyć teraz** — przez
+porównanie wilgotności bezwzględnej w mieszkaniu i na dworze; jeśli na zewnątrz jest
+sucho, otwarte okno osuszy. **O której dziś wietrzyć** — z prognozy godzinowej
+Open-Meteo, ta sama różnica policzona na dobę naprzód. Godziny cieplejsze od
+mieszkania odpadają: wietrzenie ma osuszyć, nie dogrzać.
+
+Progi (`WIETRZ_ZYSK`, `WIETRZ_CIEPLO`, `SLONCE_MOCNE`) siedzą w `index.html` obok
+tych funkcji.
+
 ---
 
 ## Gdy coś nie działa
@@ -101,6 +120,7 @@ i filtra chwilowych skoków (`SPIKE`) są tuż obok.
 | Błąd `1114` albo `2007` | Zły region w `TUYA_REGION` |
 | Pusta lista przy `--discover` | Konto Smart Life podpięte do innego data center |
 | Bateria: `niski` | Wymień ogniwo. Słabnąca bateria gubi raporty, zanim czujnik zniknie zupełnie |
+| Zgłoszenie „Czujniki wymagają uwagi" | Watchdog wyłapał słabą baterię, milczący czujnik albo wilgotność trzymającą się za wysoko od doby. Treść odświeża się co dobę, zgłoszenie zamknie się samo |
 | Przebiegi w ogóle nie ruszają | GitHub wyłącza harmonogramy po 60 dniach bezczynności. Jedno ręczne uruchomienie je wskrzesza |
 
 ---
