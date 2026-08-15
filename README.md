@@ -99,11 +99,28 @@ i bierniku, bo podpowiedzi wklejają je wprost w zdanie.
 Pod rzutem siedzi **odtwarzanie historii**: suwak przewija mieszkanie w czasie, a
 przycisk puszcza je w pętli — chodzi w kółko, aż klikniesz pauzę, a wtedy zatrzymuje
 się tam, gdzie akurat jest. Pokazuje to, czego cztery nałożone linie nie
-pokazują — którędy ciepło wędruje przez mieszkanie. Domyślnie obejmuje ostatnią dobę,
-bo o to chodzi: jeden pełny cykl. Przełącznik obok rozciąga je na cały wybrany zakres.
+pokazują — którędy ciepło wędruje przez mieszkanie. Pasek pod suwakiem to średnia
+mieszkania przez całe okno ze znacznikiem bieżącej klatki; wykresy są półtora tysiąca
+pikseli wyżej, więc bez niego nie wiadomo, czy ogląda się szczyt dnia, czy noc.
 Klatki idą stałym krokiem dobranym do okna (`KLATKI_CEL`, `KROKI_MIN`, `KLATKA_MS`),
 a wartości między odczytami są interpolowane, bo czujniki raportują raz na godzinę
 i bez tego byłby to pokaz slajdów.
+
+Pod spodem są dwa przełączniki. Pierwszy wybiera **okno**: cały widoczny zakres albo
+ostatnia doba. Drugi wybiera, **co znaczy kolor**:
+
+| Tryb | Kolor mówi | Kiedy przydatny |
+|---|---|---|
+| `temperatura` | ile stopni, wspólna skala dla całego mieszkania | gdy chcesz porównać pokoje między sobą |
+| `odchyłka pokoju` | o ile pokój odbiega od własnej średniej w oknie | gdy chcesz zobaczyć sam ruch |
+
+Drugi tryb istnieje, bo przez dobę różnice między pokojami są ponad dwa razy większe
+niż ruch któregokolwiek z nich — na wspólnej skali widać wtedy tylko stały ranking
+„łazienka najcieplejsza", a on się nie zmienia. Po odjęciu średniej pokoju zostaje
+sama dynamika i widać, że sypialnia od południa nagrzewa się 2 godziny po dworze,
+a pokoje od północy dopiero po 4–5. Liczba w pokoju pozostaje bezwzględna, więc
+w tym trybie kolor i cyfra mówią o dwóch różnych rzeczach — stąd osobny przycisk,
+a nie zamiennik.
 
 **Skala kolorów rzutu dobiera się do danych w oknie**, a nie stoi na stałych 19–28 °C:
 spokojna doba mieści się w jednym stopniu i na stałej skali wszystkie pokoje wyglądały

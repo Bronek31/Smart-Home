@@ -100,10 +100,7 @@ sprawdzone z pamięci, nie na żywym API.)*
   zieleń, więc wszystko lądowało w zielonym środku. Skala dobiera się teraz do okna,
   paleta nie ma martwego miejsca, a rozstaw barw między pokojami wzrósł z 46 na 170.
 
-## Gdyby animacja nadal była za mało czytelna
-
-Zapasowy pomysł, którego nie wdrożyłem, bo obecna wersja wystarcza: kolorować pokoje
-**odchyleniem od średniej mieszkania**, a nie temperaturą bezwzględną. Znika wtedy
-wspólny dryf dobowy, który dotyczy wszystkich pokoi naraz, i zostaje sama struktura
-przestrzenna — który pokój prowadzi, a który się opóźnia. Kosztem tego, że kolor
-przestaje odpowiadać odczytowi, więc musiałby być przełącznikiem, nie zamiennikiem.
+- **Tryb odchyłki, pasek kontekstu i okno domyślnie na cały zakres** — trzeci podejście
+  do czytelności animacji, tym razem po zmierzeniu, co w danych w ogóle jest.
+  Przez dobę pokój rusza się o 0,2–0,4 °C, a pokoje różnią się o 0,67 °C, więc obraz
+  był w 2/3 statyczny. Odjęcie średniej pokoju podniosło ruch barwy Salonu z 29 na 133.
