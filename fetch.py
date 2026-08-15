@@ -509,6 +509,42 @@ def drop_spikes(points: list[tuple[float, float]], kind: str | None) -> set[int]
     return bad
 
 
+# Ile godzin prognozy trzymamy w pogoda.json. Doba z okładem wystarcza, żeby wskazać
+# najbliższe okno na wietrzenie, a plik zostaje mały — przeglądarka ciągnie go co wejście.
+PROGNOZA_GODZIN = 36
+
+
+def trim_hourly(block: dict, offset_s: int) -> dict:
+    """Przycina prognozę godzinową do najbliższej doby i przestawia czas na UTC.
+
+    Open-Meteo zwraca znaczniki w strefie, o którą prosiliśmy, i bez oznaczenia strefy
+    ("2026-08-15T08:00"). Przeglądarka wzięłaby je za czas swojego zegara, więc telefon
+    ustawiony na inną strefę pokazywałby wietrzenie o złej godzinie. Przeliczamy tutaj,
+    bo tutaj mamy przesunięcie, i zapisujemy tak samo jak wszystkie inne znaczniki w repo.
+    """
+    stamps = block.get("time") or []
+    if not stamps:
+        return {}
+    pola = [k for k in block if k != "time"]
+    teraz = time.time()
+    out: dict[str, list] = {"time": []}
+    for pole in pola:
+        out[pole] = []
+    for index, stamp in enumerate(stamps):
+        try:
+            kiedy = datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc).timestamp() - offset_s
+        except ValueError:
+            continue
+        # godzina, w której właśnie jesteśmy, jeszcze się liczy — stąd zapas 1 godz. wstecz
+        if kiedy < teraz - 3600 or kiedy > teraz + PROGNOZA_GODZIN * 3600:
+            continue
+        out["time"].append(iso(int(kiedy * 1000)))
+        for pole in pola:
+            wartosci = block.get(pole) or []
+            out[pole].append(wartosci[index] if index < len(wartosci) else None)
+    return out
+
+
 def fetch_weather() -> dict | None:
     """Migawka pogodowa: teraz + prognoza na 3 dni + jakość powietrza.
 
@@ -527,6 +563,10 @@ def fetch_weather() -> dict | None:
             "current": "temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m",
             "daily": "weather_code,temperature_2m_max,temperature_2m_min,"
                      "precipitation_probability_max,precipitation_sum",
+            # godzinowa prognoza temperatury, wilgotności i słońca — z tego strona liczy,
+            # o której dziś wietrzyć. Promieniowanie mówi, czy południowa strona stoi
+            # w słońcu; samo "jest dzień" nie wystarczy, bo pod chmurami nic nie grzeje.
+            "hourly": "temperature_2m,relative_humidity_2m,shortwave_radiation",
             "forecast_days": 3, "timezone": zone,
         }, timeout=30)
         data = resp.json() or {}
@@ -535,6 +575,7 @@ def fetch_weather() -> dict | None:
             return None
         snapshot["current"] = data["current"]
         snapshot["daily"] = data.get("daily") or {}
+        snapshot["hourly"] = trim_hourly(data.get("hourly") or {}, data.get("utc_offset_seconds") or 0)
     except (requests.RequestException, ValueError) as err:
         print(f"Prognoza: pominięta — {err}", flush=True)
         return None
@@ -548,17 +589,21 @@ def fetch_weather() -> dict | None:
         print(f"Jakość powietrza: pominięta — {err}", flush=True)
         snapshot["air"] = {}
     WEATHER.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"Prognoza zapisana ({snapshot['current'].get('temperature_2m')} °C teraz).", flush=True)
+    godzin = len((snapshot.get("hourly") or {}).get("time") or [])
+    print(
+        f"Prognoza zapisana ({snapshot['current'].get('temperature_2m')} °C teraz, "
+        f"{godzin} godz. naprzód).",
+        flush=True,
+    )
     return snapshot
 
 
-def code_kinds(devices: dict) -> dict[tuple[str, str], str]:
-    """Mapa (urządzenie, kod DP) -> rodzaj odczytu.
+def device_sources(devices: dict) -> list[dict]:
+    """Manifest z poprzedniego przebiegu, a po nim to, co widać teraz.
 
-    Bierze pod uwagę także manifest z poprzedniego przebiegu, żeby czujnik zdjęty
-    z TUYA_DEVICE_IDS nie stracił nagle odszumiania w historycznych agregatach.
+    Manifest wchodzi do gry, żeby czujnik zdjęty z TUYA_DEVICE_IDS nie stracił nagle
+    odszumiania w historycznych agregatach.
     """
-    kinds: dict[tuple[str, str], str] = {}
     sources = []
     if MANIFEST.exists():
         try:
@@ -566,13 +611,29 @@ def code_kinds(devices: dict) -> dict[tuple[str, str], str]:
         except (ValueError, OSError):
             pass
     sources.append(devices or {})
-    for source in sources:
+    return sources
+
+
+def code_kinds(devices: dict) -> dict[tuple[str, str], str]:
+    """Mapa (urządzenie, kod DP) -> rodzaj odczytu."""
+    kinds: dict[tuple[str, str], str] = {}
+    for source in device_sources(devices):
         for device_id, entry in source.items():
             for code, meta in ((entry or {}).get("codes") or {}).items():
                 kind = (meta or {}).get("kind")
                 if kind:
                     kinds[(device_id, code)] = kind
     return kinds
+
+
+def external_ids(devices: dict) -> set[str]:
+    """Źródła spoza mieszkania — dziś tylko pogoda z Open-Meteo."""
+    return {
+        device_id
+        for source in device_sources(devices)
+        for device_id, entry in source.items()
+        if (entry or {}).get("external")
+    }
 
 
 def write_daily(devices: dict | None = None) -> int:
@@ -583,6 +644,7 @@ def write_daily(devices: dict | None = None) -> int:
     """
     zone = os.environ.get("TZ_LOCAL", "Europe/Warsaw")
     kinds = code_kinds(devices or {})
+    zewnetrzne = external_ids(devices or {})
     try:
         tz = ZoneInfo(zone)
     except Exception:
@@ -609,7 +671,10 @@ def write_daily(devices: dict | None = None) -> int:
         kind = kinds.get((device, code)) or classify(code, "")
         if kind in ("power", "battery"):
             continue      # dobowa średnia z włącznika albo poziomu baterii nic nie znaczy
-        bad = drop_spikes([(t, v) for t, v, _ in points], kind)
+        # Pogoda przychodzi już wygładzona z modelu, a przeglądarka jej nie filtruje.
+        # Filtr po tej stronie zjadałby prawdziwe załamania pogody i rozjeżdżał widok
+        # "całość" z 7-dniowym — a te dwa mają pokazywać to samo.
+        bad = set() if device in zewnetrzne else drop_spikes([(t, v) for t, v, _ in points], kind)
         skipped += len(bad)
         for index, (_, value, day) in enumerate(points):
             if index in bad:
@@ -640,7 +705,103 @@ def write_daily(devices: dict | None = None) -> int:
     return len(rows)
 
 
-def write_manifest(devices: dict) -> None:
+# Progi diagnostyki. Te same, którymi kieruje się strona (HEARTBEAT, STALE_BAD i
+# HUM_ALERT w index.html) — muszą się zgadzać, bo inaczej watchdog zakładałby zgłoszenie
+# o czymś, czego dashboard nie pokazuje, albo odwrotnie.
+HEARTBEAT_MS = 60 * 60 * 1000
+CISZA_ALARM = 6 * HEARTBEAT_MS
+HUM_ALERT = 65.0
+HUM_UDZIAL = 0.25          # ułamek doby powyżej progu, od którego warto się odezwać
+BATERIA_NISKA = {"low", "niski"}
+BATERIA_PROC = 15.0
+
+
+def recent_rows(since_ms: int) -> list[dict]:
+    """Odczyty od podanej chwili. Dwa ostatnie pliki miesięczne, bo doba potrafi
+    przypaść na przełom miesiąca."""
+    out = []
+    for path in sorted(DATA_DIR.glob("[0-9]*.csv"))[-2:]:
+        for row in load_month(path.stem):
+            try:
+                when = int(datetime.fromisoformat(row["ts"].replace("Z", "+00:00")).timestamp() * 1000)
+            except (KeyError, ValueError, TypeError):
+                continue
+            if when >= since_ms:
+                out.append({**row, "ms": when})
+    out.sort(key=lambda r: r["ms"])
+    return out
+
+
+def udzial_powyzej(punkty: list[tuple[int, float]], prog: float) -> float:
+    """Jaka część doby minęła z wartością powyżej progu. Liczona czasem, nie liczbą
+    odczytów, bo czujnik przy zmianie raportuje gęściej i przeważyłby wynik."""
+    if len(punkty) < 2:
+        return 0.0
+    powyzej = calosc = 0
+    for (t1, v1), (t2, v2) in zip(punkty, punkty[1:]):
+        # dziura dłuższa niż dwa heartbeaty to cisza, nie stan trwający — nie zaliczamy jej
+        odstep = min(t2 - t1, 2 * HEARTBEAT_MS)
+        calosc += odstep
+        if (v1 + v2) / 2 >= prog:
+            powyzej += odstep
+    return powyzej / calosc if calosc else 0.0
+
+
+def diagnose(devices: dict) -> list[str]:
+    """Problemy, których nie widać po samym tym, czy kolektor żyje.
+
+    Strona liczy to samo w renderEvents(), ale dowiesz się o tym dopiero wtedy, gdy sam
+    ją otworzysz — a słabnąca bateria daje o sobie znać właśnie wtedy, gdy nikt nie
+    patrzy. Watchdog czyta tę listę i zakłada zgłoszenie, czyli maila od GitHuba.
+    """
+    teraz = int(time.time() * 1000)
+    rows = recent_rows(teraz - 24 * 3600 * 1000)
+    alerty = []
+    for device_id, entry in sorted((devices or {}).items(), key=lambda kv: kv[1].get("name") or kv[0]):
+        if entry.get("external") or entry.get("appliance"):
+            continue          # pogoda nie ma baterii, a włącznik nie ma czym wietrzyć
+        name = entry.get("name") or device_id
+        codes = entry.get("codes") or {}
+        moje = [r for r in rows if r["device_id"] == device_id]
+        rodzaj = {code: meta.get("kind") for code, meta in codes.items()}
+
+        klimat = [r["ms"] for r in moje if rodzaj.get(r["code"]) in ("temp", "hum")]
+        if not klimat:
+            alerty.append(f"**{name}** — ani jednego odczytu w ostatniej dobie.")
+        elif teraz - klimat[-1] > CISZA_ALARM:
+            godzin = (teraz - klimat[-1]) / 3600000
+            alerty.append(f"**{name}** — ostatni raport {godzin:.1f} godz. temu, czujnik milczy.")
+
+        bateria = [r["value"] for r in moje if rodzaj.get(r["code"]) == "battery"]
+        if bateria:
+            stan = str(bateria[-1]).strip().lower()
+            try:
+                niska = float(stan) <= BATERIA_PROC
+            except ValueError:
+                niska = stan in BATERIA_NISKA
+            if niska:
+                alerty.append(f"**{name}** — bateria na wyczerpaniu ({bateria[-1]}), wymień ogniwo.")
+
+        wilgotne = [(r["ms"], float(r["value"])) for r in moje
+                    if rodzaj.get(r["code"]) == "hum" and _liczba(r["value"])]
+        udzial = udzial_powyzej(wilgotne, HUM_ALERT)
+        if udzial >= HUM_UDZIAL:
+            alerty.append(
+                f"**{name}** — wilgotność powyżej {HUM_ALERT:g}% przez {udzial * 100:.0f}% doby, "
+                "przewietrz albo osusz."
+            )
+    return alerty
+
+
+def _liczba(tekst: str) -> bool:
+    try:
+        float(tekst)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def write_manifest(devices: dict, alerty: list[str] | None = None) -> None:
     months = sorted(p.stem for p in DATA_DIR.glob("[0-9]*.csv"))
     MANIFEST.write_text(
         json.dumps(
@@ -649,6 +810,8 @@ def write_manifest(devices: dict) -> None:
                 "months": months,
                 "daily": DAILY.name if DAILY.exists() else None,
                 "weather": WEATHER.name if WEATHER.exists() else None,
+                # czyta to watchdog, żeby raz na dobę zgłosić to, co wymaga ręki
+                "alerty": alerty or [],
                 "devices": devices,
             },
             ensure_ascii=False, indent=2,
@@ -755,6 +918,9 @@ def main() -> int:
             od_kiedy = max(start_ms, end_ms - SPRZET_OKNO)
             if ostatni_log.get(device_id):
                 od_kiedy = max(od_kiedy, ostatni_log[device_id] + 1000)
+                # Znacznik przepisujemy od razu: gdyby pobranie poniżej się wywaliło,
+                # wypadnie z manifestu i następny przebieg znów ciągnąłby pełne 12 godz.
+                manifest_devices[device_id]["last_log"] = iso(ostatni_log[device_id])
         try:
             logs = fetch_logs(client, device_id, od_kiedy, end_ms)
         except (TuyaError, requests.RequestException) as err:
@@ -812,9 +978,14 @@ def main() -> int:
     if zwiniete:
         print(f"Włączniki: zwinięto {zwiniete} powtórzeń tego samego stanu.")
     days_written = write_daily(manifest_devices)
-    write_manifest(manifest_devices)
+    alerty = diagnose(manifest_devices)
+    write_manifest(manifest_devices, alerty)
     print(f"\nDopisano {added} nowych odczytów ({len(collected) - added} już było).")
     print(f"Agregaty dobowe: {days_written} wierszy w {DAILY}.")
+    if alerty:
+        print(f"Diagnostyka: {len(alerty)} rzecz(y) do sprawdzenia —")
+        for alert in alerty:
+            print(f"  · {alert}")
     if failed:
         print(f"Pominięte czujniki: {', '.join(failed)}.")
         print("Dane pozostałych zostały zapisane. Następny przebieg nadrobi resztę — okno 7 dni jeszcze się nie zamknęło.")
