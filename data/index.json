@@ -1,10 +1,11 @@
 {
-  "updated": "2026-08-15T07:45:12Z",
+  "updated": "2026-08-15T08:35:17Z",
   "months": [
     "2026-08"
   ],
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
+  "alerty": [],
   "devices": {
     "bfe38c4af789b0c8fbxte4": {
       "name": "FERSK VIND 2",
