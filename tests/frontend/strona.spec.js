@@ -401,6 +401,151 @@ test.describe('podpowiedzi i diagnostyka', () => {
   });
 });
 
+/* Dwór ma zupełnie inną rozpiętość niż mieszkanie: w fiksturze chodzi 10–26 °C, gdy
+   pokoje stoją w paśmie poniżej stopnia. Na wspólnej osi cały ruch w mieszkaniu
+   spłaszcza się do kilku pikseli — stąd druga oś po prawej. Wilgotność bezwzględna
+   jest wyjątkiem i musi nim zostać, bo tam porównanie z dworem jest sensem wykresu. */
+test.describe('osie wykresów', () => {
+  const osie = (page, id) => page.evaluate((k) => {
+    const ch = state.charts[k];
+    return { y2: !!ch.scales.y2, dworNaY2: ch.data.datasets.filter((d) => d.borderDash.length).every((d) => d.yAxisID === 'y2') };
+  }, id);
+
+  test('temperatura i wilgotność względna dają dworowi własną oś', async ({ page }) => {
+    const bledy = await otworz(page);
+    for (const id of ['temp', 'hum']) {
+      const o = await osie(page, id);
+      expect(o.y2, `${id}: brak prawej osi`).toBe(true);
+      expect(o.dworNaY2, `${id}: seria dworu nie trafiła na prawą oś`).toBe(true);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('wilgotność bezwzględna zostaje na jednej osi, bo porównuje z dworem', async ({ page }) => {
+    const bledy = await otworz(page);
+    const o = await osie(page, 'abs');
+    expect(o.y2).toBe(false);
+    expect(await page.evaluate(() => state.charts.abs.data.datasets.every((d) => (d.yAxisID || 'y') === 'y'))).toBe(true);
+    expect(bledy).toEqual([]);
+  });
+
+  test('druga oś naprawdę rozciąga mieszkanie', async ({ page }) => {
+    // sedno zmiany: bez niej lewa oś obejmowała cały zakres dworu
+    const bledy = await otworz(page);
+    const z = await page.evaluate(() => {
+      const ch = state.charts.temp;
+      return { lewa: ch.scales.y.max - ch.scales.y.min, prawa: ch.scales.y2.max - ch.scales.y2.min };
+    });
+    expect(z.prawa).toBeGreaterThan(z.lewa * 3);
+    expect(bledy).toEqual([]);
+  });
+
+  test('prawa oś jest podpisana kolorem serii dworu', async ({ page }) => {
+    const bledy = await otworz(page);
+    const zgodne = await page.evaluate(() => {
+      const ch = state.charts.temp;
+      const dwor = state.devices.find((d) => d.ext);
+      return ch.options.scales.y2.ticks.color === dwor.color;
+    });
+    expect(zgodne).toBe(true);
+    await expect(page.locator('.trace h2 .osie').first()).toHaveText(/lewa oś: mieszkanie/);
+    expect(bledy).toEqual([]);
+  });
+});
+
+/* Łuk doby ma odpowiadać na „która to była pora dnia" bez czytania stempla. */
+test.describe('łuk doby', () => {
+  test('rysuje łuk z horyzontem, wschodem i zachodem', async ({ page }) => {
+    const bledy = await otworz(page);
+    const svg = page.locator('#doba');
+    await expect(svg).toBeVisible();
+    const tresc = await svg.innerHTML();
+    expect(tresc).toMatch(/<line/);                       // horyzont
+    expect(tresc).toMatch(/<path/);                       // krzywa
+    expect(await svg.getAttribute('aria-label')).toMatch(/(Dzień|Noc).*Wschód.*Zachód/s);
+    expect(bledy).toEqual([]);
+  });
+
+  test('znacznik chodzi po łuku, nad horyzontem za dnia i pod nim w nocy', async ({ page }) => {
+    const bledy = await otworz(page);
+    // Klatki wybieramy po godzinie zegarowej, nie po ułamku suwaka. Krok animacji
+    // wypada tu na godzinę, więc próbkowanie co 1/10 okna trafiało w kółko w te same
+    // dwie pory doby i wyglądało, jakby znacznik stał w miejscu.
+    const klatki = await page.evaluate(() => {
+      const os = state.os, out = [];
+      for (let g = 0; g < 24; g += 3) {
+        for (let i = 0; i <= os.n; i++) {
+          if (new Date(os.od + i * os.krok).getHours() === g) { out.push(i); break; }
+        }
+      }
+      return out;
+    });
+    expect(klatki.length, 'okno nie pokrywa pełnej doby').toBeGreaterThan(6);
+    const pozycje = new Set(); const rodzaje = new Set();
+    for (const i of klatki) {
+      await page.$eval('#suwak', (s, k) => { s.value = k; s.dispatchEvent(new Event('input')); }, i);
+      const stan = await page.evaluate(() => {
+        const c = [...document.querySelectorAll('#doba circle')].pop();
+        return { x: +c.getAttribute('cx'), y: +c.getAttribute('cy'), noc: !!document.querySelector('#ksiezyc-maska') };
+      });
+      pozycje.add(stan.x); rodzaje.add(stan.noc);
+      // horyzont leży na y=46: słońce musi być nad nim, księżyc pod
+      if (stan.noc) expect(stan.y, `noc, a znacznik nad horyzontem`).toBeGreaterThan(46);
+      else expect(stan.y, `dzień, a znacznik pod horyzontem`).toBeLessThan(46);
+    }
+    expect(pozycje.size, 'znacznik stoi w miejscu').toBe(klatki.length);
+    expect([...rodzaje].sort()).toEqual([false, true]);   // trafiliśmy i w dzień, i w noc
+    expect(bledy).toEqual([]);
+  });
+
+  test('działa tak samo przy oknie dobowym', async ({ page }) => {
+    const bledy = await otworz(page);
+    await page.click('[data-okno="24"]');
+    await page.waitForTimeout(300);
+    await expect(page.locator('#doba')).toBeVisible();
+    expect(await page.locator('#doba').getAttribute('aria-label')).toMatch(/(Dzień|Noc)/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('wschód wypada przed zachodem i oba są o sensownej porze', async ({ page }) => {
+    const bledy = await otworz(page);
+    const d = await page.evaluate(() => {
+      const x = dobaDane(Date.now(), 50.2649, 19.0238);
+      const godz = (ms) => (ms - x.t0) / 3600e3;
+      return { w: godz(x.wschod), z: godz(x.zachod), gora: x.gora };
+    });
+    expect(d.w).toBeGreaterThan(2);
+    expect(d.w).toBeLessThan(d.z);
+    expect(d.z).toBeLessThan(23);
+    expect(d.gora).toBeGreaterThan(10);      // w Katowicach słońce wychodzi wysoko nawet zimą
+    expect(bledy).toEqual([]);
+  });
+
+  test('wysokość słońca zgadza się z rachunkiem astronomicznym', async ({ page }) => {
+    // W południe w przesilenie słońce stoi dokładnie 90° − szerokość ± nachylenie osi
+    // (23,44°). To sprawdza cały łańcuch naraz: deklinację, równanie czasu i kąt
+    // godzinny. Gdyby którykolwiek człon wzoru się rozjechał, ta tożsamość pęka.
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => {
+      const LAT = 50.2649, LON = 19.0238;
+      const maks = (r, m, d) => Math.max(...Array.from({ length: 288 },
+        (_, i) => wysokoscSlonca(Date.UTC(r, m, d) + i * 5 * 60e3, LAT, LON)));
+      return { lato: maks(2026, 5, 21), zima: maks(2026, 11, 21), lat: LAT };
+    });
+    expect(w.lato).toBeCloseTo(90 - w.lat + 23.44, 0);
+    expect(w.zima).toBeCloseTo(90 - w.lat - 23.44, 0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('bez współrzędnych łuk się nie pokazuje, a strona żyje dalej', async ({ page }) => {
+    const bledy = await otworz(page, { bezMiejsca: true });
+    await expect(page.locator('#doba')).toBeHidden();
+    await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
+    await expect(page.locator('#suwak')).toBeVisible();
+    expect(bledy).toEqual([]);
+  });
+});
+
 test.describe('odporność', () => {
   test('brak Chart.js nie zabiera tabel ani nagłówka', async ({ page }) => {
     const bledy = await otworz(page, {}, { cdnDziala: false });

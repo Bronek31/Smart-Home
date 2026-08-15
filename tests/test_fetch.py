@@ -407,6 +407,27 @@ class TestManifest(WKatalogu):
         self.assertEqual(fetch.code_kinds({}), {})
 
 
+class TestLocationOf(unittest.TestCase):
+    """Współrzędne dla łuku doby na stronie."""
+
+    def test_bierze_punkt_siatki_oddany_przez_open_meteo(self):
+        # Open-Meteo przyciąga zapytanie do swojej siatki; prognoza dotyczy tego punktu,
+        # nie tego, o który pytaliśmy, więc na stronie ma być ten sam
+        self.assertEqual(
+            fetch.location_of({"latitude": 50.25, "longitude": 19.0}, "50.2649", "19.0238"),
+            {"lat": 50.25, "lon": 19.0})
+
+    def test_bez_wspolrzednych_w_odpowiedzi_zostaje_to_o_co_pytalismy(self):
+        self.assertEqual(fetch.location_of({}, "50.2649", "19.0238"),
+                         {"lat": 50.2649, "lon": 19.0238})
+
+    def test_smiec_zamiast_liczby_daje_none_zamiast_wywrotki(self):
+        # bez współrzędnych strona po prostu nie rysuje łuku — to nie powód, żeby
+        # przerywać cały przebieg kolektora
+        self.assertIsNone(fetch.location_of({"latitude": "nie-liczba"}, "", ""))
+        self.assertIsNone(fetch.location_of({}, "", ""))
+
+
 class TestDrobiazgi(unittest.TestCase):
     def test_iso_jest_odwracalne(self):
         ms = 1_776_000_000_000

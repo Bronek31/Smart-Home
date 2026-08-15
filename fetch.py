@@ -545,6 +545,19 @@ def trim_hourly(block: dict, offset_s: int) -> dict:
     return out
 
 
+def location_of(data: dict, lat: str, lon: str) -> dict | None:
+    """Współrzędne, z których strona liczy wschód i zachód słońca.
+
+    Bierzemy punkt siatki oddany przez Open-Meteo, bo to jego dotyczy prognoza;
+    gdyby go w odpowiedzi zabrakło, zostaje to, o co pytaliśmy. Bez współrzędnych
+    strona po prostu nie rysuje łuku doby — nic poza tym się nie psuje.
+    """
+    try:
+        return {"lat": float(data.get("latitude", lat)), "lon": float(data.get("longitude", lon))}
+    except (TypeError, ValueError):
+        return None
+
+
 def fetch_weather() -> dict | None:
     """Migawka pogodowa: teraz + prognoza na 3 dni + jakość powietrza.
 
@@ -576,6 +589,9 @@ def fetch_weather() -> dict | None:
         snapshot["current"] = data["current"]
         snapshot["daily"] = data.get("daily") or {}
         snapshot["hourly"] = trim_hourly(data.get("hourly") or {}, data.get("utc_offset_seconds") or 0)
+        gdzie = location_of(data, lat, lon)
+        if gdzie:
+            snapshot["gdzie"] = gdzie
     except (requests.RequestException, ValueError) as err:
         print(f"Prognoza: pominięta — {err}", flush=True)
         return None

@@ -84,7 +84,7 @@ Wszystkie w sekcji `env` w `.github/workflows/zbieraj.yml`:
 | `TUYA_REGION` | `eu` | data center projektu Tuya |
 | `TUYA_DEVICE_IDS` | — | identyfikatory czujników po przecinku |
 | `TUYA_SINCE` | puste | granica: starsze odczyty są kasowane i nie wracają |
-| `OUTDOOR_LAT` / `OUTDOOR_LON` | Katowice | pogoda i smog z Open-Meteo. Puste = wyłączone |
+| `OUTDOOR_LAT` / `OUTDOOR_LON` | Katowice | pogoda i smog z Open-Meteo, a także wschód i zachód na łuku doby. Puste = wyłączone |
 | `TZ_LOCAL` | `Europe/Warsaw` | według tej strefy tną się doby w agregatach |
 
 Proporcje pokoi na rzucie mieszkania siedzą w stałej `PLAN` w `index.html` —
@@ -98,6 +98,20 @@ z tego bierze się rada, żeby w upalne, słoneczne godziny zaczynać wietrzenie
 strony północnej, bo okno od południa wpuszcza wtedy ciepło, którego prognoza
 temperatury nie pokazuje. Obok są `dop` i `bier` — nazwy pokoi w dopełniaczu
 i bierniku, bo podpowiedzi wklejają je wprost w zdanie.
+
+Nad suwakiem odtwarzania biegnie **łuk doby** — rzeczywista droga słońca nad
+horyzontem tego dnia, na który patrzy klatka. Znacznik siedzi na krzywej: nad kreską
+słońce, pod kreską księżyc, a przy końcach podpisane godziny wschodu i zachodu. Sam
+stempel z datą wymaga przeliczenia w głowie, a zmierzch w sierpniu i w grudniu wypada
+o zupełnie innej porze — łuk odpowiada na „która to była pora dnia" jednym spojrzeniem.
+Krzywa jest liczona, nie brana z prognozy: dobowa prognoza Open-Meteo sięga trzech dni
+w przód, a odtwarzanie chodzi tydzień wstecz, więc i tak trzeba by ją uzupełniać.
+Wzór NOAA daje dokładność rzędu minuty — sprawdzone testem przez tożsamość
+„wysokość w południe w przesilenie = 90° − szerokość ± 23,44°". Potrzebne są tylko
+współrzędne; kolektor zapisuje je w `data/pogoda.json` jako `gdzie`, a bez nich łuk
+po prostu się nie pokazuje. Rysowana kreska to nie zero, lecz próg wschodu (−0,833°,
+czyli moment, gdy zza horyzontu wychodzi górna krawędź tarczy) — dzięki temu „słońce
+nad kreską" i „jest dzień" znaczą dokładnie to samo.
 
 Pod rzutem siedzi **odtwarzanie historii**: suwak przewija mieszkanie w czasie, a
 przycisk puszcza je w pętli. Przebieg powtarza się trzy razy, z krótkim przystankiem
@@ -146,6 +160,20 @@ zakładce co innego. Kosztuje to zaskakująco mało: pokoje o szerokim zakresie 
 kontraście tyle co nic, płaci tylko ten najbardziej stabilny, i to jest uczciwe.
 `skala pokoju` rozciąga paletę na zakres jednego pomieszczenia, gdy chcesz obejrzeć
 sam jego rytm.
+
+## Dwie osie na wykresach
+
+Dwór potrafi w tygodniu przejść 16 → 32 °C, a pokoje stoją wtedy w paśmie 25 → 26.
+Na wspólnej osi cały ruch w mieszkaniu spłaszcza się do kilku pikseli i cztery linie
+zlewają się w jedną. Dlatego **temperatura** i **wilgotność względna** mają serię
+zewnętrzną na osobnej osi po prawej, podpisanej jej kolorem i bez własnej siatki —
+żeby było widać, że to druga miarka. Nagłówek każdego z tych wykresów mówi to wprost;
+podpis pojawia się tylko wtedy, gdy druga oś naprawdę powstała, czyli gdy jest czujnik
+zewnętrzny.
+
+**Wilgotność bezwzględna zostaje na jednej osi i tak ma być.** Tam cały sens wykresu
+polega na tym, że przy wietrzeniu linia mieszkania zbliża się do linii dworu — na dwóch
+skalach ta odległość przestałaby cokolwiek znaczyć. Testy pilnują obu tych decyzji.
 
 ## Który fragment jaki okres pokazuje
 

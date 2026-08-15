@@ -44,6 +44,7 @@
 .pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-strona{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;fill:var(--faint);opacity:.7}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.replay{margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--edge)}
+.doba{display:block;width:100%;max-width:392px;height:auto;margin:0 auto .7rem}.doba text{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.06em;fill:var(--faint)}
 .replay-row{display:flex;align-items:center;gap:.6rem}
 .replay-okna{display:flex;flex-wrap:wrap;gap:.3rem .9rem;margin-top:.55rem;font-family:"IBM Plex Sans Condensed",sans-serif}
 .replay-okna span{display:flex;gap:.3rem}
@@ -100,8 +101,8 @@
   <div class="pens" id="pens"></div>
   <div class="controls"><span class="lbl">Zakres wykresów</span><button class="range" data-hours="dzis">dziś</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><label class="chk" title="Ukrywa krótkie skoki, po których wartość wraca do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki. Trwałe zmiany, takie jak włączony grzejnik, zostają."><input type="checkbox" id="filtr" checked>Ukryj chwilowe skoki</label><div class="toggles" id="toggles"></div></div>
 
-  <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div></div>
-  <div class="trace"><h2>Wilgotność względna <small>%</small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
+  <div class="trace"><h2>Temperatura <small>&deg;C</small><small class="osie"></small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div></div>
+  <div class="trace"><h2>Wilgotność względna <small>%</small><small class="osie"></small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
   <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small><small id="wietrz-abs"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
     <div class="pasma-legenda" id="pasma-legenda" hidden></div>
     <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, więc po niej nie poznasz, czy wietrzenie cokolwiek dało — po tej owszem: linia mieszkania zbliża się wtedy do linii dworu. Błękitne pasma to wykryta wymiana powietrza — nie zawsze przez okno: łazienka i kuchnia siedzą na pionie wentylacyjnym, więc powietrze potrafi im ujść samą kratką i otwartymi drzwiami.</p></div>
@@ -120,6 +121,7 @@
     <section class="panel"><h2 id="plan-tytul">Plan mieszkania · aktualny stan</h2>
       <div class="floor" id="floor" role="img" aria-label="Rzut mieszkania: temperatura, wilgotność i status łączności w każdym pokoju"></div>
       <div class="replay" id="replay" hidden>
+        <svg class="doba" id="doba" viewBox="0 0 300 78" role="img" aria-label="Pora dnia w odtwarzanej chwili" hidden></svg>
         <div class="replay-row">
           <button class="play" id="play" aria-pressed="false" aria-label="Odtwórz historię">&#9654;</button>
           <input type="range" id="suwak" min="0" max="0" value="0" step="1" aria-label="Moment w historii mieszkania">
@@ -158,7 +160,7 @@ const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długoś�
 const OKNO_DOBA=24,OKNO_TYDZIEN=168;   // wartości przycisków okna odtwarzania, w godzinach
 const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null,
   // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
-  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:OKNO_TYDZIEN,normy:null,trybBarwy:'temp',rytmDev:null,rytmSkala:'wspolna',tabHours:168};const monthCache=new Map();
+  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:OKNO_TYDZIEN,normy:null,trybBarwy:'temp',rytmDev:null,rytmSkala:'wspolna',tabHours:168,dobaCache:null};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -681,7 +683,20 @@ const pustka={id:'pustka',afterDraw(chart){
   ctx.fillText(state.hours===DZIS?'Dziś jeszcze nie ma odczytów':'Brak odczytów w tym zakresie',(a.left+a.right)/2,(a.top+a.bottom)/2);
   ctx.restore();
 }};
-function draw(canvasId,sets,unit,decimals,extra=[]){const span=zakresGodzin();const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:s.points.length<=SAMOTNE?2.6:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{s.ticks=timeTicks(s.min,s.max,s.chart.width)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),span)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg)}
+/* Dwie osie tam, gdzie dwór ma inną skalę niż mieszkanie.
+
+   Dwór potrafi w tygodniu przejść 16 → 32 °C, a pokoje stoją w paśmie 25 → 26.
+   Na wspólnej osi te 1,3 °C ruchu w mieszkaniu to trzy piksele i wszystkie cztery
+   pokoje zlewają się w jedną kreskę. Seria zewnętrzna idzie więc na własną oś po
+   prawej, podpisaną jej kolorem, bez własnej siatki — żeby było widać, że to
+   druga miarka, a nie ta sama.
+
+   Wilgotność bezwzględna zostaje na jednej osi świadomie. Tam cały sens wykresu
+   polega na tym, że linia mieszkania zbliża się do linii dworu przy wietrzeniu —
+   na dwóch skalach ta odległość przestałaby cokolwiek znaczyć. */
+function draw(canvasId,sets,unit,decimals,extra=[],dwieOsie=false){const span=zakresGodzin();
+  const zewn=dwieOsie?sets.find(s=>s.device.ext):null,barwaZ=zewn?zewn.device.color:null;
+  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,yAxisID:zewn&&s.device.ext?'y2':'y',borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:s.points.length<=SAMOTNE?2.6:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:zewn?4:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{s.ticks=timeTicks(s.min,s.max,s.chart.width)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),span)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}},...(zewn?{y2:{position:'right',border:{color:barwaZ},grid:{drawOnChartArea:false},ticks:{color:barwaZ,font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}}:{})},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);return !!zewn}
 /* Chart.js leci z CDN, więc jedna zablokowana domena albo jego awaria i wykresów
    nie ma. Bez tej klamry wyjątek z draw() przerywał render() w połowie i zabierał ze
    sobą obie tabele oraz stempel w nagłówku — czyli rzeczy, które z wykresami nie mają
@@ -689,7 +704,13 @@ function draw(canvasId,sets,unit,decimals,extra=[]){const span=zakresGodzin();co
    wykresu staje wyjaśnienie zamiast pustej kratki. */
 function rysujWykresy(T,H,A){
   if(typeof Chart==='undefined')return brakWykresow('Nie udało się wczytać biblioteki wykresów z cdn.jsdelivr.net. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.');
-  try{draw('temp',T,'°C',1);draw('hum',H,'%',0);draw('abs',A,'g/m³',1,[pasma])}
+  try{
+    const dwie=draw('temp',T,'°C',1,[],true)&draw('hum',H,'%',0,[],true);
+    draw('abs',A,'g/m³',1,[pasma]);
+    // podpis stawiamy dopiero, gdy druga oś naprawdę powstała — bez czujnika
+    // zewnętrznego obiecywałby coś, czego na wykresie nie ma
+    document.querySelectorAll('.osie').forEach(e=>{e.textContent=dwie?'lewa oś: mieszkanie · prawa: dwór':''});
+  }
   catch(blad){console.error(blad);brakWykresow(`Wykresy się nie narysowały: ${blad.message}. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.`)}
 }
 function brakWykresow(tekst){
@@ -816,6 +837,8 @@ function renderMap(){
   document.getElementById('floor').innerHTML=svg.join('');
   const out=state.devices.find(d=>d.ext),ot=odczyt(out,'temp');
   document.getElementById('maplegend').innerHTML=(ot!=null?`<span><em>${esc(out.name.toLowerCase())} ${fmtNum(ot,1)}°</em></span>`:'')+`${legendaSkali()}<span><i class="bar" style="width:20px;height:4px;background:var(--pen-2)"></i> okno</span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-1)"></i> drzwi</span><span><i class="legend-dot ok"></i> OK</span><span><i class="legend-dot warn"></i> uwaga</span><span><i class="legend-dot bad"></i> problem</span>`;
+  // łuk doby idzie za rzutem, bo ma opisywać dokładnie tę chwilę, którą widać na planie
+  rysujDobe();
 }
 
 /* Sterowanie odtwarzaniem. Suwak i tak jest polem formularza, więc strzałki i Home/End
@@ -840,6 +863,124 @@ function rysujPasek(){
   const d=pkt.map((v,i)=>v==null?'':`${i&&pkt[i-1]!=null?'L':'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
   svg.innerHTML=`<path d="${d}" fill="none" stroke="${C('--faint')}" stroke-width="1.2" vector-effect="non-scaling-stroke"/>`
     +`<line id="pasek-znacznik" x1="0" y1="0" x2="0" y2="${PASEK_H}" stroke="${C('--text')}" stroke-width="1" vector-effect="non-scaling-stroke" opacity="0"/>`;
+}
+/* --- Łuk doby: gdzie stoi słońce w odtwarzanej chwili ---
+
+   Sam stempel z godziną nie mówi nic o porze dnia — trzeba go przeczytać, przeliczyć
+   i jeszcze pamiętać, że w sierpniu ciemno robi się o innej porze niż w grudniu.
+   Łuk pokazuje to jednym rzutem oka: krzywa to rzeczywista droga słońca nad
+   horyzontem tego dnia, więc latem jest wysoka i szeroka, zimą płaska i krótka.
+   Znacznik siedzi na krzywej w odtwarzanej chwili — nad kreską słońce, pod kreską
+   księżyc. Działa tak samo przy oknie dobowym i tygodniowym, bo liczy się według
+   doby, w którą trafia klatka, a nie według długości okna.
+
+   Wysokość słońca liczymy sami (NOAA), zamiast prosić o wschód i zachód Open-Meteo:
+   prognoza dobowa sięga trzech dni do przodu, a odtwarzanie chodzi tydzień wstecz,
+   więc i tak trzeba by liczyć dla brakujących dni. Dokładność rzędu minuty, czyli
+   znacznie lepiej, niż da się odczytać z krzywej. */
+const DOBA_W=300,DOBA_H=78,DOBA_HOR=46,DOBA_NAD=38,DOBA_POD=14,DOBA_MARG=14,DOBA_PROBEK=96;
+/* Słońce uchodzi za wzeszłe, gdy górna krawędź tarczy wychodzi zza horyzontu —
+   środek jest wtedy jeszcze 0,833° pod nim (promień tarczy plus refrakcja). Tego
+   progu używają kalendarze, więc bez niego łuk kłóciłby się z każdym z nich. */
+const SLONCE_PROG=-0.833;
+const BARWA_DZIEN='#e8b45c',BARWA_NOC='#93a7ba';
+
+function wysokoscSlonca(t,lat,lon){
+  const rad=Math.PI/180,doba=86400e3;
+  const rok=Date.UTC(new Date(t).getUTCFullYear(),0,1);
+  const odRoku=(t-rok)/doba,dzien=Math.floor(odRoku),ulamek=odRoku-dzien;
+  const g=2*Math.PI/365*(dzien+(ulamek*24-12)/24);
+  const rownanie=229.18*(0.000075+0.001868*Math.cos(g)-0.032077*Math.sin(g)
+    -0.014615*Math.cos(2*g)-0.040849*Math.sin(2*g));                      // minuty
+  const dekl=0.006918-0.399912*Math.cos(g)+0.070257*Math.sin(g)
+    -0.006758*Math.cos(2*g)+0.000907*Math.sin(2*g)
+    -0.002697*Math.cos(3*g)+0.00148*Math.sin(3*g);                        // radiany
+  const kat=((ulamek*1440+rownanie+4*lon)/4-180)*rad;
+  const fi=lat*rad;
+  const cosZ=Math.sin(fi)*Math.sin(dekl)+Math.cos(fi)*Math.cos(dekl)*Math.cos(kat);
+  return 90-Math.acos(Math.max(-1,Math.min(1,cosZ)))/rad;
+}
+/* Próbki wysokości na całą dobę lokalną, w którą wpada podana chwila. Liczone raz
+   na dobę i trzymane w pamięci — przy 40 ms na klatkę przeliczanie 97 punktów przy
+   każdej byłoby czystym marnotrawstwem. */
+function dobaDane(t,lat,lon){
+  const start=new Date(t);start.setHours(0,0,0,0);
+  const koniec=new Date(start);koniec.setDate(koniec.getDate()+1);   // przez DST doba bywa krótsza lub dłuższa
+  const t0=start.getTime(),t1=koniec.getTime(),klucz=`${t0}|${lat}|${lon}`;
+  if(state.dobaCache?.klucz===klucz)return state.dobaCache.dane;
+  const krok=(t1-t0)/DOBA_PROBEK,probki=[];
+  for(let i=0;i<=DOBA_PROBEK;i++){const ms=t0+i*krok;probki.push({ms,el:wysokoscSlonca(ms,lat,lon)})}
+  const gora=Math.max(...probki.map(p=>p.el)),dol=Math.min(...probki.map(p=>p.el));
+  // przejścia przez próg — interpolacja liniowa między sąsiednimi próbkami wystarcza,
+  // bo na 15 minutach krzywa jest tam praktycznie prosta
+  const przejscia=[];
+  for(let i=1;i<probki.length;i++){
+    const a=probki[i-1],b=probki[i];
+    if((a.el-SLONCE_PROG)*(b.el-SLONCE_PROG)<0){
+      const f=(SLONCE_PROG-a.el)/(b.el-a.el);
+      przejscia.push({ms:a.ms+f*(b.ms-a.ms),wschod:b.el>a.el});
+    }
+  }
+  const dane={t0,t1,probki,gora,dol,
+    wschod:przejscia.find(p=>p.wschod)?.ms??null,
+    zachod:przejscia.find(p=>!p.wschod)?.ms??null};
+  state.dobaCache={klucz,dane};
+  return dane;
+}
+const fmtGodz=t=>new Intl.DateTimeFormat('pl-PL',{hour:'2-digit',minute:'2-digit'}).format(new Date(t));
+function rysujDobe(){
+  const svg=document.getElementById('doba'),gdzie=state.weather?.gdzie;
+  if(!svg)return;
+  // bez współrzędnych nie ma z czego liczyć — lepiej nie pokazać nic, niż zmyślić
+  // hidden ustawiamy atrybutem, nie właściwością: element SVG nie dziedziczy po
+  // HTMLElement, więc svg.hidden=false tworzy tylko pole w JS i nic nie odsłania
+  if(!gdzie||!Number.isFinite(gdzie.lat)||!Number.isFinite(gdzie.lon)){svg.setAttribute('hidden','');svg.innerHTML='';return}
+  const t=state.klatka??Date.now(),d=dobaDane(t,gdzie.lat,gdzie.lon);
+  const szer=DOBA_W-2*DOBA_MARG;
+  const x=ms=>DOBA_MARG+(ms-d.t0)/(d.t1-d.t0)*szer;
+  /* Rysowana kreska to nie zero, tylko próg wschodu. Dzięki temu „słońce nad kreską,
+     księżyc pod" wynika z konstrukcji, a kropki wschodu i zachodu leżą dokładnie tam,
+     gdzie krzywa przecina horyzont. Przy zerze znacznik dnia potrafił w chwili wschodu
+     wypaść ułamek piksela pod kreską — poprawnie astronomicznie, ale mylnie. */
+  const gora=Math.max(d.gora-SLONCE_PROG,5),dol=Math.max(SLONCE_PROG-d.dol,5);   // doba biegunowa bez wschodu też musi się narysować
+  const y=el=>el>=SLONCE_PROG
+    ?DOBA_HOR-(el-SLONCE_PROG)/gora*DOBA_NAD
+    :DOBA_HOR+(SLONCE_PROG-el)/dol*DOBA_POD;
+  const pkt=d.probki.map(p=>({x:x(p.ms),y:y(p.el),el:p.el}));
+  const sciezka=pkt.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' ');
+  // odcinek dnia rysujemy osobno i dociągamy dokładnie do przecięć z horyzontem,
+  // żeby jasna część zaczynała się o wschodzie, a nie na najbliższej próbce
+  const dzienne=[];
+  if(d.wschod!=null)dzienne.push({x:x(d.wschod),y:DOBA_HOR});
+  pkt.filter(p=>p.el>=SLONCE_PROG).forEach(p=>dzienne.push(p));
+  if(d.zachod!=null)dzienne.push({x:x(d.zachod),y:DOBA_HOR});
+  const dzien=dzienne.length>1?dzienne.map((p,i)=>`${i?'L':'M'}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' '):'';
+  const el=wysokoscSlonca(t,gdzie.lat,gdzie.lon),dniem=el>=SLONCE_PROG;
+  const mx=x(Math.min(Math.max(t,d.t0),d.t1)),my=y(el);
+  const podpis=(ms,strzalka)=>{
+    if(ms==null)return'';
+    const px=Math.min(Math.max(x(ms),DOBA_MARG+2),DOBA_W-DOBA_MARG-2);
+    return`<circle cx="${px.toFixed(1)}" cy="${DOBA_HOR}" r="1.6" fill="${BARWA_DZIEN}" opacity=".8"/>`
+      +`<text x="${px.toFixed(1)}" y="${DOBA_H-3}" text-anchor="middle">${strzalka} ${fmtGodz(ms)}</text>`;
+  };
+  svg.innerHTML=
+     `<line x1="0" y1="${DOBA_HOR}" x2="${DOBA_W}" y2="${DOBA_HOR}" stroke="${C('--grid-day')}" stroke-width="1"/>`
+    +(dzien?`<path d="${dzien} L${dzienne[dzienne.length-1].x.toFixed(1)} ${DOBA_HOR} L${dzienne[0].x.toFixed(1)} ${DOBA_HOR} Z" fill="${BARWA_DZIEN}" opacity=".07"/>`:'')
+    +`<path d="${sciezka}" fill="none" stroke="${C('--faint')}" stroke-width="1" opacity=".45" stroke-dasharray="3 3"/>`
+    +(dzien?`<path d="${dzien}" fill="none" stroke="${BARWA_DZIEN}" stroke-width="1.4" opacity=".75"/>`:'')
+    +podpis(d.wschod,'↑')+podpis(d.zachod,'↓')
+    +(dniem
+      ?`<circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="9" fill="${BARWA_DZIEN}" opacity=".18"/>`
+       +`<circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="4.6" fill="${BARWA_DZIEN}"/>`
+      :`<mask id="ksiezyc-maska"><circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="4.6" fill="#fff"/>`
+       +`<circle cx="${(mx+3).toFixed(1)}" cy="${(my-2.2).toFixed(1)}" r="4.4" fill="#000"/></mask>`
+       +`<circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="8" fill="${BARWA_NOC}" opacity=".12"/>`
+       +`<circle cx="${mx.toFixed(1)}" cy="${my.toFixed(1)}" r="4.6" fill="${BARWA_NOC}" mask="url(#ksiezyc-maska)"/>`);
+  svg.removeAttribute('hidden');
+  svg.setAttribute('aria-label',
+    `${dniem?'Dzień':'Noc'}, ${fmtGodz(t)}.`
+    +(d.wschod!=null?` Wschód ${fmtGodz(d.wschod)}.`:'')
+    +(d.zachod!=null?` Zachód ${fmtGodz(d.zachod)}.`:''));
 }
 function pokazKlatke(i){
   const os=state.os;if(!os)return;

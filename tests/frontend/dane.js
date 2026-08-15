@@ -54,11 +54,12 @@ const kodyCzujnika = () => ({
  *   wietrzenie     true — doba temu wilgotność w salonie zjeżdża do poziomu dworu
  *   nazwaZnacznik  true — jeden pokój dostaje nazwę z „<” i cudzysłowem
  *   pogodaGodzinowa  'sucho' | 'parno' | 'brak'
+ *   bezMiejsca     true — pogoda bez współrzędnych, czyli strona nie ma z czego liczyć łuku doby
  */
 function zbuduj(opcje = {}) {
   const {
     dni = 5, pusto = false, trend = null, martwy = null, bateria = null,
-    wietrzenie = false, nazwaZnacznik = false, pogodaGodzinowa = 'sucho',
+    wietrzenie = false, nazwaZnacznik = false, pogodaGodzinowa = 'sucho', bezMiejsca = false,
   } = opcje;
 
   const teraz = Date.now();
@@ -148,7 +149,7 @@ function zbuduj(opcje = {}) {
   const pliki = {
     'index.json': JSON.stringify(manifest, null, 2),
     'dzienne.csv': dzienne.join('\n') + '\n',
-    'pogoda.json': JSON.stringify(pogoda(teraz, pogodaGodzinowa), null, 2),
+    'pogoda.json': JSON.stringify(pogoda(teraz, pogodaGodzinowa, bezMiejsca), null, 2),
   };
   for (const m of miesiace) {
     pliki[`${m}.csv`] = 'ts,device_id,code,value\n'
@@ -157,7 +158,7 @@ function zbuduj(opcje = {}) {
   return pliki;
 }
 
-function pogoda(teraz, wariant) {
+function pogoda(teraz, wariant, bezMiejsca) {
   const snap = {
     updated: iso(teraz),
     current: { time: iso(teraz), temperature_2m: 21.4, relative_humidity_2m: 47, apparent_temperature: 20.3, weather_code: 0, wind_speed_10m: 6.5 },
@@ -168,6 +169,8 @@ function pogoda(teraz, wariant) {
     },
     air: { european_aqi: 18, pm2_5: 7, pm10: 12 },
   };
+  // Katowice — z tego strona liczy wysokość słońca na łuk doby
+  if (!bezMiejsca) snap.gdzie = { lat: 50.2649, lon: 19.0238 };
   if (wariant === 'brak') return snap;
   const czas = [], temp = [], rh = [], rad = [];
   const baza = new Date(teraz); baza.setUTCMinutes(0, 0, 0);

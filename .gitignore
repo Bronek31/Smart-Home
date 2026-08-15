@@ -1,2 +1,5 @@
 __pycache__/
 *.py[cod]
+
+# katalog Playwrighta, gdy ktoś odpali testy z katalogu repozytorium zamiast z tests/frontend
+test-results/
