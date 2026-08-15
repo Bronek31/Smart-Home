@@ -1,0 +1,34 @@
+#!/bin/sh
+# Brama przed wysłaniem zmian.
+#
+# GitHub Actions uruchamia testy PO pushu, więc sam z siebie niczego nie zatrzyma —
+# czerwony przebieg to raport, nie blokada. Ten hook jest tą blokadą po stronie
+# wysyłającego: nie przepuszcza pusha, dopóki testy nie przejdą.
+#
+# Włączenie w świeżym klonie, raz:
+#     git config core.hooksPath .githooks
+#
+# Obejście, gdy naprawdę trzeba wysłać mimo wszystko:
+#     git push --no-verify
+#
+# Kolektor tego nie dotyczy: w Actions hooki się nie wykonują, a i tak commituje
+# wyłącznie data/, których żaden test nie generuje.
+
+set -e
+KATALOG=$(git rev-parse --show-toplevel)
+cd "$KATALOG"
+
+echo "→ testy kolektora"
+python3 -m unittest discover -s tests -q
+
+if [ -d tests/frontend/node_modules ]; then
+  echo "→ testy strony"
+  (cd tests/frontend && npx playwright test --reporter=line)
+else
+  echo "→ testy strony pominięte: brak tests/frontend/node_modules"
+  echo "  zainstaluj przez  cd tests/frontend && npm ci"
+  echo "  albo wyślij świadomie przez  git push --no-verify"
+  exit 1
+fi
+
+echo "✓ wszystko zielone, wysyłam"

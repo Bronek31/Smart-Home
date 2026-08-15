@@ -44,6 +44,7 @@ stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
 | `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
 | `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
 | `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
+| `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
 | `.github/workflows/zbieraj.yml` | harmonogram zbierania, co godzinę o :19 |
 | `.github/workflows/watchdog.yml` | raz na dobę sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
 | `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
@@ -221,8 +222,32 @@ budowania — nie ma czego importować w oderwaniu od DOM-u. Dane są podstawian
 czujnik, który zamilkł, parna prognoza bez okna na wietrzenie, nazwa urządzenia ze
 znacznikiem HTML. Każdy test wywraca się też na dowolnym błędzie w konsoli.
 
-Dwie rzeczy warte zapamiętania przy pisaniu kolejnych testów:
+### Testy nie wpuszczą złego pusha
 
+GitHub Actions uruchamia testy **po** pushu, więc czerwony przebieg jest raportem,
+a nie blokadą — sam z siebie niczego nie cofnie. Blokadą jest hook `pre-push`, który
+odmawia wysłania, dopóki obie warstwy nie przejdą. W świeżym klonie trzeba go raz włączyć:
+
+```bash
+git config core.hooksPath .githooks
+cd tests/frontend && npm ci     # bez tego hook nie przepuści, bo nie ma czym sprawdzić strony
+```
+
+Świadome obejście to `git push --no-verify`. Kolektora to nie dotyczy: w Actions hooki
+się nie wykonują, a on i tak commituje wyłącznie `data/`.
+
+Gdybyś kiedyś chciał twardej bramy po stronie serwera, trzeba włączyć ochronę gałęzi
+`main` z wymaganymi statusami *Kolektor (Python)* i *Strona (przeglądarka)*. Wymaga to
+jednak wyjątku dla `github-actions[bot]`, bo inaczej ochrona zatrzyma cogodzinny zapis
+odczytów — a wtedy dashboard przestanie się aktualizować.
+
+### Dwie rzeczy warte zapamiętania przy pisaniu kolejnych testów
+
+- **Fikstura też potrafi kłamać.** Dwa razy przepuściła czerwone CI: raz dopisując
+  odczyt na istniejący znacznik (regresja liczyła się z dwóch wartości naraz), raz
+  rytmem dobowym tak żywym, że sam przebijał próg trendu i „spokojny pokój" przestawał
+  być spokojny o niektórych porach doby. Osobny zestaw `same dane testowe` pilnuje
+  teraz samej fikstury.
 - **Service worker musi być zablokowany** (`serviceWorkers: 'block'`). Inaczej
   przechwytuje `fetch` strony i idzie prosto do sieci, omijając podstawione dane —
   manifest przychodzi z fikstury, CSV prawdziwy z repozytorium i pokoje wyglądają na

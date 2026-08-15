@@ -8,6 +8,14 @@
 
 const GODZ = 3600e3;
 
+/* Amplituda dobowego rytmu w fiksturze. Musi być na tyle mała, żeby sam rytm nie
+   przebił progu TREND_MIN (0,25 °C/godz.), bo inaczej „spokojny pokój" bywa uznawany
+   za rosnący i test przechodzi albo nie w zależności od godziny, o której poszedł.
+   Maksymalne nachylenie sinusa to A·2π/24, więc przy 0,5 °C wychodzi 0,13 °C/godz. —
+   dwukrotny zapas. Przy 1,5 °C było 0,38 i CI wywracało się wieczorem, choć lokalnie
+   o trzynastej przechodziło. */
+const AMPLITUDA = 0.5;
+
 const iso = (ms) => new Date(Math.round(ms / 1000) * 1000).toISOString().replace(/\.\d+Z$/, 'Z');
 const miesiac = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
 
@@ -49,21 +57,26 @@ function zbuduj(opcje = {}) {
   for (const p of POKOJE) {
     for (let t = start; t <= teraz; t += GODZ) {
       const godzina = new Date(t).getUTCHours();
-      // dobowy rytm o amplitudzie ~1,5 °C, żeby mapa rytmu i animacja miały co pokazywać
-      const temp = p.baza + 1.5 * Math.sin(((godzina - 4) / 24) * 2 * Math.PI);
+      // dobowy rytm, żeby mapa rytmu i animacja miały co pokazywać
+      const temp = p.baza + AMPLITUDA * Math.sin(((godzina - 4) / 24) * 2 * Math.PI);
       let wilg = p.wilg;
       if (wietrzenie && p.id === 'salon' && t > teraz - 25 * GODZ && t < teraz - 21 * GODZ) wilg = 30;
       if (martwy === p.id && t > teraz - 9 * GODZ) continue;
+      // przy zadanym trendzie ostatnie godziny pisze osobna pętla niżej; bez tego
+      // powstałyby dwa odczyty na ten sam znacznik i regresja liczyłaby się z obu
+      if (trend && trend.pokoj === p.id && t > teraz - 5.5 * GODZ) continue;
       push(t, p.id, 'va_temperature', temp.toFixed(1));
       push(t, p.id, 'va_humidity', String(Math.round(wilg)));
       push(t, p.id, 'battery_state', bateria && bateria.pokoj === p.id ? bateria.stan : 'high');
     }
   }
   if (trend) {
-    // pięć godzin równego wzrostu, tuż przed teraz — z tego liczy się nachylenie
+    // sześć odczytów co godzinę tuż przed teraz — z nich liczy się nachylenie
+    const p = POKOJE.find((x) => x.id === trend.pokoj);
     for (let i = 5; i >= 0; i--) {
-      const p = POKOJE.find((x) => x.id === trend.pokoj);
       push(teraz - i * GODZ, trend.pokoj, 'va_temperature', (p.baza + trend.tempo * (5 - i)).toFixed(1));
+      push(teraz - i * GODZ, trend.pokoj, 'va_humidity', String(p.wilg));
+      push(teraz - i * GODZ, trend.pokoj, 'battery_state', 'high');
     }
   }
   for (let t = start; t <= teraz; t += GODZ) {

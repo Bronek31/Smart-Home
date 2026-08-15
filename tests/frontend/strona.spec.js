@@ -58,6 +58,52 @@ async function otworz(page, opcje = {}, { hash = '', cdnDziala = true } = {}) {
 const wcisniety = (page, sel) =>
   page.$$eval(sel, (n) => n.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.textContent));
 
+/* Fikstura też potrafi się zepsuć i wtedy testy kłamią w obie strony. Ten zestaw
+   pilnuje jej samej: przy opcji „trend" łatwo dopisać odczyt na istniejący znacznik
+   i regresja liczy się wtedy z dwóch wartości naraz, a zbyt żywy rytm dobowy sam
+   przebija próg trendu i „spokojny pokój" przestaje być spokojny o niektórych porach.
+   Oba te błędy naprawdę przepuściły czerwone CI, zanim tu trafiły. */
+test.describe('same dane testowe', () => {
+  const { zbuduj } = require('./dane');
+  const wiersze = (pliki) => Object.keys(pliki)
+    .filter((k) => /^\d{4}-\d\d\.csv$/.test(k))
+    .flatMap((k) => pliki[k].trim().split('\n').slice(1));
+
+  for (const [opis, opcje] of [['domyślne', {}], ['z trendem', { trend: { pokoj: 'salon', tempo: 0.8 } }],
+    ['z martwym czujnikiem', { martwy: 'kuchnia' }], ['z wietrzeniem', { wietrzenie: true }]]) {
+    test(`${opis}: żaden odczyt nie jest zapisany dwa razy`, () => {
+      const licznik = new Map();
+      for (const r of wiersze(zbuduj(opcje))) {
+        const [ts, id, code] = r.split(',');
+        const klucz = `${ts}|${id}|${code}`;
+        licznik.set(klucz, (licznik.get(klucz) || 0) + 1);
+      }
+      const podwojne = [...licznik].filter(([, n]) => n > 1).map(([k]) => k);
+      expect(podwojne, 'ten sam znacznik zapisany dwa razy').toEqual([]);
+    });
+  }
+
+  test('sam rytm dobowy nie przebija progu trendu', () => {
+    // gdyby przebijał, „kafel milczy przy spokojnym pokoju" zależałby od godziny
+    const A = 0.5, PROG = 0.25;
+    let maks = 0;
+    for (let g = 0; g < 24; g++) {
+      const f = (h) => A * Math.sin(((h - 4) / 24) * 2 * Math.PI);
+      const x = [0, 1, 2, 3, 4], y = x.map((i) => f(g + i));
+      const sx = 2, sy = y.reduce((a, b) => a + b, 0) / 5;
+      let gora = 0, dol = 0;
+      x.forEach((xi, i) => { gora += (xi - sx) * (y[i] - sy); dol += (xi - sx) ** 2; });
+      maks = Math.max(maks, Math.abs(gora / dol));
+    }
+    expect(maks).toBeLessThan(PROG * 0.7);
+  });
+
+  test('każdy plik miesięczny jest posortowany, tak jak zapisuje go kolektor', () => {
+    const w = wiersze(zbuduj({}));
+    expect(w).toEqual([...w].sort());
+  });
+});
+
 test.describe('start strony', () => {
   test('wczytuje się i wypełnia wszystkie sekcje', async ({ page }) => {
     const bledy = await otworz(page);
