@@ -102,6 +102,20 @@ test.describe('same dane testowe', () => {
     const w = wiersze(zbuduj({}));
     expect(w).toEqual([...w].sort());
   });
+
+  test('historia nie kończy się na progu kroku animacji', () => {
+    // floor(rozpiętość / krok) na okrągłej dobie dawał raz 119, raz 120 klatek —
+    // zależnie od zaokrąglenia znacznika i szybkości wczytania strony. Zapas musi
+    // zostać wyraźnie z dala od progu, inaczej migotanie wraca.
+    const w = wiersze(zbuduj({}));
+    const czas = (r) => Date.parse(r.split(',')[0]);
+    const rozpietosc = Date.now() - Math.min(...w.map(czas));
+    const KROK = 60 * 60e3;
+    const ulamek = (rozpietosc % KROK) / KROK;
+    expect(ulamek, 'rozpiętość historii wypada tuż przy wielokrotności kroku')
+      .toBeGreaterThan(0.1);
+    expect(ulamek).toBeLessThan(0.9);
+  });
 });
 
 test.describe('start strony', () => {

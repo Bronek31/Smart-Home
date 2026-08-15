@@ -16,6 +16,18 @@ const GODZ = 3600e3;
    o trzynastej przechodziło. */
 const AMPLITUDA = 0.5;
 
+/* Historia nie może mieć równo `dni × 24 h`. Animacja liczy klatki jako
+   floor(rozpiętość / krok), a krok przy pięciu dobach wypada na 60 minut — więc
+   przy równej dobie rozpiętość ląduje dokładnie na progu i wynik zależy od tego,
+   czy znacznik najstarszego wiersza zaokrąglił się w górę, czy w dół, i ile
+   milisekund zajęło wczytanie strony. Raz 119 klatek, raz 120, a test „okno
+   odtwarzania nie zależy od zakresu wykresów" widział wtedy zmianę, której
+   kliknięcia nie spowodowały. Pół kroku zapasu odsuwa nas od progu o 30 minut
+   w obie strony. Cała siatka przesuwa się o te 30 minut, co niczemu nie szkodzi:
+   nadal jest jeden odczyt na godzinę zegarową, a wiersze trendu stoją względem
+   „teraz", więc nie wpadają na wiersze bazowe. */
+const ZAPAS = 30 * 60e3;
+
 const iso = (ms) => new Date(Math.round(ms / 1000) * 1000).toISOString().replace(/\.\d+Z$/, 'Z');
 const miesiac = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
 
@@ -50,7 +62,7 @@ function zbuduj(opcje = {}) {
   } = opcje;
 
   const teraz = Date.now();
-  const start = teraz - dni * 24 * GODZ;
+  const start = teraz - dni * 24 * GODZ - ZAPAS;
   const wiersze = [];
   const push = (t, id, code, value) => wiersze.push(`${iso(t)},${id},${code},${value}`);
 

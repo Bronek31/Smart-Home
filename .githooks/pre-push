@@ -23,6 +23,18 @@ python3 -m unittest discover -s tests -q
 
 if [ -d tests/frontend/node_modules ]; then
   echo "→ testy strony"
+  # Playwright szuka przeglądarki po numerze budowy przypisanym do swojej wersji.
+  # W środowisku z gotowym katalogiem przeglądarek (PLAYWRIGHT_BROWSERS_PATH) ten
+  # numer bywa inny niż zainstalowany i wszystkie testy padają na „Executable
+  # doesn't exist" — czyli brama zatrzymywałaby push z powodu, który z kodem nie
+  # ma nic wspólnego, a to prosta droga do nawyku --no-verify. Bierzemy więc to,
+  # co faktycznie leży na dysku. Na zwykłej maszynie zmienna jest pusta i nic
+  # się tu nie dzieje.
+  if [ -z "$PLAYWRIGHT_CHROMIUM_PATH" ] && [ -n "$PLAYWRIGHT_BROWSERS_PATH" ]; then
+    for kandydat in "$PLAYWRIGHT_BROWSERS_PATH"/chromium-*/chrome-linux/chrome; do
+      [ -x "$kandydat" ] && PLAYWRIGHT_CHROMIUM_PATH="$kandydat" && export PLAYWRIGHT_CHROMIUM_PATH
+    done
+  fi
   (cd tests/frontend && npx playwright test --reporter=line)
 else
   echo "→ testy strony pominięte: brak tests/frontend/node_modules"
