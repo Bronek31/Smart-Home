@@ -33,7 +33,16 @@
 .plot-blad{margin:0;padding:1.1rem 1.2rem;font-size:.82rem;line-height:1.5;color:var(--faint)}.plot:has(.plot-blad){height:auto}
 .pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
-.floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-strona{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;fill:var(--faint);opacity:.7}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
+.floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-strona{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;fill:var(--faint);opacity:.7}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.replay{display:flex;align-items:center;gap:.6rem;margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--edge)}
+.replay .play,.replay .teraz{appearance:none;border:1px solid var(--edge);background:transparent;color:var(--dim);font:inherit;font-size:.78rem;padding:.2rem .6rem;cursor:pointer;border-radius:0;line-height:1.5;transition:.15s}
+.replay .play{font-size:.7rem;min-width:2.1rem}
+.replay .play:hover,.replay .teraz:hover{border-color:var(--grid-day);color:var(--text)}
+.replay .play[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text)}
+.replay input[type=range]{flex:1;min-width:0;appearance:none;-webkit-appearance:none;height:3px;background:var(--edge);cursor:pointer;margin:0}
+.replay input[type=range]::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:var(--text);border:0;cursor:pointer}
+.replay input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--text);border:0;cursor:pointer}
+.replay input[type=range]:focus-visible{outline:2px solid var(--pen-2);outline-offset:3px}
+.map-legend{display:flex;flex-wrap:wrap;align-items:center;gap:.45rem .9rem;margin-top:.9rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.map-legend span{display:inline-flex;align-items:center;gap:.35rem}.map-legend .bar{display:inline-block;width:58px;height:7px}.map-legend em{font-style:normal;font-family:"IBM Plex Mono",monospace;font-size:.7rem;color:var(--faint)}.legend-dot{width:8px;height:8px;border-radius:50%}.legend-dot.ok{background:var(--ok)}.legend-dot.warn{background:var(--warn)}.legend-dot.bad{background:var(--bad)}
 .rightcol{display:flex;flex-direction:column;gap:1.2rem;min-width:0}
 .wx{display:flex;flex-direction:column;gap:1rem}
 .wx-now{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem}
@@ -80,8 +89,13 @@
   <table class="summary" id="summary"></table><table class="summary" id="health"></table>
 
   <div class="bottom-layout">
-    <section class="panel"><h2>Plan mieszkania · aktualny stan</h2>
+    <section class="panel"><h2 id="plan-tytul">Plan mieszkania · aktualny stan</h2>
       <div class="floor" id="floor" role="img" aria-label="Rzut mieszkania: temperatura, wilgotność i status łączności w każdym pokoju"></div>
+      <div class="replay" id="replay" hidden>
+        <button class="play" id="play" aria-pressed="false" aria-label="Odtwórz historię">&#9654;</button>
+        <input type="range" id="suwak" min="0" max="0" value="0" step="1" aria-label="Moment w historii mieszkania">
+        <button class="teraz" id="teraz" hidden>teraz</button>
+      </div>
       <div class="map-legend" id="maplegend"></div>
     </section>
     <div class="rightcol">
@@ -94,7 +108,9 @@
 <script>
 const PENS=['#e8a13c','#5fb8e0','#5fce9e','#e2708f','#b79ae8','#d4c95f'];const CSS=getComputedStyle(document.documentElement);const C=n=>CSS.getPropertyValue(n).trim();
 const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długość rośnie w ciągu dnia
-const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null};const monthCache=new Map();
+const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null,
+  // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
+  klatka:null,os:null,timer:null,indeks:{}};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -215,7 +231,7 @@ const monthKey=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.get
 function neededMonths(){const all=state.months,newest=all.at(-1);if(!all.length)return[];if(!state.daily.length)return all;if(!state.hours)return all.slice(-2);const from=monthKey(Math.min(zakresOd(),Date.now()-24*3600e3)),need=all.filter(m=>m>=from);return need.includes(newest)?need:need.concat(newest)}
 async function ensureRows(){state.rows=(await Promise.all(neededMonths().map(loadMonth))).flat().sort((a,b)=>a.t-b.t)}
 const useDaily=()=>state.daily.length>0&&!state.hours;
-async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;const wszystkie=ids.map(id=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,ext:!!d.external,appliance:!!d.appliance,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery'),power:Object.keys(codes).find(c=>codes[c].kind==='power')}});state.appliances=wszystkie.filter(d=>d.appliance);state.devices=wszystkie.filter(d=>!d.appliance);state.devices.forEach((d,i)=>d.color=PENS[i%PENS.length]);state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;state.hours=DZIS;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();['temp','hum','abs'].forEach(wireTouch);await render()}
+async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;const wszystkie=ids.map(id=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,ext:!!d.external,appliance:!!d.appliance,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery'),power:Object.keys(codes).find(c=>codes[c].kind==='power')}});state.appliances=wszystkie.filter(d=>d.appliance);state.devices=wszystkie.filter(d=>!d.appliance);state.devices.forEach((d,i)=>d.color=PENS[i%PENS.length]);state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;state.hours=DZIS;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();wireReplay();['temp','hum','abs'].forEach(wireTouch);await render()}
 // ktoś wkleił adres z innym widokiem albo cofnął się po historii
 addEventListener('hashchange',()=>{if(!state.devices.length)return;readHash();buildToggles();state.markRanges?.();document.getElementById('filtr').checked=state.filtr;render()});
 /* --- Widok zapisany w adresie ---
@@ -480,7 +496,7 @@ const pustka={id:'pustka',afterDraw(chart){
   ctx.fillText(state.hours===DZIS?'Dziś jeszcze nie ma odczytów':'Brak odczytów w tym zakresie',(a.left+a.right)/2,(a.top+a.bottom)/2);
   ctx.restore();
 }};
-function draw(canvasId,sets,unit,decimals,extra=[]){const span=zakresGodzin();const cfg={type:'line',plugins:[dotyk,pustka,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:s.points.length<=SAMOTNE?2.6:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{s.ticks=timeTicks(s.min,s.max,s.chart.width)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),span)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg)}
+function draw(canvasId,sets,unit,decimals,extra=[]){const span=zakresGodzin();const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:s.points.length<=SAMOTNE?2.6:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{s.ticks=timeTicks(s.min,s.max,s.chart.width)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),span)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg)}
 /* Chart.js leci z CDN, więc jedna zablokowana domena albo jego awaria i wykresów
    nie ma. Bez tej klamry wyjątek z draw() przerywał render() w połowie i zabierał ze
    sobą obie tabele oraz stempel w nagłówku — czyli rzeczy, które z wykresami nie mają
@@ -496,20 +512,77 @@ function brakWykresow(tekst){
   document.querySelectorAll('.plot').forEach(p=>{p.innerHTML=`<p class="plot-blad">${esc(tekst)}</p>`});
   document.getElementById('pasma-legenda').hidden=true;
 }
+/* --- Odtwarzanie historii na rzucie ---
+   Cztery linie na wykresie nie pokazują, jak ciepło wędruje przez mieszkanie — widać
+   na nich, że sypialnia jest cieplejsza, ale nie że nagrzewa się pierwsza, bo słońce
+   wchodzi od południa, a salon i kuchnia idą za nią z opóźnieniem. Rzut z osią czasu
+   pokazuje to jednym przebiegiem, bo ma wymiar, którego wykres nie ma: przestrzeń.
+
+   Klatki idą stałym krokiem, nie po znacznikach odczytów. Czujniki raportują z lekko
+   różnym rytmem, więc klatka na znacznik dawałaby przebieg raz szybszy, raz wolniejszy,
+   bez związku z upływem czasu — a właśnie o pokazanie upływu czasu tu chodzi. */
+const KLATKI_CEL=150;             // ile mniej więcej klatek ma liczyć przebieg
+const KROKI_MIN=[15,30,60,120,180,360,720,1440];
+const KLATKA_MS=90;               // tempo odtwarzania; 150 klatek to ok. 13 sekund
+// Odczyty poukładane w serie, żeby odtwarzanie nie przemiatało całej tablicy 150 razy
+// na sekundę. Budowane raz na render, bo tylko wtedy state.rows się zmienia.
+function indeksSerii(){
+  const idx={};
+  for(const r of state.rows)if(isFinite(r.v))(idx[`${r.id}|${r.code}`]??=[]).push(r);
+  return idx;   // state.rows jest posortowane, więc każda seria też
+}
+/* Wartość obowiązująca o zadanej porze: ostatni odczyt nie starszy niż MISS_GAP.
+   Bez tego limitu pokój, którego czujnik zamilkł, trzymałby ostatnią znaną temperaturę
+   przez cały przebieg i wyglądałby na sprawny. */
+function wartoscNa(d,kind,t){
+  const seria=state.indeks?.[`${d.id}|${d[kind]}`];
+  if(!seria?.length)return null;
+  let lo=0,hi=seria.length-1,best=-1;
+  while(lo<=hi){const m=(lo+hi)>>1;if(seria[m].t<=t){best=m;lo=m+1}else hi=m-1}
+  return best<0||t-seria[best].t>MISS_GAP?null:seria[best].v;
+}
+/* Zakres suwaka: od pierwszego odczytu z mieszkania w widocznym zakresie do teraz.
+   Wcześniejsze klatki byłyby pustym rzutem, bo czujników jeszcze nie było.
+   Liczone zawsze po surowych wierszach, także w widoku „całość": rzut pokazuje odczyty
+   chwilowe, a dobowymi średnimi nie ma czym wypełnić klatki. */
+function osCzasu(){
+  const ext=new Set(state.devices.filter(d=>d.ext).map(d=>d.id));
+  const od=Math.max(zakresOd(),state.rows.find(r=>!ext.has(r.id))?.t||0),koniec=Date.now();
+  if(!od||koniec-od<2*3600e3)return null;
+  const krok=(KROKI_MIN.find(m=>(koniec-od)/60000/m<=KLATKI_CEL)||KROKI_MIN.at(-1))*60000;
+  return{od,koniec,krok,n:Math.floor((koniec-od)/krok)};
+}
+const fmtStamp=t=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
+// pionowa kreska „jesteś tutaj" na wykresach — bez niej nie wiadomo, której chwili
+// z krzywych odpowiada to, co widać na rzucie
+const znacznik={id:'znacznik',afterDatasetsDraw(chart){
+  if(state.klatka==null)return;
+  const{ctx,chartArea:a,scales:{x}}=chart,px=x.getPixelForValue(state.klatka);
+  if(px<a.left||px>a.right)return;
+  ctx.save();ctx.strokeStyle=C('--text');ctx.globalAlpha=.5;ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(px,a.top);ctx.lineTo(px,a.bottom);ctx.stroke();ctx.restore();
+}};
 function renderMap(){
+  const t=state.klatka;      // null = stan bieżący, liczba = chwila z historii
+  const odczyt=(d,kind)=>d?(t==null?readings(d,kind).last?.v:wartoscNa(d,kind,t)):null;
+  document.getElementById('plan-tytul').textContent=
+    'Plan mieszkania · '+(t==null?'aktualny stan':fmtStamp(t));
   const svg=[`<svg viewBox="-3 -3 ${PLAN.w+6} ${PLAN.h+6}" xmlns="http://www.w3.org/2000/svg">`];
   PLAN.rooms.forEach(rm=>{
     if(rm.poly){svg.push(`<polygon class="rm-quiet" points="${rm.poly}"/><text class="rm-quiet-t" x="${rm.label[0]}" y="${rm.label[1]}" text-anchor="middle">${rm.name}</text>`);return}
     const d=state.devices.find(x=>x.id===rm.dev)||state.devices.find(x=>x.name===rm.name),h=state.health.find(x=>x.d.id===d?.id);
-    const t=d?readings(d,'temp').last:null,hu=d?readings(d,'hum').last:null;
-    const c=heat(t?.v),cx=rm.x+rm.w/2,size=Math.min(30,rm.w*0.29);
-    const st=h?.status==='bad'?'--bad':h?.status==='warn'?'--warn':'--ok';
-    const tip=`${esc(rm.name)} · ${fmtNum(t?.v,1)} °C · ${fmtNum(hu?.v,0)} % · ${h?.last?fmtAgo(h.last):'brak odczytu'}`;
+    const tv=odczyt(d,'temp'),hv=odczyt(d,'hum');
+    const c=heat(tv),cx=rm.x+rm.w/2,size=Math.min(30,rm.w*0.29);
+    // przy odtwarzaniu kropka mówi o tamtej chwili, nie o teraz: brak świeżego odczytu
+    // znaczy, że czujnik wtedy milczał, a nie że milczy dzisiaj
+    const st=t!=null?(tv==null?'--bad':'--ok'):(h?.status==='bad'?'--bad':h?.status==='warn'?'--warn':'--ok');
+    const kiedy=t!=null?fmtStamp(t):(h?.last?fmtAgo(h.last):'brak odczytu');
+    const tip=`${esc(rm.name)} · ${fmtNum(tv,1)} °C · ${fmtNum(hv,0)} % · ${kiedy}`;
     svg.push(`<g><title>${tip}</title>`
       +`<rect x="${rm.x}" y="${rm.y}" width="${rm.w}" height="${rm.h}" fill="${rgba(c,.2)}" stroke="${rgba(c,.7)}" stroke-width="1.5"/>`
       +`<text class="rm-name" x="${cx}" y="${rm.y+23}" text-anchor="middle">${rm.name}</text>`
-      +`<text class="rm-temp" x="${cx}" y="${rm.y+rm.h*.58}" text-anchor="middle" font-size="${size}" fill="${rgba(c,1)}">${fmtNum(t?.v,1)}°</text>`
-      +`<text class="rm-hum" x="${cx}" y="${rm.y+rm.h*.58+21}" text-anchor="middle">${fmtNum(hu?.v,0)} %</text>`
+      +`<text class="rm-temp" x="${cx}" y="${rm.y+rm.h*.58}" text-anchor="middle" font-size="${size}" fill="${rgba(c,1)}">${fmtNum(tv,1)}°</text>`
+      +`<text class="rm-hum" x="${cx}" y="${rm.y+rm.h*.58+21}" text-anchor="middle">${fmtNum(hv,0)} %</text>`
       +`<circle cx="${rm.x+rm.w-14}" cy="${rm.y+rm.h-14}" r="4.5" fill="var(${st})" stroke="var(--bg)" stroke-width="1.5"/></g>`);
   });
   PLAN.okna.forEach(([a,b,c,d])=>svg.push(`<line class="rm-okno" x1="${a}" y1="${b}" x2="${c}" y2="${d}"><title>okno</title></line>`));
@@ -521,10 +594,53 @@ function renderMap(){
   const[x1,y1,x2,y2]=PLAN.door;
   svg.push(`<line class="rm-door" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><title>drzwi wejściowe</title></line></svg>`);
   document.getElementById('floor').innerHTML=svg.join('');
-  const out=state.devices.find(d=>d.ext),ot=out?readings(out,'temp').last:null;
-  document.getElementById('maplegend').innerHTML=(ot?`<span><em>${esc(out.name.toLowerCase())} ${fmtNum(ot.v,1)}°</em></span>`:'')+`<span><em>${HEAT_MIN}°</em><i class="bar" style="background:linear-gradient(90deg,${rgba(HUE_COLD,.9)},${rgba((HUE_COLD+HUE_HOT)/2,.9)},${rgba(HUE_HOT,.9)})"></i><em>${HEAT_MAX}°</em></span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-2)"></i> okno</span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-1)"></i> drzwi</span><span><i class="legend-dot ok"></i> OK</span><span><i class="legend-dot warn"></i> uwaga</span><span><i class="legend-dot bad"></i> problem</span>`;
+  const out=state.devices.find(d=>d.ext),ot=odczyt(out,'temp');
+  document.getElementById('maplegend').innerHTML=(ot!=null?`<span><em>${esc(out.name.toLowerCase())} ${fmtNum(ot,1)}°</em></span>`:'')+`<span><em>${HEAT_MIN}°</em><i class="bar" style="background:linear-gradient(90deg,${rgba(HUE_COLD,.9)},${rgba((HUE_COLD+HUE_HOT)/2,.9)},${rgba(HUE_HOT,.9)})"></i><em>${HEAT_MAX}°</em></span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-2)"></i> okno</span><span><i class="bar" style="width:20px;height:4px;background:var(--pen-1)"></i> drzwi</span><span><i class="legend-dot ok"></i> OK</span><span><i class="legend-dot warn"></i> uwaga</span><span><i class="legend-dot bad"></i> problem</span>`;
 }
 
+/* Sterowanie odtwarzaniem. Suwak i tak jest polem formularza, więc strzałki i Home/End
+   działają z klawiatury same z siebie — dokładamy tylko przycisk i powrót do teraz. */
+function pokazKlatke(i){
+  const os=state.os;if(!os)return;
+  const koniec=i>=os.n;
+  state.klatka=koniec?null:os.od+i*os.krok;   // ostatnia pozycja suwaka to stan bieżący
+  document.getElementById('teraz').hidden=state.klatka==null;
+  renderMap();
+  // znacznik na wykresach: render() bez update(), bo dane się nie zmieniły — tylko kreska
+  Object.values(state.charts).forEach(ch=>{try{ch.render()}catch{}});
+}
+function stopKlatek(){
+  clearInterval(state.timer);state.timer=null;
+  document.getElementById('play').setAttribute('aria-pressed','false');
+}
+function resetReplay(){
+  stopKlatek();
+  state.klatka=null;
+  state.os=osCzasu();
+  const box=document.getElementById('replay'),suwak=document.getElementById('suwak');
+  box.hidden=!state.os;                        // za mało historii, żeby było co odtwarzać
+  document.getElementById('teraz').hidden=true;
+  if(!state.os)return;
+  suwak.max=state.os.n;suwak.value=state.os.n;
+}
+function wireReplay(){
+  const suwak=document.getElementById('suwak'),play=document.getElementById('play');
+  suwak.oninput=()=>{stopKlatek();pokazKlatke(+suwak.value)};
+  document.getElementById('teraz').onclick=()=>{stopKlatek();suwak.value=state.os?.n??0;pokazKlatke(suwak.max)};
+  play.onclick=()=>{
+    if(state.timer)return stopKlatek();
+    if(!state.os)return;
+    // od początku, gdy suwak stoi na końcu — inaczej nic by się nie wydarzyło
+    if(+suwak.value>=state.os.n)suwak.value=0;
+    play.setAttribute('aria-pressed','true');
+    state.timer=setInterval(()=>{
+      const next=+suwak.value+1;
+      suwak.value=next;
+      pokazKlatke(next);
+      if(next>=state.os.n)stopKlatek();       // koniec przebiegu wraca do stanu bieżącego
+    },KLATKA_MS);
+  };
+}
 /* Które okna otworzyć. Powietrze musi mieć gdzie wejść i gdzie wyjść: wychodzi
    pionem wentylacyjnym w łazience i kuchni, więc wejść musi oknem. Okna po
    przeciwnych ścianach otwarte razem dają przewiew na wylot zamiast biernego
@@ -699,7 +815,7 @@ function renderHealth(){document.getElementById('health').innerHTML=`<caption>Ł
 // wypada on w południe, bo tak stemplowane są doby w agregatach; w pozostałych
 // widokach rysujemy z surowych wierszy, więc i podpis musi iść z surowych.
 function rangeLabel(){const base={[DZIS]:'dzisiaj od północy',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[state.hours]+(useDaily()?' · dobowe min/śr/max':''),oldest=wewnOd()||state.since||state.rows[0]?.t,from=zakresOd();if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
-async function render(){await ensureRows();computeHealth();renderStatus();renderPens();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();
+async function render(){await ensureRows();state.indeks=indeksSerii();computeHealth();renderStatus();renderPens();resetReplay();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();
   // odniesienie z dworu liczymy niezależnie od przełączników — wyłączenie krzywej
   // pogodowej z wykresu nie może wyłączać wykrywania wietrzenia
   state.wietrz={};state.klima=[];state.klimaNazwy=[];

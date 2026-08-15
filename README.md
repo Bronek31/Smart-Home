@@ -42,6 +42,7 @@ stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
 |---|---|
 | `fetch.py` | kolektor: pobiera logi z Tuya, pogodę i smog z Open-Meteo, przelicza agregaty |
 | `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
+| `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
 | `.github/workflows/zbieraj.yml` | harmonogram zbierania, co godzinę o :19 |
 | `.github/workflows/watchdog.yml` | raz na dobę sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
 | `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
@@ -94,6 +95,11 @@ z tego bierze się rada, żeby w upalne, słoneczne godziny zaczynać wietrzenie
 strony północnej, bo okno od południa wpuszcza wtedy ciepło, którego prognoza
 temperatury nie pokazuje. Obok są `dop` i `bier` — nazwy pokoi w dopełniaczu
 i bierniku, bo podpowiedzi wklejają je wprost w zdanie.
+
+Pod rzutem siedzi **odtwarzanie historii**: suwak przewija mieszkanie w czasie, a
+przycisk odtwarza cały widoczny zakres jednym przebiegiem. Pokazuje to, czego cztery
+nałożone linie nie pokazują — którędy ciepło wędruje przez mieszkanie. Klatki idą
+stałym krokiem dobranym do zakresu (`KLATKI_CEL`, `KROKI_MIN`, `KLATKA_MS`).
 
 ## Co strona radzi i skąd to wie
 
