@@ -96,7 +96,7 @@
 <section id="app" hidden>
   <div class="statusbar" id="statusbar"></div>
   <div class="pens" id="pens"></div>
-  <div class="controls"><span class="lbl">Zakres</span><button class="range" data-hours="dzis">dziś</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><label class="chk" title="Ukrywa krótkie skoki, po których wartość wraca do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki. Trwałe zmiany, takie jak włączony grzejnik, zostają."><input type="checkbox" id="filtr" checked>Ukryj chwilowe skoki</label><div class="toggles" id="toggles"></div></div>
+  <div class="controls"><span class="lbl">Zakres wykresów</span><button class="range" data-hours="dzis">dziś</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><label class="chk" title="Ukrywa krótkie skoki, po których wartość wraca do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki. Trwałe zmiany, takie jak włączony grzejnik, zostają."><input type="checkbox" id="filtr" checked>Ukryj chwilowe skoki</label><div class="toggles" id="toggles"></div></div>
 
   <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div></div>
   <div class="trace"><h2>Wilgotność względna <small>%</small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
@@ -125,7 +125,7 @@
         <svg class="pasek" id="pasek" viewBox="0 0 300 26" preserveAspectRatio="none" aria-hidden="true"></svg>
         <div class="replay-okna">
           <span id="replay-zakresy" hidden>
-            <button class="range" data-okno="0" aria-pressed="true">cały zakres</button>
+            <button class="range" data-okno="168" aria-pressed="true">ostatni tydzień</button>
             <button class="range" data-okno="24">ostatnia doba</button>
           </span>
           <span class="replay-tryby">
@@ -152,10 +152,10 @@ const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długoś�
    cieplejszy, i tyle, bo to się nie zmienia. Przez trzy doby pokój przechodzi
    2,1–5,8 °C, czyli sześciokrotnie więcej niż wynosi rozstaw między pokojami —
    i dopiero wtedy jest co odtwarzać. Doba zostaje jako opcja do przyglądania się. */
-const OKNO_DOBA=24;  // wartość przycisku "ostatnia doba"; 0 znaczy cały zakres
+const OKNO_DOBA=24,OKNO_TYDZIEN=168;   // wartości przycisków okna odtwarzania, w godzinach
 const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null,
   // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
-  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:0,normy:null,trybBarwy:'temp',rytmDev:null,rytmSkala:'wspolna'};const monthCache=new Map();
+  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:OKNO_TYDZIEN,normy:null,trybBarwy:'temp',rytmDev:null,rytmSkala:'wspolna'};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -726,15 +726,21 @@ function wartoscNa(d,kind,t){
    Wcześniejsze klatki byłyby pustym rzutem, bo czujników jeszcze nie było.
    Liczone zawsze po surowych wierszach, także w widoku „całość": rzut pokazuje odczyty
    chwilowe, a dobowymi średnimi nie ma czym wypełnić klatki. */
+/* Okno odtwarzania jest własne, oderwane od przełącznika zakresu nad wykresami.
+   Ten przełącznik opisuje wykresy i ich tabelę, a nie całą stronę — rzut, rytm doby
+   i diagnostyka odpowiadają na inne pytania i mają własne, podpisane okresy. Praktycznie
+   też się to nie spinało: strona otwiera się na widoku „dziś", więc przebieg dostawał
+   kilka najbardziej płaskich godzin, jakie w danych są.
+
+   Do tego okno musi zostać ograniczone z góry. Przy stałej liczbie klatek dwumiesięczna
+   historia dałaby krok dziewięciogodzinny i po dobowym rytmie nie zostałoby śladu —
+   a to jego mamy oglądać. Tydzień przy 150 klatkach wypada blisko godziny, czyli mniej
+   więcej tam, gdzie i tak leży rozdzielczość czujników. */
 function osCzasu(){
   const ext=new Set(state.devices.filter(d=>d.ext).map(d=>d.id));
-  const koniec=Date.now(),pelny=Math.max(zakresOd(),state.rows.find(r=>!ext.has(r.id))?.t||0);
-  if(!pelny)return null;
-  /* Domyślnie ostatnia doba, nie cały wybrany zakres. Przez tydzień mieszkanie waha
-     się o 5,9 °C, więc skala rozciąga się na wielodniowy trend i to on zjada kontrast,
-     a dobowy rytm — właściwy bohater tego przebiegu — ginie. Doba pokazuje jeden pełny
-     cykl i mieści się w kilku sekundach. */
-  const od=state.oknoOdtw?Math.max(pelny,koniec-state.oknoOdtw*3600e3):pelny;
+  const koniec=Date.now(),pierwszy=state.rows.find(r=>!ext.has(r.id))?.t||0;
+  if(!pierwszy)return null;
+  const od=Math.max(pierwszy,koniec-state.oknoOdtw*3600e3),pelny=pierwszy;
   if(koniec-od<2*3600e3)return null;
   /* Krok najbliższy docelowej liczbie klatek, nie pierwszy, który się pod nią mieści.
      Zaokrąglanie w dół potrafiło zejść z 150 na 84 i wtedy tydzień przelatywał w trzy
@@ -851,7 +857,7 @@ function resetReplay(){
   document.getElementById('teraz').hidden=true;
   // skala kolorów idzie za oknem odtwarzania, żeby rzut na żywo i przebieg mówiły
   // tym samym językiem — ten sam odcień znaczy w obu tę samą temperaturę
-  const od=state.os?state.os.od:zakresOd();
+  const od=state.os?state.os.od:Date.now()-OKNO_TYDZIEN*3600e3;
   state.skala=skalaCieplna(od,Date.now());
   state.normy=normyPokoi(od,Date.now());
   if(!state.os)return;
@@ -1094,10 +1100,10 @@ function renderEvents(){
 
    Doba i godzina liczone po zegarze lokalnym, nie po UTC: rytm mieszkania chodzi za
    zegarem mieszkańców, a nie za południkiem zerowym. */
-const MAPA_GODZ=24;
+const MAPA_GODZ=24,RYTM_DNI=30;   // mapa pokazuje ostatni miesiąc, niezależnie od wykresów
 function siatkaDoby(d){
   if(!d?.temp)return null;
-  const od=zakresOd(),kubelki=new Map();
+  const od=Date.now()-RYTM_DNI*86400e3,kubelki=new Map();
   for(const r of state.indeks?.[`${d.id}|${d.temp}`]||[]){
     if(r.t<od)continue;
     const dt=new Date(r.t),dzien=`${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}`;

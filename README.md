@@ -109,8 +109,8 @@ Klatki idą stałym krokiem dobranym do okna (`KLATKI_CEL`, `KROKI_MIN`, `KLATKA
 a wartości między odczytami są interpolowane, bo czujniki raportują raz na godzinę
 i bez tego byłby to pokaz slajdów.
 
-Pod spodem są dwa przełączniki. Pierwszy wybiera **okno**: cały widoczny zakres albo
-ostatnia doba. Drugi wybiera, **co znaczy kolor**:
+Pod spodem są dwa przełączniki. Pierwszy wybiera **okno**: ostatni tydzień albo ostatnia doba —
+niezależnie od zakresu wykresów. Drugi wybiera, **co znaczy kolor**:
 
 | Tryb | Kolor mówi | Kiedy przydatny |
 |---|---|---|
@@ -136,12 +136,30 @@ kolumna godzina. Wykres liniowy przy kilku tygodniach zamienia się w kłębek, 
 rośnie o jeden wiersz dziennie i zostaje czytelna. Doba i godzina liczone po zegarze
 lokalnym, bo rytm mieszkania chodzi za mieszkańcami, nie za południkiem zerowym.
 
+Mapa obejmuje ostatnie 30 dób, niezależnie od zakresu wykresów.
 Skala jest domyślnie **wspólna dla wszystkich pokoi**, żeby przełączanie zakładek dało
 się czytać jako porównanie — przy osobnych skalach ten sam kolor znaczyłby w każdej
 zakładce co innego. Kosztuje to zaskakująco mało: pokoje o szerokim zakresie tracą na
 kontraście tyle co nic, płaci tylko ten najbardziej stabilny, i to jest uczciwe.
 `skala pokoju` rozciąga paletę na zakres jednego pomieszczenia, gdy chcesz obejrzeć
 sam jego rytm.
+
+## Który fragment jaki okres pokazuje
+
+Przełącznik u góry nazywa się **Zakres wykresów** i tyle obejmuje: trzy wykresy oraz
+tabelę zakresów, która jest ich podsumowaniem i sama podpisuje wybrany okres. Reszta
+strony odpowiada na inne pytania, więc ma własne, stałe okresy — inaczej wybór „dziś"
+po cichu obcinałby diagnostykę i rytm doby do kilku godzin.
+
+| Fragment | Okres | Skąd |
+|---|---|---|
+| Wykresy i tabela zakresów | wybrany przełącznikiem | to jego zadanie |
+| Kafle pokoi | teraz, zmiana z 24 h, trend z 4 h | stały |
+| Rzut i odtwarzanie | tydzień albo doba | własny przełącznik pod rzutem |
+| Rytm doby | ostatnie 30 dób | stały, liczba dób w nagłówku |
+| Łączność z bramką | 24 h | stały, napisany w podpisie tabeli |
+| Ostatnie zdarzenia | 24 h | stały |
+| Pogoda i wietrzenie | teraz plus doba prognozy | stały |
 
 ## Co strona radzi i skąd to wie
 
