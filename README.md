@@ -136,6 +136,13 @@ kolumna godzina. Wykres liniowy przy kilku tygodniach zamienia się w kłębek, 
 rośnie o jeden wiersz dziennie i zostaje czytelna. Doba i godzina liczone po zegarze
 lokalnym, bo rytm mieszkania chodzi za mieszkańcami, nie za południkiem zerowym.
 
+Skala jest domyślnie **wspólna dla wszystkich pokoi**, żeby przełączanie zakładek dało
+się czytać jako porównanie — przy osobnych skalach ten sam kolor znaczyłby w każdej
+zakładce co innego. Kosztuje to zaskakująco mało: pokoje o szerokim zakresie tracą na
+kontraście tyle co nic, płaci tylko ten najbardziej stabilny, i to jest uczciwe.
+`skala pokoju` rozciąga paletę na zakres jednego pomieszczenia, gdy chcesz obejrzeć
+sam jego rytm.
+
 ## Co strona radzi i skąd to wie
 
 Poza wykresami dashboard odpowiada na dwa pytania. **Czy wietrzyć teraz** — przez

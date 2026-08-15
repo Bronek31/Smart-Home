@@ -90,4 +90,7 @@ ta sekcja zostaje jako ślad.
   z godziną przekroczenia progu komfortu zamiast samego tempa. Milczy poniżej
   0,25 °C/godz., bo tyle wynosi próg odróżnialności od szumu przy raportach co godzinę.
 - **Rytm doby** — mapa cieplna godzina × doba z przełącznikiem pokoju. Przy trzech
-  dobach to trzy wiersze, ale rośnie sama i nie wymaga już żadnej pracy.
+  dobach to trzy wiersze, ale rośnie sama i nie wymaga już żadnej pracy. Skala wspólna
+  dla wszystkich pokoi, żeby przełączanie zakładek dało się czytać jako porównanie;
+  trzy pokoje na cztery nic na tym nie tracą (kontrast 217 → 193–199), płaci wyłącznie
+  najstabilniejsza Łazienka (217 → 74) i ma do tego prawo.

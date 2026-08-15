@@ -31,7 +31,8 @@
 .trace .hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);max-width:52rem}
 /* komunikat zamiast wykresu nie potrzebuje 300 px wysokości zarezerwowanych na płótno */
 .plot-blad{margin:0;padding:1.1rem 1.2rem;font-size:.82rem;line-height:1.5;color:var(--faint)}.plot:has(.plot-blad){height:auto}
-.rytm-wybor{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.6rem;font-family:"IBM Plex Sans Condensed",sans-serif}
+.rytm-wybor{display:flex;flex-wrap:wrap;gap:.3rem .9rem;margin-bottom:.6rem;font-family:"IBM Plex Sans Condensed",sans-serif}
+.rytm-wybor span{display:flex;flex-wrap:wrap;gap:.3rem}
 .rytm-wybor .range{font-size:.76rem;padding:.16rem .55rem}
 .mapa{display:grid;gap:1px;background:var(--edge);border:1px solid var(--edge);font-family:"IBM Plex Mono",monospace}
 .mapa .lbl{background:var(--panel);color:var(--faint);font-size:.62rem;padding:0 .45rem;text-align:right;white-space:nowrap;display:flex;align-items:center;justify-content:flex-end}
@@ -154,7 +155,7 @@ const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długoś�
 const OKNO_DOBA=24;  // wartość przycisku "ostatnia doba"; 0 znaczy cały zakres
 const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],klima:[],updated:null,
   // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
-  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:0,normy:null,trybBarwy:'temp',rytmDev:null};const monthCache=new Map();
+  klatka:null,os:null,timer:null,pauza:null,gra:false,petla:0,indeks:{},skala:null,oknoOdtw:0,normy:null,trybBarwy:'temp',rytmDev:null,rytmSkala:'wspolna'};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -1107,8 +1108,13 @@ function siatkaDoby(d){
   const dni=[...new Set([...kubelki.values()].map(b=>b.dzien))].sort();
   let min=Infinity,max=-Infinity;
   for(const b of kubelki.values()){const v=b.suma/b.n;if(v<min)min=v;if(v>max)max=v}
-  if(max-min<SKALA_ROZPIETOSC){const brak=(SKALA_ROZPIETOSC-(max-min))/2;min-=brak;max+=brak}
-  return{kubelki,dni,min,max};
+  return{kubelki,dni,min,max};      // surowe krańce; rozciąga je dopiero skalaMapy()
+}
+// dolna granica rozpiętości ta sama, co na rzucie — spokojny pokój nie ma
+// zamieniać szumu czujnika w tęczę
+function skalaMapy(min,max){
+  if(max-min<SKALA_ROZPIETOSC){const brak=(SKALA_ROZPIETOSC-(max-min))/2;return{min:min-brak,max:max+brak}}
+  return{min,max};
 }
 function renderRytm(){
   const sekcja=document.getElementById('rytm');
@@ -1124,8 +1130,25 @@ function renderRytm(){
   const d=wewn.find(x=>x.id===state.rytmDev),s=siatkaDoby(d);
   sekcja.hidden=!s;
   if(!s)return;
-  document.getElementById('rytm-wybor').innerHTML=wewn.map(x=>
-    `<button class="range" data-rytm="${esc(x.id)}"${x.id===state.rytmDev?' aria-pressed="true"':''}>${esc(x.name)}</button>`).join('');
+  /* Skala domyślnie wspólna dla wszystkich pokoi, bo przełącznik pokoi zaprasza do
+     porównywania, a przy osobnych skalach ten sam kolor znaczyłby w każdej zakładce
+     co innego — Łazienka 25,3–26,4 wyglądałaby jak Salon 22,6–26,0.
+
+     Kosztuje to mniej, niż się wydaje: przy wspólnym zakresie 22,6–27,1 trzy pokoje
+     zajmują i tak jego większość i tracą na kontraście tyle co nic (217 → 193–199).
+     Płaci wyłącznie Łazienka (217 → 74), bo naprawdę jest najbardziej stabilna —
+     i to jest uczciwe, mapa ma prawo pokazać, że niewiele się tam dzieje. Kto chce
+     obejrzeć sam jej rytm, przełącza skalę na własną. */
+  let zakres={min:s.min,max:s.max};
+  if(state.rytmSkala!=='pokoj'){
+    for(const x of wewn){const inna=x.id===d.id?s:siatkaDoby(x);if(!inna)continue;
+      zakres={min:Math.min(zakres.min,inna.min),max:Math.max(zakres.max,inna.max)}}
+  }
+  zakres=skalaMapy(zakres.min,zakres.max);
+  document.getElementById('rytm-wybor').innerHTML=
+    `<span>${wewn.map(x=>`<button class="range" data-rytm="${esc(x.id)}"${x.id===state.rytmDev?' aria-pressed="true"':''}>${esc(x.name)}</button>`).join('')}</span>`
+    +`<span><button class="range" data-rskala="wspolna"${state.rytmSkala!=='pokoj'?' aria-pressed="true"':''} title="Ta sama skala dla wszystkich pokoi — kolory da się porównywać między zakładkami">skala wspólna</button>`
+    +`<button class="range" data-rskala="pokoj"${state.rytmSkala==='pokoj'?' aria-pressed="true"':''} title="Skala rozciągnięta na zakres tego pokoju — najlepiej widać jego własny rytm, ale kolorów nie da się porównywać z innym pokojem">skala pokoju</button></span>`;
   document.getElementById('rytm-info').textContent=` · ${esc(d.name.toLowerCase())} · ${plDoba(s.dni.length)}`;
   const mapa=document.getElementById('mapa');
   mapa.style.gridTemplateColumns=`auto repeat(${MAPA_GODZ},minmax(0,1fr))`;
@@ -1137,16 +1160,16 @@ function renderRytm(){
       const b=s.kubelki.get(`${dzien}|${g}`);
       if(!b){kom.push('<span class="cell"></span>');continue}
       const v=b.suma/b.n;
-      kom.push(`<span class="cell" style="background:${rgba(barwaK((v-s.min)/(s.max-s.min)),.85)}" title="${dzien.slice(8)}.${dzien.slice(5,7)} ${pad(g)}:00 · ${fmtNum(v,1)} °C"></span>`);
+      kom.push(`<span class="cell" style="background:${rgba(barwaK((v-zakres.min)/(zakres.max-zakres.min)),.85)}" title="${dzien.slice(8)}.${dzien.slice(5,7)} ${pad(g)}:00 · ${fmtNum(v,1)} °C"></span>`);
     }
   }
   mapa.innerHTML=kom.join('');
   document.getElementById('rytm-skala').innerHTML=
-    `<span><em>${fmtNum(s.min,1)}°</em><i style="background:linear-gradient(90deg,${gradientRampy(.85)})"></i><em>${fmtNum(s.max,1)}°</em></span>`
+    `<span><em>${fmtNum(zakres.min,1)}°</em><i style="background:linear-gradient(90deg,${gradientRampy(.85)})"></i><em>${fmtNum(zakres.max,1)}°</em></span>`
     +`<span>ciemne pole — brak odczytu w tej godzinie</span>`;
-  document.getElementById('rytm-wybor').querySelectorAll('[data-rytm]').forEach(b=>{
-    b.onclick=()=>{state.rytmDev=b.dataset.rytm;renderRytm()};
-  });
+  const wybor=document.getElementById('rytm-wybor');
+  wybor.querySelectorAll('[data-rytm]').forEach(b=>{b.onclick=()=>{state.rytmDev=b.dataset.rytm;renderRytm()}});
+  wybor.querySelectorAll('[data-rskala]').forEach(b=>{b.onclick=()=>{state.rytmSkala=b.dataset.rskala;renderRytm()}});
 }
 function renderSummary(tempSets,humSets){const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||zakresy(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel()}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th><th>wietrzenia</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td><td>${d.ext||useDaily()?"–":(state.wietrz?.[d.id]?.length??0)}</td></tr>`}).join('')+'</tbody>'}
 function renderHealth(){document.getElementById('health').innerHTML=`<caption>Łączność z bramką · diagnostyka ostatnich 24 h · alarm dopiero powyżej ${fmtDur(MISS_GAP)} ciszy</caption><thead><tr><th>Czujnik</th><th>temp.</th><th>wilg.</th><th>mediana odstępu</th><th>najdłuższa przerwa</th><th>para t+w</th><th>bateria</th><th>ostatni</th></tr></thead><tbody>`+state.health.map(r=>`<tr style="--c:${r.d.color}"><td>${esc(r.d.name)}</td><td>${r.nT}</td><td>${r.nH}</td><td>${fmtDur(r.median)}</td><td class="${r.suspicious?'warn-text':''}">${fmtDur(r.worst)}</td><td class="${r.paired!=null&&r.paired<.9?'warn-text':''}">${r.paired==null?'–':Math.round(r.paired*100)+'%'}</td><td class="${r.batt==='niski'?'warn-text':''}">${r.batt||'–'}</td><td class="${r.age>STALE_BAD?'bad-text':r.age>STALE_WARN?'warn-text':''}">${r.last?fmtAgo(r.last):'–'}</td></tr>`).join('')+'</tbody>'}
