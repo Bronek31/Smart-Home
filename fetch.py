@@ -817,7 +817,61 @@ def _liczba(tekst: str) -> bool:
     return True
 
 
+def ids_with_history() -> set[str]:
+    """Identyfikatory, które mają jeszcze jakiekolwiek odczyty w plikach miesięcznych."""
+    znalezione: set[str] = set()
+    for plik in DATA_DIR.glob("[0-9]*.csv"):
+        try:
+            with plik.open(encoding="utf-8") as f:
+                next(f, None)                       # nagłówek
+                for wiersz in f:
+                    czesci = wiersz.split(",", 2)
+                    if len(czesci) > 1:
+                        znalezione.add(czesci[1])
+        except OSError:
+            continue
+    return znalezione
+
+
+def keep_known(devices: dict) -> dict:
+    """Nie wyrzuca urządzenia z manifestu tylko dlatego, że ten przebieg go nie odświeżył.
+
+    Open-Meteo potrafi nie odpowiedzieć w trzydzieści sekund i fetch.py słusznie to
+    przeżywa — jedna zadyszka cudzego API nie ma wywracać całego przebiegu. Manifest
+    był jednak przepisywany wyłącznie z tego, co udało się zebrać teraz, więc taki
+    timeout kasował z listy urządzenie zewnętrzne, a strona traciła przez to całą
+    historię dworu, chociaż jej wiersze dalej leżały w CSV. Zdarzyło się to 16.08
+    o 7:01 i wyglądało jak awaria strony, a nie jak zgubione trzydzieści sekund.
+
+    Zostaje więc każdy wpis, który ma jeszcze odczyty w plikach. Kolejność bierzemy
+    z poprzedniego manifestu, bo po niej strona przydziela pokojom kolory — bez tego
+    zgubione i przywrócone urządzenie przestawiałoby barwy wszystkim pozostałym.
+
+    Czujnik odłączony na stałe zostanie w manifeście, dopóki ma historię. To celowe:
+    lepiej, żeby był widoczny jako milczący — i właśnie tym jest zgłoszenie watchdoga —
+    niż żeby zniknął bez śladu razem ze swoimi odczytami.
+    """
+    if not MANIFEST.exists():
+        return devices
+    try:
+        stare = json.loads(MANIFEST.read_text(encoding="utf-8")).get("devices") or {}
+    except (OSError, ValueError):
+        return devices
+
+    z_historia = ids_with_history()
+    polaczone = dict(devices)
+    for ident, wpis in stare.items():
+        if ident not in polaczone and ident in z_historia:
+            print(f"{wpis.get('name', ident)}: nie odświeżony w tym przebiegu, "
+                  f"zostaje w manifeście — ma jeszcze odczyty.")
+            polaczone[ident] = wpis
+
+    kolejnosc = [i for i in stare if i in polaczone] + [i for i in polaczone if i not in stare]
+    return {i: polaczone[i] for i in kolejnosc}
+
+
 def write_manifest(devices: dict, alerty: list[str] | None = None) -> None:
+    devices = keep_known(devices)
     months = sorted(p.stem for p in DATA_DIR.glob("[0-9]*.csv"))
     MANIFEST.write_text(
         json.dumps(

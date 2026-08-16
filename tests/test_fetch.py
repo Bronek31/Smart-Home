@@ -407,6 +407,66 @@ class TestManifest(WKatalogu):
         self.assertEqual(fetch.code_kinds({}), {})
 
 
+class TestKeepKnown(WKatalogu):
+    """Manifest nie może gubić urządzenia, które ma jeszcze odczyty.
+
+    16.08 o 7:01 Open-Meteo nie odpowiedziało w trzydzieści sekund. Przebieg to przeżył,
+    ale przepisał manifest bez urządzenia zewnętrznego i strona straciła całą historię
+    dworu, mimo że jej wiersze dalej leżały w CSV.
+    """
+
+    DWOR = {"name": "Na zewnątrz", "external": True,
+            "codes": {"va_temperature": {"kind": "temp", "unit": "°C", "scale": 0}}}
+    POKOJ = {"name": "Salon",
+             "codes": {"va_temperature": {"kind": "temp", "unit": "℃", "scale": 1}}}
+
+    def zapisz_odczyty(self, *ids):
+        wiersze = ["ts,device_id,code,value"]
+        for i in ids:
+            wiersze.append(f"2026-08-16T06:00:00Z,{i},va_temperature,21")
+        (fetch.DATA_DIR / "2026-08.csv").write_text("\n".join(wiersze) + "\n", encoding="utf-8")
+
+    def urzadzenia(self):
+        return json.loads(fetch.MANIFEST.read_text(encoding="utf-8"))["devices"]
+
+    def test_zadyszka_pogody_nie_kasuje_dworu_z_manifestu(self):
+        fetch.write_manifest({"salon": self.POKOJ, "zewnatrz": self.DWOR})
+        self.zapisz_odczyty("salon", "zewnatrz")
+        # przebieg bez pogody: dwór nie trafia do listy zebranej teraz
+        fetch.write_manifest({"salon": self.POKOJ})
+        self.assertIn("zewnatrz", self.urzadzenia(), "dwór wypadł z manifestu")
+        self.assertTrue(self.urzadzenia()["zewnatrz"]["external"])
+
+    def test_urzadzenie_bez_zadnych_odczytow_nie_zostaje_na_zawsze(self):
+        fetch.write_manifest({"salon": self.POKOJ, "widmo": self.POKOJ})
+        self.zapisz_odczyty("salon")                 # „widmo" nie ma ani jednego wiersza
+        fetch.write_manifest({"salon": self.POKOJ})
+        self.assertNotIn("widmo", self.urzadzenia())
+
+    def test_kolejnosc_zostaje_ta_sama_zeby_pokoje_nie_zmienily_barw(self):
+        # strona rozdaje kolory po kolejności w manifeście
+        pelne = {"klima": self.POKOJ, "salon": self.POKOJ, "zewnatrz": self.DWOR}
+        fetch.write_manifest(pelne)
+        self.zapisz_odczyty(*pelne)
+        fetch.write_manifest({"klima": self.POKOJ, "salon": self.POKOJ})
+        self.assertEqual(list(self.urzadzenia()), ["klima", "salon", "zewnatrz"])
+
+    def test_swiezy_wpis_wygrywa_ze_starym(self):
+        fetch.write_manifest({"salon": {"name": "Stara nazwa", "codes": {}}})
+        self.zapisz_odczyty("salon")
+        fetch.write_manifest({"salon": self.POKOJ})
+        self.assertEqual(self.urzadzenia()["salon"]["name"], "Salon")
+
+    def test_pierwszy_przebieg_bez_manifestu_dziala(self):
+        fetch.write_manifest({"salon": self.POKOJ})
+        self.assertEqual(list(self.urzadzenia()), ["salon"])
+
+    def test_uszkodzony_manifest_nie_blokuje_zapisu(self):
+        fetch.MANIFEST.write_text("{to nie json", encoding="utf-8")
+        fetch.write_manifest({"salon": self.POKOJ})
+        self.assertEqual(list(self.urzadzenia()), ["salon"])
+
+
 class TestLocationOf(unittest.TestCase):
     """Współrzędne dla łuku doby na stronie."""
 

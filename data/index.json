@@ -98,6 +98,22 @@
           "scale": 0
         }
       }
+    },
+    "zewnatrz": {
+      "name": "Na zewnątrz",
+      "external": true,
+      "codes": {
+        "va_temperature": {
+          "kind": "temp",
+          "unit": "°C",
+          "scale": 0
+        },
+        "va_humidity": {
+          "kind": "hum",
+          "unit": "%",
+          "scale": 0
+        }
+      }
     }
   }
 }
