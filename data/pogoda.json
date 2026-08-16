@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-16T07:15:10Z",
+  "updated": "2026-08-16T07:28:00Z",
   "current": {
     "time": "2026-08-16T09:15",
     "interval": 900,
@@ -38,7 +38,7 @@
     "precipitation_sum": [
       0.0,
       1.0,
-      2.35
+      2.5
     ]
   },
   "hourly": {
