@@ -20,6 +20,8 @@ import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
+from zoneinfo import ZoneInfo
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
@@ -129,6 +131,10 @@ class TestParseSince(unittest.TestCase):
         self.assertIn("TUYA_SINCE", str(e.exception))
 
 
+UTC = timezone.utc
+PLUS2 = timezone(timedelta(hours=2))
+
+
 class TestTrimHourly(unittest.TestCase):
     def blok(self, godzin=48, offset_h=0):
         baza = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -139,14 +145,13 @@ class TestTrimHourly(unittest.TestCase):
 
     def test_przestawia_czas_lokalny_na_utc(self):
         # lokalne 10:00 przy przesunięciu +2 godz. to 08:00 UTC
-        out = fetch.trim_hourly({"time": ["2026-08-15T10:00"], "temperature_2m": [20]}, 7200)
-        # przycięcie odrzuci wpis z przeszłości, więc sprawdzamy samą arytmetykę osobno
-        kiedy = datetime.fromisoformat("2026-08-15T10:00").replace(tzinfo=timezone.utc).timestamp() - 7200
-        self.assertEqual(fetch.iso(int(kiedy * 1000)), "2026-08-15T08:00:00Z")
-        self.assertIsInstance(out, dict)
+        teraz = datetime(2026, 8, 15, 8, 30, tzinfo=UTC).timestamp()
+        with mock.patch.object(fetch.time, "time", return_value=teraz):
+            out = fetch.trim_hourly({"time": ["2026-08-15T10:00"], "temperature_2m": [20]}, PLUS2)
+        self.assertEqual(out["time"], ["2026-08-15T08:00:00Z"])
 
     def test_przycina_do_okna_i_trzyma_rowne_dlugosci(self):
-        out = fetch.trim_hourly(self.blok(godzin=72), 0)
+        out = fetch.trim_hourly(self.blok(godzin=72), UTC)
         self.assertTrue(out["time"])
         self.assertLessEqual(len(out["time"]), fetch.PROGNOZA_GODZIN + 2)
         for pole, wartosci in out.items():
@@ -154,20 +159,78 @@ class TestTrimHourly(unittest.TestCase):
                 self.assertEqual(len(wartosci), len(out["time"]))
 
     def test_znaczniki_wychodza_w_utc_i_rosnaco(self):
-        out = fetch.trim_hourly(self.blok(), 0)
+        out = fetch.trim_hourly(self.blok(), UTC)
         self.assertTrue(all(t.endswith("Z") for t in out["time"]))
         self.assertEqual(out["time"], sorted(out["time"]))
 
     def test_pusty_blok_nie_wywraca(self):
-        self.assertEqual(fetch.trim_hourly({}, 0), {})
-        self.assertEqual(fetch.trim_hourly({"time": []}, 0), {})
+        self.assertEqual(fetch.trim_hourly({}, UTC), {})
+        self.assertEqual(fetch.trim_hourly({"time": []}, UTC), {})
 
     def test_zly_znacznik_jest_pomijany_bez_rozjazdu_kolumn(self):
         b = self.blok(godzin=12)
         b["time"][3] = "nie-data"
-        out = fetch.trim_hourly(b, 0)
+        out = fetch.trim_hourly(b, UTC)
         for pole, wartosci in out.items():
             self.assertEqual(len(wartosci), len(out["time"]), pole)
+
+    # --- zmiana czasu ---------------------------------------------------------
+    #
+    # Prognoza sięga 36 godzin naprzód, więc dwa razy w roku przechodzi przez
+    # przestawienie zegara. Jedno przesunięcie na całe okno przesuwało wtedy 30 z 37
+    # godzin o godzinę wstecz i rada „najlepiej wietrzyć 5:00–8:00" wskazywała złą porę.
+
+    WAW = ZoneInfo("Europe/Warsaw")
+
+    def chwile(self, start, ile):
+        """Kolejne pełne godziny, liczone w czasie absolutnym.
+
+        Dodawanie timedelta do daty ze strefą liczy w Pythonie po zegarze ściennym,
+        więc naiwne `start + timedelta(hours=i)` przeskakuje powtórzoną drugą w nocy
+        i fikstura nie trafia w to, co ma sprawdzać. Idziemy przez UTC.
+        """
+        odUTC = start.astimezone(timezone.utc)
+        return [odUTC + timedelta(hours=i) for i in range(ile)]
+
+    def godziny_od(self, start, ile):
+        """Znaczniki zegara lokalnego bez oznaczenia strefy — tak oddaje je Open-Meteo."""
+        return [c.astimezone(self.WAW).strftime("%Y-%m-%dT%H:00") for c in self.chwile(start, ile)]
+
+    def przeliczone(self, start, ile):
+        stamps = self.godziny_od(start, ile)
+        with mock.patch.object(fetch.time, "time", return_value=start.timestamp()):
+            out = fetch.trim_hourly({"time": stamps, "idx": list(range(ile))}, self.WAW)
+        return stamps, out
+
+    def test_jesienna_zmiana_czasu_nie_przesuwa_prognozy(self):
+        start = datetime(2026, 10, 24, 20, 0, tzinfo=self.WAW)      # zegar cofa się 25.10
+        stamps, out = self.przeliczone(start, 40)
+        self.assertTrue(out["time"], "całe okno wypadło")
+        chwile = self.chwile(start, 40)
+        for zapisane, i in zip(out["time"], out["idx"]):
+            with self.subTest(godzina=stamps[i]):
+                self.assertEqual(zapisane, fetch.iso(int(chwile[i].timestamp() * 1000)))
+
+    def test_wiosenna_zmiana_czasu_tez(self):
+        start = datetime(2026, 3, 28, 20, 0, tzinfo=self.WAW)       # zegar skacze 29.03
+        stamps, out = self.przeliczone(start, 40)
+        self.assertTrue(out["time"])
+        chwile = self.chwile(start, 40)
+        for zapisane, i in zip(out["time"], out["idx"]):
+            with self.subTest(godzina=stamps[i]):
+                self.assertEqual(zapisane, fetch.iso(int(chwile[i].timestamp() * 1000)))
+
+    def test_powtorzona_druga_w_nocy_to_dwie_rozne_chwile(self):
+        # 25.10 druga w nocy wypada dwa razy i sam znacznik ich nie rozróżnia
+        start = datetime(2026, 10, 24, 23, 0, tzinfo=self.WAW)
+        stamps, out = self.przeliczone(start, 8)
+        self.assertEqual(stamps.count("2026-10-25T02:00"), 2, "fikstura nie trafiła w zmianę czasu")
+        self.assertEqual(len(set(out["time"])), len(out["time"]), "dwie różne chwile dostały ten sam znacznik")
+        self.assertEqual(out["time"], sorted(out["time"]))
+
+    def test_nieznana_strefa_spada_na_stale_przesuniecie(self):
+        tz = fetch.strefa_prognozy("Nie/Ma/Takiej", 7200)
+        self.assertEqual(tz.utcoffset(None), timedelta(hours=2))
 
 
 class TestUdzialPowyzej(unittest.TestCase):
@@ -209,7 +272,8 @@ class TestDiagnose(WKatalogu):
         for i in range(24, 0, -1):
             wiersze += [(ts(-i), "czujnik", "va_temperature", "24"),
                         (ts(-i), "czujnik", "va_humidity", "45"),
-                        (ts(-i), "czujnik", "battery_state", "high")]
+                        (ts(-i), "czujnik", "battery_state", "high"),
+                        (ts(-i), "pogoda", "va_temperature", "18")]
         self.zapisz(miesiac, wiersze)
         self.assertEqual(fetch.diagnose(self.manifest()), [])
 
@@ -226,13 +290,49 @@ class TestDiagnose(WKatalogu):
         self.assertIn("bateria", alerty)
         self.assertIn("wilgotność", alerty)
 
-    def test_pomija_pogode_i_sprzet(self):
+    def test_pomija_sprzet(self):
         miesiac = datetime.now(timezone.utc).strftime("%Y-%m")
-        self.zapisz(miesiac, [(ts(-30), "pogoda", "va_temperature", "30"),
-                              (ts(-30), "sprzet", "switch", "1")])
+        self.zapisz(miesiac, [(ts(-30), "sprzet", "switch", "1")])
         for a in fetch.diagnose(self.manifest()):
-            self.assertNotIn("Na zewnątrz", a)
             self.assertNotIn("Klimatyzator", a)
+
+    # --- cisza dworu ----------------------------------------------------------
+    #
+    # 16.08 Open-Meteo przestało odpowiadać, urządzenie zewnętrzne wypadło z manifestu
+    # i strona straciła całą historię dworu. Nie dowiedział się o tym żaden monitoring,
+    # bo diagnostyka pomijała urządzenia zewnętrzne w całości.
+
+    def swiezy_czujnik(self):
+        return [(ts(-i), "czujnik", "va_temperature", "24") for i in range(24, 0, -1)]
+
+    def test_milczacy_dwor_jest_zglaszany(self):
+        miesiac = datetime.now(timezone.utc).strftime("%Y-%m")
+        self.zapisz(miesiac, self.swiezy_czujnik()
+                    + [(ts(-9), "pogoda", "va_temperature", "18")])
+        alerty = fetch.diagnose(self.manifest())
+        pasujace = [a for a in alerty if "Na zewnątrz" in a]
+        self.assertEqual(len(pasujace), 1, alerty)
+        self.assertIn("Open-Meteo", pasujace[0])
+        self.assertNotIn("czujnik milczy", pasujace[0])   # to nie jest czujnik na baterie
+
+    def test_brak_pogody_przez_cala_dobe(self):
+        miesiac = datetime.now(timezone.utc).strftime("%Y-%m")
+        self.zapisz(miesiac, self.swiezy_czujnik())
+        alerty = [a for a in fetch.diagnose(self.manifest()) if "Na zewnątrz" in a]
+        self.assertEqual(len(alerty), 1)
+        self.assertIn("od co najmniej doby", alerty[0])
+
+    def test_swiezy_dwor_nie_alarmuje_mimo_wysokiej_wilgotnosci(self):
+        # 90% na dworze to pogoda, nie usterka — dwór nie ma też baterii ani ścian
+        miesiac = datetime.now(timezone.utc).strftime("%Y-%m")
+        m = self.manifest()
+        m["pogoda"]["codes"]["va_humidity"] = {"kind": "hum", "unit": "%", "scale": 0}
+        wiersze = self.swiezy_czujnik()
+        for i in range(24, 0, -1):
+            wiersze += [(ts(-i), "pogoda", "va_temperature", "12"),
+                        (ts(-i), "pogoda", "va_humidity", "90")]
+        self.zapisz(miesiac, wiersze)
+        self.assertEqual([a for a in fetch.diagnose(m) if "Na zewnątrz" in a], [])
 
     def test_bateria_procentowa(self):
         miesiac = datetime.now(timezone.utc).strftime("%Y-%m")

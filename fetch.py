@@ -514,13 +514,38 @@ def drop_spikes(points: list[tuple[float, float]], kind: str | None) -> set[int]
 PROGNOZA_GODZIN = 36
 
 
-def trim_hourly(block: dict, offset_s: int) -> dict:
+def strefa_prognozy(zone: str, offset_s: int):
+    """Strefa, w której Open-Meteo oddaje znaczniki prognozy.
+
+    Musi to być prawdziwa strefa, a nie stałe przesunięcie: prognoza sięga 36 godzin
+    naprzód, więc dwa razy w roku przechodzi przez zmianę czasu i połowa okna ma inne
+    przesunięcie niż druga. Stałe przesunięcie zabiera stąd całą wiedzę o tym, kiedy
+    zegar się przestawia.
+    """
+    try:
+        return ZoneInfo(zone)
+    except Exception:
+        print(f"Nieznana strefa {zone!r}, prognoza przeliczana stałym przesunięciem.", flush=True)
+        return timezone(timedelta(seconds=offset_s))
+
+
+def trim_hourly(block: dict, tz) -> dict:
     """Przycina prognozę godzinową do najbliższej doby i przestawia czas na UTC.
 
     Open-Meteo zwraca znaczniki w strefie, o którą prosiliśmy, i bez oznaczenia strefy
     ("2026-08-15T08:00"). Przeglądarka wzięłaby je za czas swojego zegara, więc telefon
     ustawiony na inną strefę pokazywałby wietrzenie o złej godzinie. Przeliczamy tutaj,
-    bo tutaj mamy przesunięcie, i zapisujemy tak samo jak wszystkie inne znaczniki w repo.
+    bo tutaj wiemy, o jaką strefę prosiliśmy, i zapisujemy tak samo jak każdy inny
+    znacznik w repozytorium.
+
+    Przeliczamy każdą godzinę osobno, w prawdziwej strefie. Wcześniej szło to jednym
+    przesunięciem wziętym z chwili zapytania i przy zmianie czasu 30 z 37 godzin lądowało
+    o godzinę za wcześnie — przez półtorej doby dwa razy w roku rada „najlepiej wietrzyć
+    5:00–8:00" wskazywała złą porę.
+
+    Jesienią druga w nocy wypada dwa razy i sam znacznik jej nie rozróżnia. Open-Meteo
+    oddaje godziny po kolei, więc drugie wystąpienie poznajemy po tym, że czas nie
+    posunął się naprzód — i dopiero wtedy bierzemy tę po przestawieniu zegara (fold=1).
     """
     stamps = block.get("time") or []
     if not stamps:
@@ -530,11 +555,16 @@ def trim_hourly(block: dict, offset_s: int) -> dict:
     out: dict[str, list] = {"time": []}
     for pole in pola:
         out[pole] = []
+    poprzednio = None
     for index, stamp in enumerate(stamps):
         try:
-            kiedy = datetime.fromisoformat(stamp).replace(tzinfo=timezone.utc).timestamp() - offset_s
+            naiwny = datetime.fromisoformat(stamp)
         except ValueError:
             continue
+        kiedy = naiwny.replace(tzinfo=tz).timestamp()
+        if poprzednio is not None and kiedy <= poprzednio:
+            kiedy = naiwny.replace(tzinfo=tz, fold=1).timestamp()
+        poprzednio = kiedy
         # godzina, w której właśnie jesteśmy, jeszcze się liczy — stąd zapas 1 godz. wstecz
         if kiedy < teraz - 3600 or kiedy > teraz + PROGNOZA_GODZIN * 3600:
             continue
@@ -588,7 +618,9 @@ def fetch_weather() -> dict | None:
             return None
         snapshot["current"] = data["current"]
         snapshot["daily"] = data.get("daily") or {}
-        snapshot["hourly"] = trim_hourly(data.get("hourly") or {}, data.get("utc_offset_seconds") or 0)
+        snapshot["hourly"] = trim_hourly(
+            data.get("hourly") or {},
+            strefa_prognozy(zone, data.get("utc_offset_seconds") or 0))
         gdzie = location_of(data, lat, lon)
         if gdzie:
             snapshot["gdzie"] = gdzie
@@ -774,8 +806,9 @@ def diagnose(devices: dict) -> list[str]:
     rows = recent_rows(teraz - 24 * 3600 * 1000)
     alerty = []
     for device_id, entry in sorted((devices or {}).items(), key=lambda kv: kv[1].get("name") or kv[0]):
-        if entry.get("external") or entry.get("appliance"):
-            continue          # pogoda nie ma baterii, a włącznik nie ma czym wietrzyć
+        if entry.get("appliance"):
+            continue          # włącznik nie ma czym wietrzyć
+        zewnetrzny = bool(entry.get("external"))
         name = entry.get("name") or device_id
         codes = entry.get("codes") or {}
         moje = [r for r in rows if r["device_id"] == device_id]
@@ -783,10 +816,25 @@ def diagnose(devices: dict) -> list[str]:
 
         klimat = [r["ms"] for r in moje if rodzaj.get(r["code"]) in ("temp", "hum")]
         if not klimat:
-            alerty.append(f"**{name}** — ani jednego odczytu w ostatniej dobie.")
+            alerty.append(
+                f"**{name}** — bez pogody od co najmniej doby, Open-Meteo nie odpowiada."
+                if zewnetrzny else
+                f"**{name}** — ani jednego odczytu w ostatniej dobie."
+            )
         elif teraz - klimat[-1] > CISZA_ALARM:
             godzin = (teraz - klimat[-1]) / 3600000
-            alerty.append(f"**{name}** — ostatni raport {godzin:.1f} godz. temu, czujnik milczy.")
+            alerty.append(
+                f"**{name}** — brak nowej pogody od {godzin:.1f} godz., Open-Meteo nie odpowiada."
+                if zewnetrzny else
+                f"**{name}** — ostatni raport {godzin:.1f} godz. temu, czujnik milczy."
+            )
+
+        # Dalej idą bateria i zawilgocenie, a pogoda nie ma ani ogniwa, ani ścian:
+        # 80% wilgotności na dworze to pogoda, nie usterka. Ale samo milczenie dworu
+        # trzeba było zgłaszać — 16.08 Open-Meteo przestało odpowiadać i nie dowiedział
+        # się o tym nikt, bo cała diagnostyka pomijała urządzenia zewnętrzne w całości.
+        if zewnetrzny:
+            continue
 
         bateria = [r["value"] for r in moje if rodzaj.get(r["code"]) == "battery"]
         if bateria:

@@ -86,7 +86,7 @@ Wszystkie w sekcji `env` w `.github/workflows/zbieraj.yml`:
 | `TUYA_DEVICE_IDS` | — | identyfikatory czujników po przecinku |
 | `TUYA_SINCE` | puste | granica: starsze odczyty są kasowane i nie wracają |
 | `OUTDOOR_LAT` / `OUTDOOR_LON` | Katowice | pogoda i smog z Open-Meteo, a także wschód i zachód na łuku doby. Puste = wyłączone |
-| `TZ_LOCAL` | `Europe/Warsaw` | według tej strefy tną się doby w agregatach |
+| `TZ_LOCAL` | `Europe/Warsaw` | według tej strefy tną się doby w agregatach i przelicza się prognozę godzinową. Musi być nazwą strefy, nie przesunięciem: prognoza sięga 36 godz. naprzód, więc dwa razy w roku przechodzi przez zmianę czasu |
 
 Proporcje pokoi na rzucie mieszkania siedzą w stałej `PLAN` w `index.html` —
 to `x, y, w, h` w siatce 400×500. Progi alarmów (`HEARTBEAT`, `STALE_WARN`)
@@ -219,6 +219,7 @@ po którą się sięga. Poniżej `TREND_MIN` kafel milczy, bo nachylenia mniejsz
 | Strona: „Nie ma jeszcze żadnych odczytów" | Kolektor nie zrobił jeszcze udanego przebiegu. Zakładka Actions |
 | Zamiast wykresów: „Nie udało się wczytać biblioteki wykresów" | Sieć blokuje `cdn.jsdelivr.net` albo CDN ma awarię. Kafle, tabele i rzut działają dalej; wykresy wrócą same |
 | „Zbieranie odczytów" na czerwono z „Push odrzucony" | Dwa przebiegi kolektora weszły sobie w drogę. `zapisz.sh` liczy wtedy odczyty jeszcze raz na drzewie zwycięzcy i próbuje trzy razy; czerwień znaczy, że nie udało się ani razu. Odczyty nie giną — następny przebieg i tak bierze okno 7 dni |
+| Zgłoszenie „brak nowej pogody od… , Open-Meteo nie odpowiada" | Dwór milczy dłużej niż zwykle. Czujniki i wykresy mieszkania działają dalej; rada o wietrzeniu i łuk doby czekają na świeżą prognozę |
 | Na stronie zniknął dwór, choć czujniki działają | Przebieg nie dostał odpowiedzi z Open-Meteo. Historia leży dalej w CSV, a `keep_known` w `fetch.py` trzyma urządzenie w manifeście, dopóki ma odczyty — linia wróci przy najbliższym udanym przebiegu. Jeśli mimo to zniknęła, w logu przebiegu szukaj „Pogoda: pominięta" |
 | Pulpit: „Kolektor nie zapisał nic od…" | Problem po stronie Actions albo Tuya, nie czujników |
 | Błąd `28841002` w logu | Wygasł trial IoT Core. Wniosek o przedłużenie na iot.tuya.com, 1-2 dni robocze |
