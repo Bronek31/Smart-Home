@@ -559,7 +559,9 @@ test.describe('łuk doby', () => {
       return out;
     });
     expect(klatki.length, 'okno nie pokrywa pełnej doby').toBeGreaterThan(6);
+    const HOR = 46;                    // y horyzontu w układzie łuku
     const pozycje = new Set(); const rodzaje = new Set();
+    const nad = []; const pod = [];
     for (const i of klatki) {
       await page.$eval('#suwak', (s, k) => { s.value = k; s.dispatchEvent(new Event('input')); }, i);
       const stan = await page.evaluate(() => {
@@ -567,10 +569,17 @@ test.describe('łuk doby', () => {
         return { x: +c.getAttribute('cx'), y: +c.getAttribute('cy'), noc: !!document.querySelector('#ksiezyc-maska') };
       });
       pozycje.add(stan.x); rodzaje.add(stan.noc);
-      // horyzont leży na y=46: słońce musi być nad nim, księżyc pod
-      if (stan.noc) expect(stan.y, `noc, a znacznik nad horyzontem`).toBeGreaterThan(46);
-      else expect(stan.y, `dzień, a znacznik pod horyzontem`).toBeLessThan(46);
+      /* Nieostro, bo w samej chwili wschodu i zachodu znacznik leży na kresce — i tak
+         ma być, skoro kreska jest właśnie progiem wschodu. Współrzędna zapisuje się
+         z jednym miejscem po przecinku, więc „ułamek nad kreską" wychodzi równe 46
+         i ostra nierówność wywracała test w te dni, w które próbkowana godzina wypadła
+         tuż przy przecięciu. Siłę odzyskujemy na całym przebiegu, niżej. */
+      if (stan.noc) { expect(stan.y, 'noc, a znacznik nad horyzontem').toBeGreaterThanOrEqual(HOR); pod.push(stan.y); }
+      else { expect(stan.y, 'dzień, a znacznik pod horyzontem').toBeLessThanOrEqual(HOR); nad.push(stan.y); }
     }
+    // łuk ma mieć realną wysokość, a nie leżeć płasko na kresce
+    expect(Math.min(...nad), 'słońce w ciągu doby nie wzniosło się nad horyzont').toBeLessThan(HOR - 10);
+    expect(Math.max(...pod), 'księżyc w ciągu doby nie zszedł pod horyzont').toBeGreaterThan(HOR + 3);
     expect(pozycje.size, 'znacznik stoi w miejscu').toBe(klatki.length);
     expect([...rodzaje].sort()).toEqual([false, true]);   // trafiliśmy i w dzień, i w noc
     expect(bledy).toEqual([]);
