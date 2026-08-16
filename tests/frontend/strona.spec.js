@@ -258,31 +258,42 @@ test.describe('rzut mieszkania i odtwarzanie', () => {
     expect(bledy).toEqual([]);
   });
 
-  test('pętla zawija się, pauza trzyma pozycję, przebieg kończy się sam', async ({ page }) => {
+  test('jedno kliknięcie to jeden przebieg, bez zapętlenia', async ({ page }) => {
     test.setTimeout(90000);
     const bledy = await otworz(page);
+    const pozycja = () => page.$eval('#suwak', (s) => +s.value);
+
     await page.click('#play');
     await expect(page.locator('#play')).toHaveAttribute('aria-pressed', 'true');
-    // zawinięcie: pozycja suwaka musi w którymś momencie spaść
-    let poprzednia = -1, zawinelo = false;
-    for (let i = 0; i < 60 && !zawinelo; i++) {
-      const v = await page.$eval('#suwak', (s) => +s.value);
-      if (v < poprzednia) zawinelo = true;
-      poprzednia = v;
-      await page.waitForTimeout(250);
-    }
-    expect(zawinelo, 'przebieg powinien wrócić na początek').toBe(true);
 
+    // przez cały przebieg suwak ma iść wyłącznie naprzód — spadek znaczyłby zawinięcie
+    let poprzednia = await pozycja(), gra = true;
+    for (let i = 0; i < 80 && gra; i++) {
+      await page.waitForTimeout(250);
+      const v = await pozycja();
+      expect(v, 'suwak cofnął się — przebieg się zapętlił').toBeGreaterThanOrEqual(poprzednia);
+      poprzednia = v;
+      gra = await page.$eval('#play', (b) => b.getAttribute('aria-pressed') === 'true');
+    }
+    expect(gra, 'przebieg nie skończył się sam').toBe(false);
+
+    // po przebiegu rzut wraca do stanu bieżącego i nic już się nie rusza
+    await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
+    expect(await pozycja()).toBe(await page.$eval('#suwak', (s) => +s.max));
+    await page.waitForTimeout(700);
+    expect(await pozycja()).toBe(await page.$eval('#suwak', (s) => +s.max));
+    expect(bledy).toEqual([]);
+  });
+
+  test('pauza zatrzymuje tam, gdzie akurat jest', async ({ page }) => {
+    const bledy = await otworz(page);
+    await page.click('#play');
+    await page.waitForTimeout(600);
     await page.click('#play');
     await expect(page.locator('#play')).toHaveAttribute('aria-pressed', 'false');
     const stoi = await page.$eval('#suwak', (s) => s.value);
     await page.waitForTimeout(700);
     expect(await page.$eval('#suwak', (s) => s.value)).toBe(stoi);
-
-    await page.click('#teraz');
-    await page.click('#play');
-    await expect(page.locator('#play')).toHaveAttribute('aria-pressed', 'false', { timeout: 60000 });
-    await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
     expect(bledy).toEqual([]);
   });
 

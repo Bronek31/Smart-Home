@@ -115,10 +115,9 @@ czyli moment, gdy zza horyzontu wychodzi górna krawędź tarczy) — dzięki te
 nad kreską" i „jest dzień" znaczą dokładnie to samo.
 
 Pod rzutem siedzi **odtwarzanie historii**: suwak przewija mieszkanie w czasie, a
-przycisk puszcza je w pętli. Przebieg powtarza się trzy razy, z krótkim przystankiem
-na końcu każdego okrążenia, i wraca do stanu bieżącego; pauza zatrzymuje go wcześniej,
-tam gdzie akurat jest. Jeden przebieg to za mało, żeby cokolwiek wyłapać, a pętla bez
-końca miele w tle bez powodu — stąd `PETLE_MAX` i `PAUZA_KONCA`. Odtwarzanie zatrzymuje
+przycisk puszcza jeden przebieg. Po dojściu do końca rzut wraca do stanu bieżącego
+i przycisk sam przełącza się na trójkąt — kolejny przebieg wymaga kolejnego kliknięcia.
+Pauza w trakcie zatrzymuje tam, gdzie akurat jest. Odtwarzanie zatrzymuje
 się też samo, gdy karta przestaje być widoczna. Pokazuje to, czego cztery nałożone linie nie
 pokazują — którędy ciepło wędruje przez mieszkanie. Pasek pod suwakiem to średnia
 mieszkania przez całe okno ze znacznikiem bieżącej klatki; wykresy są półtora tysiąca
