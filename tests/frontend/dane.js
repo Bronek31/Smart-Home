@@ -55,19 +55,27 @@ const kodyCzujnika = () => ({
  *   nazwaZnacznik  true — jeden pokój dostaje nazwę z „<” i cudzysłowem
  *   pogodaGodzinowa  'sucho' | 'parno' | 'brak'
  *   bezMiejsca     true — pogoda bez współrzędnych, czyli strona nie ma z czego liczyć łuku doby
+ *   waskaWilgotnosc  true — wszystkie pokoje w paśmie kilku punktów, jak w prawdziwym mieszkaniu
  */
 function zbuduj(opcje = {}) {
   const {
     dni = 5, pusto = false, trend = null, martwy = null, bateria = null,
     wietrzenie = false, nazwaZnacznik = false, pogodaGodzinowa = 'sucho', bezMiejsca = false,
+    waskaWilgotnosc = false,
   } = opcje;
+  /* Prawdziwe pokoje stoją w paśmie kilku punktów wilgotności (46–51), a nie ośmiu.
+     Przy tak wąskim zakresie Chart.js dzieli oś na kreski co pół procenta i podpisy
+     bez miejsc po przecinku zaczynają się powtarzać: „51 51 50 50 49 49…". */
+  const POKOJE_TU = waskaWilgotnosc
+    ? POKOJE.map((p, i) => ({ ...p, wilg: 46 + i }))
+    : POKOJE;
 
   const teraz = Date.now();
   const start = teraz - dni * 24 * GODZ - ZAPAS;
   const wiersze = [];
   const push = (t, id, code, value) => wiersze.push(`${iso(t)},${id},${code},${value}`);
 
-  for (const p of POKOJE) {
+  for (const p of POKOJE_TU) {
     for (let t = start; t <= teraz; t += GODZ) {
       const godzina = new Date(t).getUTCHours();
       // dobowy rytm, żeby mapa rytmu i animacja miały co pokazywać
@@ -85,7 +93,7 @@ function zbuduj(opcje = {}) {
   }
   if (trend) {
     // sześć odczytów co godzinę tuż przed teraz — z nich liczy się nachylenie
-    const p = POKOJE.find((x) => x.id === trend.pokoj);
+    const p = POKOJE_TU.find((x) => x.id === trend.pokoj);
     for (let i = 5; i >= 0; i--) {
       push(teraz - i * GODZ, trend.pokoj, 'va_temperature', (p.baza + trend.tempo * (5 - i)).toFixed(1));
       push(teraz - i * GODZ, trend.pokoj, 'va_humidity', String(p.wilg));
@@ -105,7 +113,7 @@ function zbuduj(opcje = {}) {
   const miesiace = [...new Set(wiersze.map((w) => w.slice(0, 7)))].sort();
 
   const urzadzenia = {};
-  for (const p of POKOJE) {
+  for (const p of POKOJE_TU) {
     urzadzenia[p.id] = {
       name: nazwaZnacznik && p.id === 'salon' ? 'Salon <b>"x"</b>' : p.nazwa,
       codes: kodyCzujnika(),

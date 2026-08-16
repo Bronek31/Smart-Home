@@ -509,6 +509,28 @@ test.describe('podziałka osi czasu', () => {
   });
 });
 
+/* Oś pionowa ma ten sam obowiązek co pozioma: jedna kreska, jedna wartość. Wilgotność
+   pokazujemy bez miejsc po przecinku, a pokoje stoją w paśmie kilku punktów — Chart.js
+   dzielił wtedy oś co pół procenta i sąsiednie podpisy zaokrąglały się do tej samej
+   liczby: „51 51 50 50 49 49 48 48 47 47 46". */
+test.describe('podziałka osi pionowej', () => {
+  for (const [id, nazwa] of [['temp', 'temperatura'], ['hum', 'wilgotność względna'], ['abs', 'wilgotność bezwzględna']]) {
+    test(`${nazwa}: żaden podpis nie powtarza się`, async ({ page }) => {
+      const bledy = await otworz(page, { waskaWilgotnosc: true });
+      const osie = await page.evaluate((k) => {
+        const ch = state.charts[k];
+        return Object.fromEntries(Object.entries(ch.scales)
+          .filter(([n]) => n !== 'x')
+          .map(([n, s]) => [n, s.ticks.map((t) => t.label)]));
+      }, id);
+      for (const [os, podpisy] of Object.entries(osie)) {
+        expect(podpisy, `${nazwa}, oś ${os}: ${podpisy.join(' ')}`).toEqual([...new Set(podpisy)]);
+      }
+      expect(bledy).toEqual([]);
+    });
+  }
+});
+
 /* Łuk doby ma odpowiadać na „która to była pora dnia" bez czytania stempla. */
 test.describe('łuk doby', () => {
   test('rysuje łuk z horyzontem, wschodem i zachodem', async ({ page }) => {
