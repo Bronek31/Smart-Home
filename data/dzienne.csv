@@ -1,14 +1,4 @@
 date,device_id,code,min,avg,max,n
-2026-08-09,zewnatrz,va_humidity,36,50.64,64,22
-2026-08-09,zewnatrz,va_temperature,15.6,22.06,27.3,22
-2026-08-10,zewnatrz,va_humidity,31,47.38,72,24
-2026-08-10,zewnatrz,va_temperature,18,25.46,32.1,24
-2026-08-11,zewnatrz,va_humidity,31,51.33,67,24
-2026-08-11,zewnatrz,va_temperature,18.3,21.84,26.3,24
-2026-08-12,zewnatrz,va_humidity,32,46.04,68,24
-2026-08-12,zewnatrz,va_temperature,13.8,19.26,23.7,24
-2026-08-13,zewnatrz,va_humidity,28,41.21,57,24
-2026-08-13,zewnatrz,va_temperature,15,20.88,25.9,24
 2026-08-14,bf43cf664d6644420axva3,va_humidity,48,48.00,48,24
 2026-08-14,bf43cf664d6644420axva3,va_temperature,24.7,24.89,25.1,24
 2026-08-14,bf5741c97c96fa85b1d7do,va_humidity,48,49.42,50,24

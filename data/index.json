@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-16T06:59:59Z",
+  "updated": "2026-08-16T07:01:36Z",
   "months": [
     "2026-08"
   ],
@@ -94,22 +94,6 @@
         },
         "battery_state": {
           "kind": "battery",
-          "unit": "%",
-          "scale": 0
-        }
-      }
-    },
-    "zewnatrz": {
-      "name": "Na zewnątrz",
-      "external": true,
-      "codes": {
-        "va_temperature": {
-          "kind": "temp",
-          "unit": "°C",
-          "scale": 0
-        },
-        "va_humidity": {
-          "kind": "hum",
           "unit": "%",
           "scale": 0
         }
