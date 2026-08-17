@@ -693,6 +693,33 @@ const pustka={id:'pustka',afterDraw(chart){
   ctx.fillText(state.hours===DZIS?'Dziś jeszcze nie ma odczytów':'Brak odczytów w tym zakresie',(a.left+a.right)/2,(a.top+a.bottom)/2);
   ctx.restore();
 }};
+/* Wygładzenie linii: średnia z trzech kolejnych odczytów, tylko dla czujników w mieszkaniu.
+
+   Czujniki raportują z krokiem 0,1 °C i 1%, a po rozdzieleniu osi lewa skala pokazuje
+   niecałe dwa stopnie na całą wysokość wykresu — jedna dziesiąta urosła do jakichś
+   trzydziestu pikseli i krzywe zamieniły się w schodki. Ten schodek to rozdzielczość
+   sprzętu, nie zjawisko w mieszkaniu.
+
+   Zmierzone na tygodniu prawdziwych danych: średnia odsuwa linię od odczytu najwyżej
+   o 0,067 °C, czyli mniej niż krok, o który czujnik i tak zaokrągla. Wygładzona linia
+   jest więc bliżej prawdziwej temperatury niż surowe schodki, bo kwantyzacja się
+   uśrednia — nie tracimy tu dokładności, tylko szum.
+
+   Dwór zostaje surowy. Z Open-Meteo przychodzi już gładki, a uśrednienie jego stromej
+   krzywej odsuwało linię o 1,17 °C — tam byłaby to strata, nie zysk.
+
+   Rusza wyłącznie rysowana linia. Kafle, tabela zakresów, rzut i wykrywanie wietrzeń
+   liczą się z surowych odczytów, a dymek pokazuje w polu „v” to, co naprawdę przyszło
+   z czujnika — inaczej wykres i tabela mówiłyby o tej samej chwili co innego. */
+const WYGLADZ_LUKA=2*HEARTBEAT;   // dalej niż to sąsiad jest z innej epoki i nie ma czego uśredniać
+function wygladz(pkt){
+  if(pkt.length<3)return pkt;
+  return pkt.map((p,i)=>{
+    const okno=[pkt[i-1],p,pkt[i+1]].filter(q=>q&&Math.abs(q.x-p.x)<=WYGLADZ_LUKA);
+    return{x:p.x,y:okno.reduce((a,q)=>a+q.y,0)/okno.length,v:p.y};
+  });
+}
+
 /* Dwie osie tam, gdzie dwór ma inną skalę niż mieszkanie.
 
    Dwór potrafi w tygodniu przejść 16 → 32 °C, a pokoje stoją w paśmie 25 → 26.
@@ -713,7 +740,9 @@ function draw(canvasId,sets,unit,decimals,extra=[],dwieOsie=false){
   // krok podziałki ustala się przy każdym przeliczeniu osi i stąd bierze go format podpisu
   let krokH=24;
   const zewn=dwieOsie?sets.find(s=>s.device.ext):null,barwaZ=zewn?zewn.device.color:null;
-  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:s.points,yAxisID:zewn&&s.device.ext?'y2':'y',borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:s.points.length<=SAMOTNE?2.6:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:zewn?4:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{const mk=useDaily()?24:1;krokH=krokPodzialki(s.min,s.max,s.chart.width,mk);s.ticks=timeTicks(s.min,s.max,s.chart.width,mk)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),krokH)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{precision:decimals,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}},...(zewn?{y2:{position:'right',border:{color:barwaZ},grid:{drawOnChartArea:false},ticks:{precision:decimals,color:barwaZ,font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}}:{})},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);return !!zewn}
+  // agregaty dobowe to już średnie z całej doby — nie ma w nich schodka do wygładzania
+  const glad=!useDaily();
+  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:glad&&!s.device.ext?wygladz(s.points):s.points,yAxisID:zewn&&s.device.ext?'y2':'y',borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],pointRadius:s.points.length<=SAMOTNE?2.6:0,pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:zewn?4:16,top:6}},scales:{x:{type:'time',afterBuildTicks:s=>{const mk=useDaily()?24:1;krokH=krokPodzialki(s.min,s.max,s.chart.width,mk);s.ticks=timeTicks(s.min,s.max,s.chart.width,mk)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),krokH)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{precision:decimals,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}},...(zewn?{y2:{position:'right',border:{color:barwaZ},grid:{drawOnChartArea:false},ticks:{precision:decimals,color:barwaZ,font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}}:{})},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.raw?.v??item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);return !!zewn}
 /* Chart.js leci z CDN, więc jedna zablokowana domena albo jego awaria i wykresów
    nie ma. Bez tej klamry wyjątek z draw() przerywał render() w połowie i zabierał ze
    sobą obie tabele oraz stempel w nagłówku — czyli rzeczy, które z wykresami nie mają

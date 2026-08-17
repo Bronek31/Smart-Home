@@ -171,6 +171,20 @@ zewnętrzną na osobnej osi po prawej, podpisanej jej kolorem i bez własnej sia
 podpis pojawia się tylko wtedy, gdy druga oś naprawdę powstała, czyli gdy jest czujnik
 zewnętrzny.
 
+Linie pokoi są **wygładzone średnią z trzech kolejnych odczytów**. Czujniki raportują
+z krokiem 0,1 °C i 1%, a po rozdzieleniu osi lewa skala pokazuje niecałe dwa stopnie na
+całą wysokość — jedna dziesiąta urosła do kilkudziesięciu pikseli i krzywe zamieniły się
+w schodki, które są rozdzielczością sprzętu, a nie zjawiskiem w mieszkaniu. Zmierzone na
+tygodniu prawdziwych danych: średnia odsuwa linię najwyżej o **0,067 °C**, czyli mniej
+niż krok, o który czujnik i tak zaokrągla — wygładzona linia jest bliżej prawdy niż
+surowe schodki, bo kwantyzacja się uśrednia.
+
+Rusza wyłącznie rysowana linia. Kafle, tabela zakresów, rzut mieszkania i wykrywanie
+wietrzeń liczą z surowych odczytów, a dymek na wykresie pokazuje ten odczyt, który
+naprawdę przyszedł z czujnika. Dwór zostaje surowy: z Open-Meteo przychodzi już gładki,
+a uśrednienie jego stromej krzywej odsuwało linię o 1,17 °C. Agregaty dobowe w widoku
+„całość" też nie są wygładzane — to już są średnie.
+
 **Wilgotność bezwzględna zostaje na jednej osi i tak ma być.** Tam cały sens wykresu
 polega na tym, że przy wietrzeniu linia mieszkania zbliża się do linii dworu — na dwóch
 skalach ta odległość przestałaby cokolwiek znaczyć. Testy pilnują obu tych decyzji.

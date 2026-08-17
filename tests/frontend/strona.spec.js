@@ -464,6 +464,71 @@ test.describe('osie wykresów', () => {
   });
 });
 
+/* Linia pokoi jest wygładzona średnią z trzech odczytów, bo krok czujnika (0,1 °C, 1%)
+   po rozdzieleniu osi urósł do kilkudziesięciu pikseli i krzywe zamieniły się w schodki.
+   Rusza wyłącznie rysowana linia — dwór, tabela i dymek zostają przy surowych odczytach. */
+test.describe('wygładzanie linii', () => {
+  const seria = (page, wykres, nazwa) => page.evaluate(([w, n]) => {
+    const ds = state.charts[w].data.datasets.find((d) => d.label === n);
+    return ds ? ds.data.map((p) => ({ y: p.y, v: p.v })) : null;
+  }, [wykres, nazwa]);
+
+  test('pokój dostaje średnią z trzech odczytów, a surowy zostaje przy punkcie', async ({ page }) => {
+    const bledy = await otworz(page, { waskaWilgotnosc: true });
+    const p = await seria(page, 'temp', 'Salon');
+    expect(p.length).toBeGreaterThan(5);
+    expect(p.every((x) => x.v != null), 'zgubiony surowy odczyt').toBe(true);
+    // środek każdej trójki to średnia sąsiadów i punktu
+    for (let i = 1; i < p.length - 1; i++) {
+      expect(p[i].y).toBeCloseTo((p[i - 1].v + p[i].v + p[i + 1].v) / 3, 6);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('dwór zostaje surowy', async ({ page }) => {
+    const bledy = await otworz(page);
+    for (const w of ['temp', 'hum', 'abs']) {
+      const p = await seria(page, w, 'Na zewnątrz');
+      expect(p, `${w}: brak serii dworu`).not.toBeNull();
+      expect(p.every((x) => x.v === undefined), `${w}: dwór został wygładzony`).toBe(true);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('wygładzenie nie odsuwa linii dalej niż o krok czujnika', async ({ page }) => {
+    const bledy = await otworz(page, { waskaWilgotnosc: true });
+    const p = await seria(page, 'temp', 'Salon');
+    const maks = Math.max(...p.map((x) => Math.abs(x.y - x.v)));
+    expect(maks, `odsunięcie ${maks.toFixed(3)} °C przekracza krok czujnika`).toBeLessThan(0.1);
+    expect(bledy).toEqual([]);
+  });
+
+  test('tabela zakresów liczy z surowych odczytów, nie z wygładzonej linii', async ({ page }) => {
+    const bledy = await otworz(page, { waskaWilgotnosc: true });
+    const zgodne = await page.evaluate(() => {
+      const d = state.devices.find((x) => x.id === 'salon');
+      const surowe = state.rows.filter((r) => r.id === d.id && r.code === d.temp).map((r) => r.v);
+      const wiersz = [...document.querySelectorAll('#summary tbody tr')]
+        .find((tr) => tr.children[0].textContent === 'Salon');
+      const liczba = (i) => parseFloat(wiersz.children[i].textContent.replace(',', '.'));
+      return { min: liczba(1), max: liczba(3),
+               oczMin: +Math.min(...surowe).toFixed(1), oczMax: +Math.max(...surowe).toFixed(1) };
+    });
+    expect(zgodne.min).toBe(zgodne.oczMin);
+    expect(zgodne.max).toBe(zgodne.oczMax);
+    expect(bledy).toEqual([]);
+  });
+
+  test('agregaty dobowe nie są wygładzane drugi raz', async ({ page }) => {
+    const bledy = await otworz(page);
+    await page.click('.range[data-hours="0"]');
+    await page.waitForTimeout(400);
+    const p = await seria(page, 'temp', 'Salon');
+    expect(p.every((x) => x.v === undefined), 'średnie dobowe zostały wygładzone').toBe(true);
+    expect(bledy).toEqual([]);
+  });
+});
+
 /* Podpis pod wykresem ma wskazywać jedną chwilę. Dwa razy „14.08" pod tym samym
    wykresem nie mówi nic — a dokładnie to wychodziło przy krótkiej historii w widoku
    „całość": krok podziałki liczy się z rozpiętości danych (doba), a format podpisu
