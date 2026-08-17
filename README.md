@@ -51,6 +51,7 @@ stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
 | `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
 | `.github/workflows/testy.yml` | testy przy każdej zmianie kodu i raz na dobę na żywych danych |
 | `manifest.json`, `sw.js`, `ikona*` | instalacja na ekranie głównym telefonu i tryb offline |
+| `.nojekyll` | pusty plik, który mówi Pages: serwuj repozytorium jak jest, bez Jekylla |
 | `data/RRRR-MM.csv` | surowe odczyty: `ts,device_id,code,value` |
 | `data/dzienne.csv` | dobowe min/średnia/max — z tego rysuje się widok „całość" |
 | `data/pogoda.json` | migawka: teraz, prognoza na 3 dni i godzinowa na dobę, jakość powietrza. Nadpisywana co przebieg |

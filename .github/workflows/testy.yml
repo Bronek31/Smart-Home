@@ -126,6 +126,11 @@ jobs:
           for plik in ("manifest.json", "sw.js", "ikona.svg", "ikona-192.png", "ikona-512.png"):
               if not pathlib.Path(plik).exists():
                   bledy.append(f"brak pliku {plik}, na który wskazuje strona")
+          # Bez .nojekyll Pages puszcza repozytorium przez Jekylla, a ten w trakcie
+          # budowania odpytuje API GitHuba po metadane. 17.08 API oddało 500 i wdrożenie
+          # poszło na czerwono, choć w repozytorium nic się nie zmieniło.
+          if not pathlib.Path(".nojekyll").exists():
+              bledy.append("brak .nojekyll — Pages będzie budować stronę Jekyllem bez potrzeby")
           for b in bledy:
               print(f"::error::{b}")
           sys.exit(1 if bledy else 0)
