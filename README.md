@@ -185,6 +185,15 @@ naprawdę przyszedł z czujnika. Dwór zostaje surowy: z Open-Meteo przychodzi j
 a uśrednienie jego stromej krzywej odsuwało linię o 1,17 °C. Agregaty dobowe w widoku
 „całość" też nie są wygładzane — to już są średnie.
 
+Na własnej osi **dwór nie jest linią, tylko pasmem w tle**, w stalowym kolorze spoza
+palety pokoi. Brał wcześniej piąty odcień z tej palety, bo jest piątym urządzeniem na
+liście — i przez to wyglądał na piąty pokój, choć jest tłem, na którym tamte cztery się
+dzieją. Jako równorzędna kreska zapraszał też do odczytu „na dworze było tyle co
+w sypialni", a to nieprawda: obie linie leżą na innych miarkach. Z pasma widać dalej to,
+o co chodzi — że fala upału na dworze podnosi pokoje kilka godzin później — a nie widać
+porównania, którego robić nie wolno. Ten sam kolor niesie kafel i legenda, żeby wszędzie
+mówiły to samo: dwór to odniesienie, nie pomieszczenie.
+
 **Wilgotność bezwzględna zostaje na jednej osi i tak ma być.** Tam cały sens wykresu
 polega na tym, że przy wietrzeniu linia mieszkania zbliża się do linii dworu — na dwóch
 skalach ta odległość przestałaby cokolwiek znaczyć. Testy pilnują obu tych decyzji.

@@ -464,6 +464,67 @@ test.describe('osie wykresów', () => {
   });
 });
 
+/* Dwór nie jest piątym pokojem, tylko tłem. Dostaje własny kolor spoza palety pokoi,
+   a tam, gdzie ma osobną oś, rysuje się jako pasmo za pokojami — bo jako równorzędna
+   linia zapraszał do porównania, którego na dwóch różnych miarkach robić nie wolno.
+   Na wspólnej osi (wilgotność bezwzględna) zostaje linią, bo tam porównanie jest sensem. */
+test.describe('dwór jako tło', () => {
+  const dwor = (page, wykres) => page.evaluate((w) => {
+    const n = state.devices.find((d) => d.ext);
+    const ds = state.charts[w].data.datasets.find((d) => d.label === n.name);
+    return { kolor: n.color, fill: ds.fill ?? false, dash: ds.borderDash.length, order: ds.order };
+  }, wykres);
+
+  test('ma własny kolor, spoza palety pokoi', async ({ page }) => {
+    const bledy = await otworz(page);
+    const kolory = await page.evaluate(() => ({
+      dwor: state.devices.find((d) => d.ext).color,
+      pokoje: state.devices.filter((d) => !d.ext).map((d) => d.color),
+      paleta: PENS,
+    }));
+    // nie wystarczy „inny niż cztery użyte" — dwór ma stać poza paletą pokoi w ogóle,
+    // inaczej wystarczyłoby dołożyć piąty czujnik, żeby znów wyglądał jak pokój
+    expect(kolory.paleta, 'dwór wciąż bierze kolor z palety pokoi').not.toContain(kolory.dwor);
+    // pokoje zachowują swoje dotychczasowe barwy — dwór nie zabiera im miejsca w palecie
+    expect(kolory.pokoje).toEqual(['#e8a13c', '#5fb8e0', '#5fce9e', '#e2708f']);
+    expect(bledy).toEqual([]);
+  });
+
+  test('na własnej osi jest pasmem pod pokojami, nie linią', async ({ page }) => {
+    const bledy = await otworz(page);
+    for (const w of ['temp', 'hum']) {
+      const d = await dwor(page, w);
+      expect(d.fill, `${w}: dwór bez wypełnienia`).toBe('start');
+      expect(d.dash, `${w}: dwór nadal kreskowany`).toBe(0);
+      const pokoj = await page.evaluate((k) => {
+        const n = state.devices.find((x) => x.ext).name;
+        return state.charts[k].data.datasets.find((x) => x.label !== n).order;
+      }, w);
+      expect(d.order, `${w}: dwór nie jest z tyłu`).toBeGreaterThan(pokoj);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('na wspólnej osi zostaje linią, bo tam porównanie ma sens', async ({ page }) => {
+    const bledy = await otworz(page);
+    const d = await dwor(page, 'abs');
+    expect(d.fill).toBe(false);
+    expect(d.dash).toBeGreaterThan(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('kafel i legenda mówią tym samym kolorem', async ({ page }) => {
+    const bledy = await otworz(page);
+    const zgodne = await page.evaluate(() => {
+      const n = state.devices.find((d) => d.ext);
+      const kafel = [...document.querySelectorAll('.pen')].find((e) => e.textContent.includes(n.name));
+      return kafel.style.getPropertyValue('--c').trim() === n.color;
+    });
+    expect(zgodne).toBe(true);
+    expect(bledy).toEqual([]);
+  });
+});
+
 /* Linia pokoi jest wygładzona średnią z trzech odczytów, bo krok czujnika (0,1 °C, 1%)
    po rozdzieleniu osi urósł do kilkudziesięciu pikseli i krzywe zamieniły się w schodki.
    Rusza wyłącznie rysowana linia — dwór, tabela i dymek zostają przy surowych odczytach. */
