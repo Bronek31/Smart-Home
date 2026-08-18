@@ -55,6 +55,18 @@ async function otworz(page, opcje = {}, { hash = '', cdnDziala = true } = {}) {
   return bledy;
 }
 
+/* Wykresy startują w zakresie „dziś", więc o czwartej nad ranem mają w sobie kilka
+   punktów, a wieczorem kilkanaście — każdy test, który czyta z nich serie, zależałby
+   wtedy od godziny, o której poszedł. Nocny przebieg z harmonogramu (4:54) wywrócił się
+   dokładnie na tym: „oczekiwano > 5, było 5". Tydzień obejmuje całą fiksturę niezależnie
+   od pory doby, więc liczba punktów przestaje być ruchoma. */
+async function otworzTydzien(page, opcje = {}) {
+  const bledy = await otworz(page, opcje);
+  await page.click('.range[data-hours="168"]');
+  await page.waitForFunction(() => state.hours === 168 && state.charts.temp);
+  return bledy;
+}
+
 const wcisniety = (page, sel) =>
   page.$$eval(sel, (n) => n.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.textContent));
 
@@ -101,6 +113,18 @@ test.describe('same dane testowe', () => {
   test('każdy plik miesięczny jest posortowany, tak jak zapisuje go kolektor', () => {
     const w = wiersze(zbuduj({}));
     expect(w).toEqual([...w].sort());
+  });
+
+  test('tydzień obejmuje całą fiksturę o każdej porze doby', () => {
+    /* Testy czytające serie z wykresu ustawiają zakres na tydzień właśnie po to, żeby ich
+       wynik nie zależał od godziny. Działa to tylko dopóki fikstura mieści się w tygodniu:
+       gdyby ktoś podniósł `dni` powyżej siedmiu, tydzień zacząłby ją przycinać i liczba
+       punktów znów stałaby się ruchoma. Zmierzone: 120,5 godz. przy oknie 168. */
+    const w = wiersze(zbuduj({}));
+    const najstarszy = Math.min(...w.map((r) => Date.parse(r.split(',')[0])));
+    const wiek = (Date.now() - najstarszy) / 3600e3;
+    expect(wiek, 'fikstura wystaje poza tydzień — zakres znów zależy od pory doby')
+      .toBeLessThan(168);
   });
 
   test('historia nie kończy się na progu kroku animacji', () => {
@@ -423,7 +447,7 @@ test.describe('osie wykresów', () => {
   }, id);
 
   test('temperatura i wilgotność względna dają dworowi własną oś', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworzTydzien(page);
     for (const id of ['temp', 'hum']) {
       const o = await osie(page, id);
       expect(o.y2, `${id}: brak prawej osi`).toBe(true);
@@ -433,7 +457,7 @@ test.describe('osie wykresów', () => {
   });
 
   test('wilgotność bezwzględna zostaje na jednej osi, bo porównuje z dworem', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworzTydzien(page);
     const o = await osie(page, 'abs');
     expect(o.y2).toBe(false);
     expect(await page.evaluate(() => state.charts.abs.data.datasets.every((d) => (d.yAxisID || 'y') === 'y'))).toBe(true);
@@ -442,7 +466,7 @@ test.describe('osie wykresów', () => {
 
   test('druga oś naprawdę rozciąga mieszkanie', async ({ page }) => {
     // sedno zmiany: bez niej lewa oś obejmowała cały zakres dworu
-    const bledy = await otworz(page);
+    const bledy = await otworzTydzien(page);
     const z = await page.evaluate(() => {
       const ch = state.charts.temp;
       return { lewa: ch.scales.y.max - ch.scales.y.min, prawa: ch.scales.y2.max - ch.scales.y2.min };
@@ -452,7 +476,7 @@ test.describe('osie wykresów', () => {
   });
 
   test('prawa oś jest podpisana kolorem serii dworu', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworzTydzien(page);
     const zgodne = await page.evaluate(() => {
       const ch = state.charts.temp;
       const dwor = state.devices.find((d) => d.ext);
@@ -491,7 +515,7 @@ test.describe('dwór jako tło', () => {
   });
 
   test('na własnej osi jest pasmem pod pokojami, nie linią', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworzTydzien(page);
     for (const w of ['temp', 'hum']) {
       const d = await dwor(page, w);
       expect(d.fill, `${w}: dwór bez wypełnienia`).toBe('start');
@@ -506,7 +530,7 @@ test.describe('dwór jako tło', () => {
   });
 
   test('na wspólnej osi zostaje linią, bo tam porównanie ma sens', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworzTydzien(page);
     const d = await dwor(page, 'abs');
     expect(d.fill).toBe(false);
     expect(d.dash).toBeGreaterThan(0);
@@ -535,9 +559,10 @@ test.describe('wygładzanie linii', () => {
   }, [wykres, nazwa]);
 
   test('pokój dostaje średnią z trzech odczytów, a surowy zostaje przy punkcie', async ({ page }) => {
-    const bledy = await otworz(page, { waskaWilgotnosc: true });
+    const bledy = await otworzTydzien(page, { waskaWilgotnosc: true });
     const p = await seria(page, 'temp', 'Salon');
-    expect(p.length).toBeGreaterThan(5);
+    // pięć dób co godzinę mieści się w tygodniu w całości, o dowolnej porze doby
+    expect(p.length, 'za mało punktów, żeby test cokolwiek sprawdzał').toBeGreaterThan(50);
     expect(p.every((x) => x.v != null), 'zgubiony surowy odczyt').toBe(true);
     // środek każdej trójki to średnia sąsiadów i punktu
     for (let i = 1; i < p.length - 1; i++) {
@@ -547,25 +572,27 @@ test.describe('wygładzanie linii', () => {
   });
 
   test('dwór zostaje surowy', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworzTydzien(page);
     for (const w of ['temp', 'hum', 'abs']) {
       const p = await seria(page, w, 'Na zewnątrz');
       expect(p, `${w}: brak serii dworu`).not.toBeNull();
+      expect(p.length, `${w}: pusta seria, test nic nie sprawdza`).toBeGreaterThan(50);
       expect(p.every((x) => x.v === undefined), `${w}: dwór został wygładzony`).toBe(true);
     }
     expect(bledy).toEqual([]);
   });
 
   test('wygładzenie nie odsuwa linii dalej niż o krok czujnika', async ({ page }) => {
-    const bledy = await otworz(page, { waskaWilgotnosc: true });
+    const bledy = await otworzTydzien(page, { waskaWilgotnosc: true });
     const p = await seria(page, 'temp', 'Salon');
+    expect(p.length, 'pusta seria, test nic nie sprawdza').toBeGreaterThan(50);
     const maks = Math.max(...p.map((x) => Math.abs(x.y - x.v)));
     expect(maks, `odsunięcie ${maks.toFixed(3)} °C przekracza krok czujnika`).toBeLessThan(0.1);
     expect(bledy).toEqual([]);
   });
 
   test('tabela zakresów liczy z surowych odczytów, nie z wygładzonej linii', async ({ page }) => {
-    const bledy = await otworz(page, { waskaWilgotnosc: true });
+    const bledy = await otworzTydzien(page, { waskaWilgotnosc: true });
     const zgodne = await page.evaluate(() => {
       const d = state.devices.find((x) => x.id === 'salon');
       const surowe = state.rows.filter((r) => r.id === d.id && r.code === d.temp).map((r) => r.v);
@@ -653,7 +680,7 @@ test.describe('podziałka osi czasu', () => {
 test.describe('podziałka osi pionowej', () => {
   for (const [id, nazwa] of [['temp', 'temperatura'], ['hum', 'wilgotność względna'], ['abs', 'wilgotność bezwzględna']]) {
     test(`${nazwa}: żaden podpis nie powtarza się`, async ({ page }) => {
-      const bledy = await otworz(page, { waskaWilgotnosc: true });
+      const bledy = await otworzTydzien(page, { waskaWilgotnosc: true });
       const osie = await page.evaluate((k) => {
         const ch = state.charts[k];
         return Object.fromEntries(Object.entries(ch.scales)
