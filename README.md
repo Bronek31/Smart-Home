@@ -256,6 +256,11 @@ Trzy zabezpieczenia, wszystkie w stałej `WIETRZ` w `index.html`:
 | `ruch` | ruch mniejszy niż dwa kroki kwantyzacji czujnika (0,1 °C i 1%) to szum, choćby ułamek wychodził duży |
 | `odbicie` | **strażnik odbicia**: gdy pokój przed chwilą *oddalił się* od dworu szybciej, niż potrafi sam z siebie, to powrót po takim zaburzeniu nie jest wymianą powietrza. Bez tego czujnik wzięty do ręki wygląda dokładnie jak otwarte okno — i właśnie tak wyglądał 19.08.2026 |
 
+Pasma rysują się nad **temperaturą i wilgotnością bezwzględną** — czyli nad tymi
+dwoma wykresami, z których wykrywanie korzysta. Wilgotność względna ich nie dostaje
+celowo: skacze od samej temperatury, więc pasmo nad nią obiecywałoby związek, którego
+tam nie ma.
+
 Czego to nadal nie wykryje: wietrzenia słabszego niż ok. 10% różnicy na godzinę.
 Przy raportach co godzinę takiego epizodu nie da się odróżnić od nocnego stygnięcia
 przez ściany, więc próg jest tam, gdzie jest, świadomie.

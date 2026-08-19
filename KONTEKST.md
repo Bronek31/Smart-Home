@@ -109,6 +109,12 @@ mógł się odezwać wyłącznie na artefakcie. Tak też się stało.
   od tego, jak odległy — przy dłuższej ciszy Open-Meteo pokój porównywałby się z pogodą
   sprzed wielu godzin i nikt by się o tym nie dowiedział.
 
+**Pasma poszły też nad temperaturę.** Dopóki liczyła się sama wilgotność, jedno miejsce
+wystarczało. Od kiedy w letni wieczór całą robotę wykonuje temperatura, pasmo wyłącznie
+pod wilgotnością bezwzględną zostawiało z pytaniem „to skąd to wietrzenie" — patrzącego
+na wykres, na którym nic nie widać. Wilgotność względna pasm nie dostaje: nie jest
+kanałem wykrywania. Licznik i legenda stoją teraz przy obu wykresach z pasmami.
+
 **λ = 0,10/godz. jest dobrane pomiarem, nie z głowy.** Przy tej wartości wykryte zostają
 wieczorne wietrzenia z 19.08 w Salonie i Sypialni, a Łazienka nie odzywa się ani razu.
 Przy 0,08 dochodzi wprawdzie słaba Kuchnia, ale razem z nią nocne stygnięcie Łazienki
@@ -306,7 +312,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **78** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **80** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |

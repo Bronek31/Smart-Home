@@ -485,6 +485,31 @@ test.describe('podpowiedzi i diagnostyka', () => {
     expect(bledy).toEqual([]);
   });
 
+  /* Pasma muszą być na wykresie, z którego wykrywanie skorzystało. Dopóki liczyła się
+     sama wilgotność, wystarczało jedno miejsce; od kiedy w letni wieczór całą robotę
+     wykonuje temperatura, pasmo pod samą wilgotnością zostawia użytkownika z pytaniem
+     „to skąd to wietrzenie", patrzącego na wykres, na którym nic nie widać. Wilgotności
+     względnej pasma nie dostają celowo — nie jest kanałem wykrywania. */
+  test('pasma wietrzenia są nad temperaturą i wilgotnością bezwzględną, ale nie nad względną', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { wietrzenie: true });
+    const ma = (id) => page.evaluate(
+      (k) => (state.charts[k].config.plugins || []).some((p) => p.id === 'pasma'), id);
+    expect(await ma('temp'), 'temperatura bez pasm').toBe(true);
+    expect(await ma('abs'), 'wilgotność bezwzględna bez pasm').toBe(true);
+    expect(await ma('hum'), 'wilgotność względna nie powinna mieć pasm').toBe(false);
+    expect(bledy).toEqual([]);
+  });
+
+  test('licznik i legenda wietrzeń stoją przy obu wykresach z pasmami', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { wietrzenie: true });
+    const liczniki = await page.$$eval('.wietrz-licznik', (n) => n.map((e) => e.textContent));
+    expect(liczniki.length).toBe(2);
+    for (const t of liczniki) expect(t).toMatch(/wietrzeni/);
+    const legendy = await page.$$eval('.pasma-legenda', (n) => n.filter((e) => !e.hidden).length);
+    expect(legendy).toBe(2);
+    expect(bledy).toEqual([]);
+  });
+
   /* Bez tolerancji wartoscW() dobierałoby najbliższy odczyt z dworu niezależnie od tego,
      jak bardzo jest odległy — przy dłuższej ciszy Open-Meteo pokój porównywałby się
      z pogodą sprzed wielu godzin i nikt by tego nie zauważył. */

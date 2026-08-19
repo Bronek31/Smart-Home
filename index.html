@@ -101,11 +101,12 @@
   <div class="pens" id="pens"></div>
   <div class="controls"><span class="lbl">Zakres wykresów</span><button class="range" data-hours="dzis">dziś</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><label class="chk" title="Ukrywa krótkie skoki, po których wartość wraca do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki. Trwałe zmiany, takie jak włączony grzejnik, zostają."><input type="checkbox" id="filtr" checked>Ukryj chwilowe skoki</label><div class="toggles" id="toggles"></div></div>
 
-  <div class="trace"><h2>Temperatura <small>&deg;C</small><small class="osie"></small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div></div>
+  <div class="trace"><h2>Temperatura <small>&deg;C</small><small class="osie"></small><small id="cut-temp"></small><small class="wietrz-licznik"></small></h2><div class="plot"><canvas id="temp"></canvas></div>
+    <div class="pasma-legenda" hidden></div></div>
   <div class="trace"><h2>Wilgotność względna <small>%</small><small class="osie"></small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
-  <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small><small id="wietrz-abs"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
-    <div class="pasma-legenda" id="pasma-legenda" hidden></div>
-    <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, więc po niej nie poznasz, czy wietrzenie cokolwiek dało — po tej owszem: linia mieszkania zbliża się wtedy do linii dworu. Błękitne pasma to wykryta wymiana powietrza — nie zawsze przez okno: łazienka i kuchnia siedzą na pionie wentylacyjnym, więc powietrze potrafi im ujść samą kratką i otwartymi drzwiami.</p></div>
+  <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small><small class="wietrz-licznik"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
+    <div class="pasma-legenda" hidden></div>
+    <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, więc po niej nie poznasz, czy wietrzenie cokolwiek dało — po tej owszem: linia mieszkania zbliża się wtedy do linii dworu. Błękitne pasma to wykryta wymiana powietrza — te same, co nad temperaturą, bo wykrywanie patrzy na oba kanały naraz: w suchy dzień pracuje wilgotność, w parny wieczór wyłącznie temperatura. Nie zawsze przez okno: łazienka i kuchnia siedzą na pionie wentylacyjnym, więc powietrze potrafi im ujść samą kratką i otwartymi drzwiami.</p></div>
 
   <div class="trace" id="rytm" hidden><h2>Rytm doby <small>&deg;C</small><small id="rytm-info"></small></h2>
     <div class="rytm-wybor" id="rytm-wybor"></div>
@@ -841,7 +842,10 @@ function draw(canvasId,sets,unit,decimals,extra=[],dwieOsie=false){
 function rysujWykresy(T,H,A){
   if(typeof Chart==='undefined')return brakWykresow('Nie udało się wczytać biblioteki wykresów z cdn.jsdelivr.net. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.');
   try{
-    const dwie=draw('temp',T,'°C',1,[],true)&draw('hum',H,'%',0,[],true);
+    // Pasma rysujemy na tych dwóch wykresach, z których wykrywanie naprawdę korzysta.
+    // Wilgotność względna ich nie dostaje: skacze od samej temperatury, więc pasmo nad
+    // nią obiecywałoby związek, którego tam nie ma.
+    const dwie=draw('temp',T,'°C',1,[pasma],true)&draw('hum',H,'%',0,[],true);
     draw('abs',A,'g/m³',1,[pasma]);
     // podpis stawiamy dopiero, gdy druga oś naprawdę powstała — bez czujnika
     // zewnętrznego obiecywałby coś, czego na wykresie nie ma
@@ -852,7 +856,7 @@ function rysujWykresy(T,H,A){
 function brakWykresow(tekst){
   state.charts={};
   document.querySelectorAll('.plot').forEach(p=>{p.innerHTML=`<p class="plot-blad">${esc(tekst)}</p>`});
-  document.getElementById('pasma-legenda').hidden=true;
+  document.querySelectorAll('.pasma-legenda').forEach(e=>{e.hidden=true});
 }
 /* --- Odtwarzanie historii na rzucie ---
    Cztery linie na wykresie nie pokazują, jak ciepło wędruje przez mieszkanie — widać
@@ -1500,11 +1504,12 @@ async function render(){await ensureRows();state.indeks=indeksSerii();computeHea
     state.wietrz=w.wietrz;state.klima=w.klima;state.klimaNazwy=w.nazwy;
   }
   state.wietrzPasma=scalPasma(Object.values(state.wietrz));
-  document.getElementById('wietrz-abs').textContent=state.wietrzPasma.length?` · ${plWietrz(state.wietrzPasma.length)}`:'';
+  const licznik=state.wietrzPasma.length?` · ${plWietrz(state.wietrzPasma.length)}`:'';
+  document.querySelectorAll('.wietrz-licznik').forEach(e=>{e.textContent=licznik});
   const legenda=[];
   if(state.wietrzPasma.length)legenda.push('<span><i style="background:rgba(95,184,224,.32)"></i>wietrzenie</span>');
   if(state.klima.length)legenda.push(`<span><i style="background:rgba(226,112,143,.30)"></i>${esc(state.klimaNazwy.join(', ')||'urządzenie')} w pracy</span>`);
-  const box=document.getElementById('pasma-legenda');box.innerHTML=legenda.join('');box.hidden=!legenda.length;
+  document.querySelectorAll('.pasma-legenda').forEach(box=>{box.innerHTML=legenda.join('');box.hidden=!legenda.length});
   ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary();renderHealth();renderRytm();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
   rysujWykresy(T,H,A)}
 boot();
