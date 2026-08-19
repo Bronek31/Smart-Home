@@ -318,7 +318,13 @@ const rgba=(c,a)=>`rgba(${c[0]},${c[1]},${c[2]},${a})`;
 const gradientRampy=a=>RAMPA.map(([p,c])=>`${rgba(c,a)} ${Math.round(p*100)}%`).join(',');
 /* Wyskok = nagły skok, po którym wartość wraca tam, skąd wyszła.
    Trwała zmiana (grzejnik, otwarte okno) nie wraca, więc zostaje nietknięta. */
-const SPIKE={temp:{jump:1.5,back:1.0},hum:{jump:8,back:5},rise:12*60000,max:90*60000};
+/* rise: jak daleko wstecz szukamy poziomu sprzed wzrostu. Było 12 min i przez to filtr
+   nie odrzucił ani jednego odczytu z 1152 — epizod z 19.08 minął się z oknem o 17 sekund
+   (baza 13:46:23, szczyt 13:58:40), więc za bazę brany był już podniesiony odczyt i skok
+   wychodził na 1,1 zamiast 1,6 °C. Przy 15 min filtr łapie ten epizod i — zmierzone na
+   pełnej historii — nie rusza niczego innego; wynik jest ten sam aż do 30 min.
+   Wiersze zostają w CSV, filtr działa wyłącznie na tym, co widać. */
+const SPIKE={temp:{jump:1.5,back:1.0},hum:{jump:8,back:5},rise:15*60000,max:90*60000};
 function despike(pts,kind){
   const p=SPIKE[kind];
   if(!p||pts.length<3)return{pts,cut:0};
@@ -486,10 +492,18 @@ function absPoints(d,cut,liczCiecia){
     for(const[date,t]of T){const h=H.get(date);if(h==null)continue;const y=absHum(t,h);if(y!=null)pts.push({x:Date.parse(date+'T12:00:00'),y})}
     return pts.sort((a,b)=>a.x-b.x);
   }
+  const{T,H}=paryPokoju(d,cut,liczCiecia);
+  return pairAbs(T,H);
+}
+/* Surowe serie temperatury i wilgotności jednego urządzenia, przepuszczone przez ten
+   sam filtr skoków. Wyciągnięte z absPoints(), bo od kiedy wietrzenie liczy się z obu
+   kanałów naraz, potrzebna jest także sama temperatura — i musi pochodzić z tego samego
+   przebiegu filtra, inaczej oba kanały opisywałyby trochę inne chwile. */
+function paryPokoju(d,cut,liczCiecia){
   const surowe=k=>state.rows.filter(r=>r.id===d.id&&r.code===d[k]&&r.t>=cut&&isFinite(r.v)).map(r=>({x:r.t,y:r.v}));
   let T=surowe('temp'),H=surowe('hum');
   if(state.filtr&&!d.ext){const a=despike(T,'temp'),b=despike(H,'hum');T=a.pts;H=b.pts;if(liczCiecia)state.cut.abs+=a.cut+b.cut}
-  return pairAbs(T,H);
+  return{T,H};
 }
 function seriesAbs(){
   const from=zakresOd(),since=indoorStart();state.cut.abs=0;
@@ -499,40 +513,105 @@ function seriesAbs(){
 }
 
 /* --- Wykrywanie wietrzenia ---
-   Otwarte okno poznaje się po tym, że wilgotność bezwzględna w pokoju rusza szybko
-   w stronę wartości na dworze — bo to po prostu wymiana powietrza. Dlatego działa
-   tak samo zimą, gdy wietrzenie osusza, jak i w parny letni dzień, gdy dokłada pary.
-   Sama temperatura by nie wystarczyła: grzejnik też ją podnosi, tylko wolniej. */
-// Okno musi być dłuższe niż heartbeat: w spokojnym pokoju czujnik odzywa się raz na
-// godzinę, więc ostatni cichy odczyt trzeba zestawić z pierwszym już przy otwartym oknie.
-// Krótsze okno po prostu nie ma czego porównać. Rozdzielczość wykrywania jest więc
-// ograniczona częstością raportów — wietrzenia krótsze niż godzina mogą umknąć.
-const WIETRZ={zmiana:0.7,okno:2*HEARTBEAT,luka:0.5};
-// najbliższa w czasie wartość z posortowanej serii
-const wartoscW=(seria,t)=>{
+   Otwarte okno poznaje się po tym, że pokój dąży do wartości z dworu — bo to po prostu
+   wymiana powietrza. Fizyka jest jednowzorowa: przy wymianie o intensywności λ [1/godz.]
+   różnica z dworem maleje wykładniczo, d(x)/dt = λ·(x_dwór − x_pokój). Wykrywamy więc λ,
+   czyli **ułamek dostępnej różnicy domknięty na godzinę** — a nie bezwzględny skok.
+
+   Poprzednia wersja szukała skoku o 0,7 g/m³ wilgotności bezwzględnej w oknie dwóch
+   godzin i nie wykryła ani jednego wietrzenia przez pięć dób. Powód: pokój nigdy tyle
+   nie robi. Zmierzone na pełnej historii — największy ruch dwugodzinny to 0,50 g/m³
+   we wszystkich czterech pokojach, a w Salonie 0,33. Próg stał wyżej niż fizycznie
+   osiągalne maksimum, więc odzywał się wyłącznie na artefaktach: 19.08 jedyne trzy
+   pasma, jakie kiedykolwiek narysował, wzięły się z czujników trzymanych w dłoniach.
+
+   Ułamek różnicy tego problemu nie ma, bo skaluje się sam: 0,3 °C przy różnicy 1 °C
+   znaczy to samo, co 3 °C przy różnicy 10 °C.
+
+   Dwa kanały zamiast jednego. Zimą i w suchy dzień pracuje wilgotność, w letni wieczór
+   temperatura — 19.08 różnica wilgotności między mieszkaniem a dworem spadła poniżej
+   0,5 g/m³, czyli okno nie miało czego wymieniać w tym kanale, a temperatura w tym
+   samym czasie spadła o 1,9 °C. Wystarczy więc, żeby **którykolwiek** kanał domykał
+   różnicę odpowiednio szybko. */
+const WIETRZ={
+  // λ = 0,10/godz. Dobrane pomiarem, nie z głowy: przy 0,10 wykryte zostają wieczorne
+  // wietrzenia z 19.08 w Salonie i Sypialni, a Łazienka — jedyny pokój bez okna —
+  // nie odzywa się ani razu. Niżej (0,08) dochodzi wprawdzie słaba Kuchnia, ale razem
+  // z nią nocne stygnięcie Łazienki przez ściany, czyli fałszywka.
+  tempo:0.10,
+  // poniżej tej różnicy z dworem kanał nic nie mówi — „w stronę dworu" przestaje mieć
+  // znaczenie, a dzielenie małego ruchu przez małą różnicę produkuje wielkie λ z szumu
+  luka:{temp:1.0,abs:0.4},
+  // czujnik zaokrągla do 0,1 °C i 1%, co przy 25 °C daje ok. 0,23 g/m³ na krok.
+  // Ruch mniejszy niż dwa kroki kwantyzacji to szum, choćby ułamek wychodził duży.
+  ruch:{temp:0.2,abs:0.25},
+  // ucieczka od dworu szybsza niż to — ręka na czujniku, prysznic, garnek na kuchni.
+  // Zmierzone: mieszkanie samo z siebie nie oddala się od dworu szybciej niż 0,2 °C/godz.,
+  // a dłoń na czujniku 19.08 dała 4,4 °C/godz.
+  odbicie:{temp:0.5,abs:0.6},
+  odbicieMax:3*HEARTBEAT,     // po tylu godzinach strażnik gaśnie sam, żeby się nie zaciąć
+  krok:2.5*HEARTBEAT,         // dłuższa przerwa w raportach: nie wiadomo, co się działo między odczytami
+  minCzas:20*60000,           // pojedyncze drgnięcie to nie epizod
+  odniesienie:2.5*HEARTBEAT,  // starszego odczytu z dworu nie wolno już brać za "teraz"
+};
+/* Najbliższa w czasie wartość z posortowanej serii. Tolerancja jest obowiązkowa:
+   bez niej dłuższa cisza Open-Meteo kazałaby porównywać pokój z pogodą sprzed wielu
+   godzin, i to bez śladu, że coś jest nie tak. */
+const wartoscW=(seria,t,tol)=>{
   if(!seria.length)return null;
   let lo=0,hi=seria.length-1;
   while(lo<hi){const mid=(lo+hi)>>1;seria[mid].x<t?lo=mid+1:hi=mid}
   const a=seria[Math.max(0,lo-1)],b=seria[lo];
-  return Math.abs(a.x-t)<=Math.abs(b.x-t)?a.y:b.y;
+  const bliski=Math.abs(a.x-t)<=Math.abs(b.x-t)?a:b;
+  return tol!=null&&Math.abs(bliski.x-t)>tol?null:bliski.y;
 };
-function wietrzenia(pts,zew){
-  if(pts.length<2||!zew.length)return[];
-  const out=[];let i=0;
-  while(i<pts.length-1){
-    const naDworze=wartoscW(zew,pts[i].x);
-    // gdy po obu stronach ściany jest tyle samo pary, "w stronę dworu" nic nie znaczy
-    if(naDworze==null||Math.abs(naDworze-pts[i].y)<WIETRZ.luka){i++;continue}
-    const kierunek=Math.sign(naDworze-pts[i].y);
-    let j=i+1,skraj=i;
-    while(j<pts.length&&pts[j].x-pts[i].x<=WIETRZ.okno){
-      if((pts[j].y-pts[i].y)*kierunek>(pts[skraj].y-pts[i].y)*kierunek)skraj=j;
-      j++;
+const KANALY=['temp','abs'];
+/* Oba kanały jednego urządzenia w postaci, jakiej oczekuje wietrzenia(). Wilgotność
+   bezwzględna niesie znaczniki czasu z serii temperatury (tak paruje pairAbs), więc
+   każdy punkt abs ma swój odpowiednik w temp. */
+function kanalyPokoju(d,od){
+  const{T,H}=paryPokoju(d,od,false);
+  return{temp:T,abs:pairAbs(T,H)};
+}
+/* Pokój i dwór wchodzą jako {temp,abs} — dwie serie {x,y} każdy. Idziemy odczyt po
+   odczycie i dla każdego kroku liczymy, jak szybko pokój domyka różnicę z dworem.
+   Sąsiadujące kroki powyżej progu sklejają się w jeden epizod, więc długie wietrzenie
+   wychodzi jednym pasmem, a nie łańcuchem dwugodzinnych kawałków. */
+function wietrzenia(pokoj,dwor){
+  const pts=pokoj.abs;
+  if(pts.length<2||!dwor.abs.length||!dwor.temp.length)return[];
+  const tempPokoju=new Map(pokoj.temp.map(p=>[p.x,p.y]));
+  const podejrzany={};        // kanał → {baza, doKiedy} — trwające podejrzenie zaburzenia
+  const out=[];let biezacy=null;
+  const zamknij=()=>{if(biezacy){if(biezacy.do-biezacy.od>=WIETRZ.minCzas)out.push(biezacy);biezacy=null}};
+  for(let i=0;i<pts.length-1;i++){
+    const x0=pts[i].x,x1=pts[i+1].x,h=(x1-x0)/3600000;
+    const v0={abs:pts[i].y,temp:tempPokoju.get(x0)},v1={abs:pts[i+1].y,temp:tempPokoju.get(x1)};
+    if(h<=0||x1-x0>WIETRZ.krok||v0.temp==null||v1.temp==null){zamknij();continue}
+    const tempa=[];
+    for(const k of KANALY){
+      const r0=wartoscW(dwor[k],x0,WIETRZ.odniesienie),r1=wartoscW(dwor[k],x1,WIETRZ.odniesienie);
+      if(r0==null||r1==null)continue;
+      const naDworze=(r0+r1)/2,luka=naDworze-v0[k],ruch=v1[k]-v0[k];
+      if(Math.abs(luka)<WIETRZ.luka[k])continue;
+      const f=ruch/luka;
+      if(f<0&&-f*Math.abs(luka)/h>WIETRZ.odbicie[k]){
+        // baza zostaje ta najwcześniejsza: gdyby szczyt zaburzenia stawał się nowym
+        // punktem odniesienia, strażnik puściłby dalej cały ogon artefaktu
+        podejrzany[k]={baza:podejrzany[k]?.baza??v0[k],doKiedy:x1+WIETRZ.odbicieMax};
+      }
+      if(f>0&&Math.abs(ruch)>=WIETRZ.ruch[k])tempa.push(-Math.log(1-Math.min(f,0.9))/h);
     }
-    const zmiana=(pts[skraj].y-pts[i].y)*kierunek;
-    if(skraj>i&&zmiana>=WIETRZ.zmiana){out.push({od:pts[i].x,do:pts[skraj].x,zmiana});i=skraj+1;continue}
-    i++;
+    // strażnik gaśnie, gdy minie czas albo gdy pokój wróci przez poziom sprzed zaburzenia
+    for(const k of Object.keys(podejrzany)){
+      const{baza,doKiedy}=podejrzany[k],ref=wartoscW(dwor[k],x1,WIETRZ.odniesienie);
+      if(x1>doKiedy||(ref!=null&&(v1[k]-baza)*Math.sign(ref-baza)>=0))delete podejrzany[k];
+    }
+    // dopóki cokolwiek jest podejrzane, powrót po zaburzeniu wygląda jak wymiana powietrza
+    if(Object.keys(podejrzany).length||!tempa.length||Math.max(...tempa)<WIETRZ.tempo){zamknij();continue}
+    if(biezacy&&biezacy.do===x0)biezacy.do=x1;else{zamknij();biezacy={od:x0,do:x1}}
   }
+  zamknij();
   return out;
 }
 /* Kiedy chodził sprzęt — prosto z jego włącznika, bez zgadywania z temperatury.
@@ -1400,11 +1479,12 @@ function policzWietrzenia(od){
   const praca=state.appliances.map(d=>({d,okresy:okresyPracy(d,od)}));
   const wPokoju={};   // czujnik → okresy pracy sprzętu stojącego akurat u niego
   praca.forEach(({d,okresy})=>{const cel=SPRZET_POKOJ[d.id];if(cel)(wPokoju[cel]??=[]).push(...okresy)});
-  const zewn=state.devices.find(d=>d.ext&&d.temp&&d.hum),odn=zewn?absPoints(zewn,od,false):[];
+  // odniesienie z dworu liczymy raz — oba kanały muszą pochodzić z tych samych chwil
+  const zewn=state.devices.find(d=>d.ext&&d.temp&&d.hum),odn=zewn?kanalyPokoju(zewn,od):{temp:[],abs:[]};
   const wietrz={};
   // spadek zaczęty przy pracującym sprzęcie w tym samym pokoju to jego osuszanie, nie okno
   state.devices.filter(d=>!d.ext&&d.temp&&d.hum).forEach(d=>{
-    wietrz[d.id]=wietrzenia(absPoints(d,od,false),odn).filter(e=>!pracowalWtedy(e.od,wPokoju[d.id]||[]));
+    wietrz[d.id]=wietrzenia(kanalyPokoju(d,od),odn).filter(e=>!pracowalWtedy(e.od,wPokoju[d.id]||[]));
   });
   return{wietrz,klima:scalPasma(praca.map(p=>p.okresy)),
     // legenda ma nazywać te urządzenia, które faktycznie dały pasma, a nie pierwsze z brzegu

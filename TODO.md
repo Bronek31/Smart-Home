@@ -22,10 +22,34 @@ cykle dobowe, wszystkie w jednej fali upałów.
 
 ---
 
+## 0. Zapisywać, kiedy okna były otwarte
+
+**Najtańsza rzecz na tej liście i jedyna, która odblokowuje resztę.**
+
+Zasada projektu brzmi „Mierz, nie zgaduj", i widać ją niemal wszędzie — progi barw,
+wygładzanie linii, druga oś. Jedyny parametr, którego nigdy nie dało się zmierzyć,
+to ten najważniejszy dla wykrywania wietrzenia: **kiedy naprawdę było otwarte okno**.
+Dawny próg 0,7 g/m³ był w całym projekcie jedyną liczbą wziętą wyłącznie z intuicji,
+bo nie było do czego jej przyłożyć — i okazał się wyższy niż fizycznie osiągalne
+maksimum, przez co przez pięć dób nie wykrył ani jednego wietrzenia.
+
+Wiadomość z 19.08 („od powrotu do domu wietrzę, okna w salonie, sypialni i kuchni")
+była pierwszą prawdziwą etykietą w historii projektu i od razu obaliła próg. Nie trzeba
+czujnika kontaktronowego — wystarczy plik w repozytorium z przedziałami czasu,
+uzupełniany wtedy, kiedy akurat się o tym pomyśli. Kilkanaście wpisów wystarczy, żeby
+`WIETRZ.tempo` **zmierzyć** zamiast dobierać.
+
+Konkretnie jest co mierzyć: przy dzisiejszym progu 0,10/godz. Kuchnia z 19.08
+(domknięte 13% różnicy przez trzy godziny) nie jest wykrywana, a przy 0,08 wchodzi
+razem z nocnym stygnięciem Łazienki przez ściany. Bez etykiet nie ma jak rozstrzygnąć,
+która z tych dwóch wersji jest lepsza.
+
 ## 1. Skutek wietrzenia, nie tylko fakt wietrzenia
 
-Epizody już wykrywamy i rysujemy pasmami. Brakuje domknięcia pętli: **o ile** każde
-wietrzenie ścięło wilgotność bezwzględną i **jak długo** efekt się trzymał.
+Epizody już wykrywamy i rysujemy pasmami — od 19.08 naprawdę, a nie tylko z nazwy.
+Brakuje domknięcia pętli: **o ile** każde wietrzenie ścięło wilgotność bezwzględną
+i **jak długo** efekt się trzymał. Doszedł drugi kanał, więc to samo pytanie ma sens
+dla temperatury, a w letni wieczór wyłącznie ona ma na nie odpowiedź.
 
 > Wczoraj 6:20 — minus 2,1 g/m³, wróciło po 4 godzinach.
 
@@ -33,7 +57,8 @@ Zero nowych danych, zero nowych zależności. Zamienia detekcję w informację z
 po tygodniu wiadomo, czy wietrzenia w ogóle coś dają i które pory działają. Nikt tego
 nie ma, bo wymaga wykrywania wietrzeń — a to już stoi.
 
-Sensowne, gdy uzbiera się kilkanaście epizodów.
+Sensowne, gdy uzbiera się kilkanaście epizodów. Przez pięć pierwszych dób było ich
+zero, bo detektor nie działał; teraz zaczynają się pojawiać.
 
 ## 2. Model cieplny pokój ↔ dwór
 

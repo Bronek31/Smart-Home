@@ -472,7 +472,10 @@ def fetch_outdoor(days: int) -> tuple[list[dict], dict | None]:
 # inaczej widok "całość" pokazywałby skok, którego widok 7-dniowy nie pokazuje.
 SPIKE_JUMP = {"temp": 1.5, "hum": 8.0}
 SPIKE_BACK = {"temp": 1.0, "hum": 5.0}
-SPIKE_RISE = 12 * 60          # okno, w którym mierzymy wzrost
+SPIKE_RISE = 15 * 60          # okno, w którym mierzymy wzrost — musi zgadzać się ze SPIKE.rise
+                              # w index.html. Było 12 min; przy narastaniu przez kilkanaście
+                              # minut (czujnik w dłoni) baza wypadała już wewnątrz wzrostu
+                              # i skok chował się pod progiem.
 SPIKE_MAX = 90 * 60           # i w którym musi wrócić do poziomu wyjściowego
 
 

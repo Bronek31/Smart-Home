@@ -48,7 +48,7 @@ stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
 | `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
 | `.github/workflows/zbieraj.yml` | harmonogram zbierania, co godzinę o :19 |
-| `.github/workflows/watchdog.yml` | raz na dobę sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
+| `.github/workflows/watchdog.yml` | co 6 godzin sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
 | `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
 | `.github/workflows/testy.yml` | testy przy każdej zmianie kodu i raz na dobę na żywych danych |
 | `manifest.json`, `sw.js`, `ikona*` | instalacja na ekranie głównym telefonu i tryb offline |
@@ -91,8 +91,11 @@ Wszystkie w sekcji `env` w `.github/workflows/zbieraj.yml`:
 | `TZ_LOCAL` | `Europe/Warsaw` | według tej strefy tną się doby w agregatach i przelicza się prognozę godzinową. Musi być nazwą strefy, nie przesunięciem: prognoza sięga 36 godz. naprzód, więc dwa razy w roku przechodzi przez zmianę czasu |
 
 Proporcje pokoi na rzucie mieszkania siedzą w stałej `PLAN` w `index.html` —
-to `x, y, w, h` w siatce 400×500. Progi alarmów (`HEARTBEAT`, `STALE_WARN`)
-i filtra chwilowych skoków (`SPIKE`) są tuż obok.
+to `x, y, w, h` w siatce 400×500. Progi alarmów (`HEARTBEAT`, `STALE_WARN`),
+wykrywania wietrzenia (`WIETRZ`) i filtra chwilowych skoków (`SPIKE`) są tuż obok.
+`SPIKE` ma bliźniaka po stronie kolektora (`SPIKE_JUMP`, `SPIKE_RISE`, `SPIKE_MAX`
+w `fetch.py`) i obie kopie muszą się zgadzać — inaczej agregaty dobowe pokazują co
+innego niż wykres. Pilnuje tego osobny test.
 
 Tam też stoi **orientacja mieszkania**: pole `okno` mówi, na którą stronę świata
 patrzy pokój (`pld` albo `pln`, opisane w `STRONY`). Sypialnia wychodzi na południe,
@@ -228,6 +231,35 @@ mieszkania odpadają: wietrzenie ma osuszyć, nie dogrzać.
 Progi (`WIETRZ_ZYSK`, `WIETRZ_CIEPLO`, `SLONCE_MOCNE`) siedzą w `index.html` obok
 tych funkcji.
 
+### Jak rozpoznajemy, że okno **było** otwarte
+
+To osobna sprawa od rady „czy wietrzyć teraz" i liczy się z samych odczytów.
+Przy wymianie powietrza pokój dąży do wartości z dworu wykładniczo:
+`d(x)/dt = λ·(x_dwór − x_pokój)`. Wykrywamy więc **λ — ułamek dostępnej różnicy
+domykany w ciągu godziny** — a nie bezwzględny skok. Bezwzględny próg nie działa,
+bo znaczy co innego w każdą pogodę: dokładnie na tym poległa pierwsza wersja, która
+wymagała 0,7 g/m³ wilgotności bezwzględnej w oknie dwóch godzin. Zmierzone na pięciu
+dobach: największy ruch dwugodzinny w mieszkaniu to **0,50 g/m³** (w Salonie 0,33),
+czyli próg stał wyżej niż fizycznie osiągalne maksimum i przez cały czas zbierania
+nie wykrył **ani jednego** wietrzenia.
+
+Liczą się **dwa kanały naraz** — temperatura i wilgotność bezwzględna — i wystarczy,
+żeby którykolwiek domykał różnicę odpowiednio szybko. Zimą i w suchy dzień pracuje
+wilgotność; w letni wieczór potrafi nie pracować wcale, bo po obu stronach ściany
+jest tyle samo pary, a wtedy całą informację niesie temperatura.
+
+Trzy zabezpieczenia, wszystkie w stałej `WIETRZ` w `index.html`:
+
+| | |
+|---|---|
+| `luka` | poniżej takiej różnicy z dworem kanał milczy — „w stronę dworu" przestaje cokolwiek znaczyć, a dzielenie małego ruchu przez małą różnicę produkuje wielkie λ z samego szumu |
+| `ruch` | ruch mniejszy niż dwa kroki kwantyzacji czujnika (0,1 °C i 1%) to szum, choćby ułamek wychodził duży |
+| `odbicie` | **strażnik odbicia**: gdy pokój przed chwilą *oddalił się* od dworu szybciej, niż potrafi sam z siebie, to powrót po takim zaburzeniu nie jest wymianą powietrza. Bez tego czujnik wzięty do ręki wygląda dokładnie jak otwarte okno — i właśnie tak wyglądał 19.08.2026 |
+
+Czego to nadal nie wykryje: wietrzenia słabszego niż ok. 10% różnicy na godzinę.
+Przy raportach co godzinę takiego epizodu nie da się odróżnić od nocnego stygnięcia
+przez ściany, więc próg jest tam, gdzie jest, świadomie.
+
 Kafel pokoju dopisuje też, **dokąd temperatura zmierza**: regresja liniowa z ostatnich
 czterech godzin wyciągnięta naprzód. Gdy z przedłużenia wychodzi przekroczenie progu
 komfortu, pokazuje godzinę (`↗ 28° ok. 17:00`) zamiast samego tempa — to ta informacja,
@@ -251,7 +283,7 @@ po którą się sięga. Poniżej `TREND_MIN` kafel milczy, bo nachylenia mniejsz
 | Błąd `1114` albo `2007` | Zły region w `TUYA_REGION` |
 | Pusta lista przy `--discover` | Konto Smart Life podpięte do innego data center |
 | Bateria: `niski` | Wymień ogniwo. Słabnąca bateria gubi raporty, zanim czujnik zniknie zupełnie |
-| Zgłoszenie „Czujniki wymagają uwagi" | Watchdog wyłapał słabą baterię, milczący czujnik albo wilgotność trzymającą się za wysoko od doby. Treść odświeża się co dobę, zgłoszenie zamknie się samo |
+| Zgłoszenie „Czujniki wymagają uwagi" | Watchdog wyłapał słabą baterię, milczący czujnik albo wilgotność trzymającą się za wysoko od doby. Treść odświeża się co kilka godzin, zgłoszenie zamknie się samo |
 | Przebiegi w ogóle nie ruszają | GitHub wyłącza harmonogramy po 60 dniach bezczynności. Jedno ręczne uruchomienie je wskrzesza |
 
 ---
@@ -277,6 +309,14 @@ budowania — nie ma czego importować w oderwaniu od DOM-u. Dane są podstawian
 (`tests/frontend/dane.js`) i układane pod konkretne zjawisko: pokój, który się nagrzewa,
 czujnik, który zamilkł, parna prognoza bez okna na wietrzenie, nazwa urządzenia ze
 znacznikiem HTML. Każdy test wywraca się też na dowolnym błędzie w konsoli.
+
+Fikstury muszą trzymać się skali prawdziwych danych, bo inaczej test przestaje
+cokolwiek sprawdzać. Wietrzenie w `dane.js` to pokój dążący do temperatury dworu,
+a nie zjazd wilgotności o 16 punktów, jak było wcześniej — tamto było dziewięć razy
+poza tym, co pokój w ogóle potrafi, więc przechodziło przy każdym progu. Okna epizodów
+fikstura **wybiera z własnych danych** (szuka godzin, w których na dworze jest
+odpowiednio chłodniej), a nie odlicza od „teraz": inaczej wynik zależałby od pory doby,
+o której testy poszły, i nocny przebieg z harmonogramu wywracałby się losowo.
 
 ### Testy nie wpuszczą złego pusha
 

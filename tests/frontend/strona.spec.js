@@ -82,7 +82,8 @@ test.describe('same dane testowe', () => {
     .flatMap((k) => pliki[k].trim().split('\n').slice(1));
 
   for (const [opis, opcje] of [['domyślne', {}], ['z trendem', { trend: { pokoj: 'salon', tempo: 0.8 } }],
-    ['z martwym czujnikiem', { martwy: 'kuchnia' }], ['z wietrzeniem', { wietrzenie: true }]]) {
+    ['z martwym czujnikiem', { martwy: 'kuchnia' }], ['z wietrzeniem', { wietrzenie: true }],
+    ['z czujnikiem w dłoni', { rekaNaCzujniku: true }]]) {
     test(`${opis}: żaden odczyt nie jest zapisany dwa razy`, () => {
       const licznik = new Map();
       for (const r of wiersze(zbuduj(opcje))) {
@@ -425,13 +426,79 @@ test.describe('podpowiedzi i diagnostyka', () => {
     expect(bledy).toEqual([]);
   });
 
-  test('wietrzenie jest wykryte i policzone w tabeli', async ({ page }) => {
-    const bledy = await otworz(page, { wietrzenie: true });
-    await page.click('[data-tab="168"]');
-    await page.waitForTimeout(500);
-    const liczby = await page.$$eval('#summary tbody tr', (n) =>
-      n.map((r) => r.children[r.children.length - 1].textContent).filter((x) => x !== '–').map(Number));
-    expect(Math.max(...liczby)).toBeGreaterThan(0);
+  /* Wietrzenia liczymy wprost z policzWietrzenia(), a nie z ostatniej kolumny tabeli:
+     tabela ma własny przełącznik zakresu, więc test czytający ją sprawdzałby przy okazji
+     to, na jakim zakresie akurat stoi. Pułapka nazewnicza: policzWietrzenia(od) zwraca
+     {wietrz, klima, nazwy}, a nie mapę po identyfikatorze — pokój siedzi w .wietrz[id]. */
+  const ileWietrzen = (page, pokoj) => page.evaluate(
+    (id) => policzWietrzenia(odKiedy(168)).wietrz[id]?.length ?? 0, pokoj);
+
+  test('wietrzenie widać po samej temperaturze, gdy wilgotność nic nie mówi', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { wietrzenie: true });
+    expect(await ileWietrzen(page, 'salon')).toBeGreaterThan(0);
+    // pozostałe pokoje stoją spokojnie przez całą fiksturę — nie ma tam czego wykrywać
+    for (const inny of ['sypialnia', 'kuchnia', 'lazienka']) {
+      expect(await ileWietrzen(page, inny)).toBe(0);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('spokojne mieszkanie nie generuje żadnego wietrzenia', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    for (const pokoj of ['salon', 'sypialnia', 'kuchnia', 'lazienka']) {
+      expect(await ileWietrzen(page, pokoj)).toBe(0);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  /* Test negatywny, i to on jest tu najważniejszy: 19.08.2026 jedyne trzy pasma, jakie
+     dawny algorytm kiedykolwiek narysował, wzięły się z czujników trzymanych w dłoniach.
+     Powrót po takim zaburzeniu idzie w stronę dworu i wygląda dokładnie jak otwarte okno,
+     więc odsiewa go wyłącznie strażnik odbicia — a nie filtr skoków. Dlatego sprawdzamy
+     to także przy filtrze wyłączonym: wykrywanie ma stać na własnych nogach. */
+  test('czujnik w dłoni nie jest liczony jako wietrzenie', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { rekaNaCzujniku: true });
+    expect(await ileWietrzen(page, 'salon')).toBe(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('czujnik w dłoni nie jest liczony jako wietrzenie także bez filtra skoków', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { rekaNaCzujniku: true });
+    await page.uncheck('#filtr');
+    await page.waitForFunction(() => state.filtr === false);
+    expect(await ileWietrzen(page, 'salon')).toBe(0);
+    expect(bledy).toEqual([]);
+  });
+
+  /* Próg 0,7 g/m³ nie zadziałał ani razu przez pięć dób, bo pokój nigdy tyle nie robi:
+     największy zmierzony ruch dwugodzinny to 0,50 g/m³. Nowy próg jest ułamkiem
+     dostępnej różnicy, więc nie wolno mu być bezwzględnym skokiem — ten test pilnuje,
+     żeby przy przyszłym strojeniu nikt nie wrócił do liczby gramów. */
+  test('próg wykrywania jest ułamkiem różnicy z dworem, nie skokiem w gramach', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const w = await page.evaluate(() => WIETRZ);
+    expect(w.tempo).toBeGreaterThan(0);
+    expect(w.tempo).toBeLessThan(1);
+    // ruch mniejszy niż dwa kroki kwantyzacji czujnika ma zostać uznany za szum
+    expect(w.ruch.temp).toBeGreaterThanOrEqual(0.2);
+    expect(w.ruch.abs).toBeGreaterThanOrEqual(0.2);
+    expect(bledy).toEqual([]);
+  });
+
+  /* Bez tolerancji wartoscW() dobierałoby najbliższy odczyt z dworu niezależnie od tego,
+     jak bardzo jest odległy — przy dłuższej ciszy Open-Meteo pokój porównywałby się
+     z pogodą sprzed wielu godzin i nikt by tego nie zauważył. */
+  test('odczyt z dworu sprzed wielu godzin nie jest brany za „teraz”', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const wynik = await page.evaluate(() => {
+      const seria = [{ x: Date.now() - 9 * 3600e3, y: 12 }];
+      return {
+        bliski: wartoscW(seria, Date.now() - 9 * 3600e3, WIETRZ.odniesienie),
+        daleki: wartoscW(seria, Date.now(), WIETRZ.odniesienie),
+      };
+    });
+    expect(wynik.bliski).toBe(12);
+    expect(wynik.daleki).toBeNull();
     expect(bledy).toEqual([]);
   });
 });

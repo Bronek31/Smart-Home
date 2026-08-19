@@ -14,6 +14,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -110,6 +111,38 @@ class TestDropSpikes(unittest.TestCase):
         self.assertEqual(fetch.drop_spikes(pkt, "hum"), set())
         pkt[3] = (1800.0, 60.0)
         self.assertIn(3, fetch.drop_spikes(pkt, "hum"))
+
+    def test_wyskok_narastajacy_kilkanascie_minut_tez_jest_ucinany(self):
+        """Odtworzony epizod z 19.08.2026: czujnik trafia do ręki i grzeje się stopniowo.
+
+        Odczyty szły 25.8 → 26.3 → 27.4, przy czym od bazy do szczytu upłynęło
+        12 min 17 s. Przy SPIKE_RISE = 12 min cofnięcie po poziom sprzed wzrostu
+        zatrzymywało się o jeden odczyt za wcześnie, za bazę brało już podniesione
+        26.3 i wychodziło 1.1 °C zamiast 1.6 — czyli poniżej progu. Filtr nie odrzucił
+        wtedy ani jednego odczytu z 1152. Ten test przechodzi dopiero przy oknie
+        dłuższym niż rozstaw odczytów w takim narastaniu.
+        """
+        pkt = [
+            (0.0, 25.8),
+            (617.0, 26.3),          # 10 min 17 s później
+            (737.0, 27.4),          # szczyt, 12 min 17 s od bazy
+            (877.0, 27.1),
+            (1047.0, 26.6),
+            (1326.0, 26.1),
+            (2222.0, 25.6),         # wróciło
+            (5822.0, 25.6),
+        ]
+        bad = fetch.drop_spikes(pkt, "temp")
+        self.assertIn(2, bad, "szczyt 27.4 °C powinien zostać uznany za wyskok")
+
+    def test_okno_wzrostu_zgadza_sie_ze_strona(self):
+        """Filtr działa w dwóch miejscach — w kolektorze i w przeglądarce — i musi
+        odrzucać dokładnie to samo, bo inaczej agregaty dobowe rozjeżdżają się
+        z tym, co widać na wykresie."""
+        strona = (REPO / "index.html").read_text(encoding="utf-8")
+        wzorzec = re.search(r"rise:\s*(\d+)\s*\*\s*60000", strona)
+        self.assertIsNotNone(wzorzec, "nie znalazłem SPIKE.rise w index.html")
+        self.assertEqual(int(wzorzec.group(1)) * 60, fetch.SPIKE_RISE)
 
 
 class TestParseSince(unittest.TestCase):

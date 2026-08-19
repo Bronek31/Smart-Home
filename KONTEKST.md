@@ -5,7 +5,7 @@ wiedzieć, zanim ruszy się ten projekt dalej. `README.md` opisuje, **jak to dzi
 ten plik mówi, **dlaczego tak** i **na co uważać**. Pomysły na przyszłość siedzą
 w `TODO.md`.
 
-Stan na 19.08.2026, commit `b67a533`. Wszystkie workflowy zielone.
+Stan na 19.08.2026, po przeglądzie wykrywania wietrzenia. Wszystkie workflowy zielone.
 
 ---
 
@@ -69,7 +69,119 @@ bo jako jedyny zagląda o nietypowej godzinie i na żywych danych. To on złapa�
 
 ---
 
-## Co powstało w tej sesji
+## Przegląd wykrywania wietrzenia (19.08, wieczór)
+
+**Detektor wietrzenia nie zawiódł raz — on nie zadziałał ani razu.** Przez pięć dób
+zbierania narysował dokładnie trzy pasma, wszystkie 19.08 między 12:49 a 15:23, czyli
+w godzinach, w których czujniki były przenoszone i trzymane w rękach. Prawdziwego,
+kilkugodzinnego wietrzenia tego samego wieczoru nie zobaczył wcale.
+
+Powód jest arytmetyczny, nie subtelny. Próg wynosił **0,7 g/m³ wilgotności bezwzględnej
+w oknie dwóch godzin**, a zmierzony na pełnej historii największy ruch dwugodzinny
+w mieszkaniu — po odjęciu jednego okna z przenoszenia czujników — to **0,50 g/m³**;
+w Salonie 0,33, w Kuchni 0,46. Próg stał wyżej niż fizycznie osiągalne maksimum, więc
+mógł się odezwać wyłącznie na artefakcie. Tak też się stało.
+
+### Co jest teraz
+
+- **λ zamiast gramów.** Wykrywamy ułamek dostępnej różnicy domykany na godzinę
+  (`d(x)/dt = λ·(x_dwór − x_pokój)`), więc próg znaczy to samo przy różnicy 4 g/m³
+  w upał i przy 0,6 g/m³ w parny wieczór. `WIETRZ.tempo = 0,10/godz.`
+- **Dwa kanały.** Temperatura i wilgotność bezwzględna; wystarczy jeden. 19.08 różnica
+  wilgotności z dworem spadła poniżej 0,5 g/m³ — okno nie miało czego wymieniać w tym
+  kanale — a temperatura Sypialni zjechała o 1,9 °C. Łazienka, jedyny pokój bez okna,
+  nie ruszyła się o 0,1 °C. Trudno o czystszy sygnał, a stary algorytm patrzył obok.
+- **Strażnik odbicia.** To on odsiewa rękę na czujniku, i **tylko on** — filtr skoków
+  tu nie pomaga. Ciepła dłoń podnosi naraz temperaturę i wilgotność względną, a w
+  wilgotności bezwzględnej te dwa umiarkowane skoki mnożą się (19.08 w Sypialni
+  +0,5 °C i +5 punktów dało +1,57 g/m³, ponad trzy razy więcej, niż ten pokój
+  kiedykolwiek zrobił naturalnie). Potem wartość opada — a opadanie w stronę dworu
+  to dokładnie to, czego detektor szuka. Zasada: **jeśli pokój przed chwilą oddalił
+  się od dworu szybciej, niż potrafi sam z siebie, to powrót nie jest wietrzeniem.**
+  Baza strażnika zostaje ta najwcześniejsza; gdyby szczyt zaburzenia stawał się nowym
+  punktem odniesienia, przepuszczony zostałby cały ogon artefaktu.
+- **Próg szumu.** Bez niego dzielenie małego ruchu przez małą różnicę robi z jednego
+  kroku kwantyzacji czujnika λ = 0,19/godz. Zmierzone i wstawione: `WIETRZ.ruch`.
+- **Odniesienie z dworu liczone w każdym punkcie**, nie zamrażane na starcie epizodu.
+  19.08 dwór stygł razem z mieszkaniem i przy zamrożonym odniesieniu Sypialnia
+  „domknęła" 106% różnicy — ułamek przebijał jedynkę i logarytm zwracał śmieci.
+- **`wartoscW()` ma tolerancję.** Wcześniej brało najbliższy odczyt z dworu niezależnie
+  od tego, jak odległy — przy dłuższej ciszy Open-Meteo pokój porównywałby się z pogodą
+  sprzed wielu godzin i nikt by się o tym nie dowiedział.
+
+**λ = 0,10/godz. jest dobrane pomiarem, nie z głowy.** Przy tej wartości wykryte zostają
+wieczorne wietrzenia z 19.08 w Salonie i Sypialni, a Łazienka nie odzywa się ani razu.
+Przy 0,08 dochodzi wprawdzie słaba Kuchnia, ale razem z nią nocne stygnięcie Łazienki
+przez ściany. **Czego nadal nie widać:** Kuchnia 19.08 domknęła tylko 13% różnicy przez
+trzy godziny i przy raportach co godzinę nie da się tego odróżnić od stygnięcia przez
+ściany. To jest świadomy sufit, nie przeoczenie.
+
+### Filtr skoków — pomylił się o 17 sekund
+
+Notatka z poprzedniej sesji mówiła, że filtr uznał za wyskok 0 z 1102 odczytów i że
+„jest napisany na pojedynczy odczyt, który skacze i wraca". Prawdziwy powód jest
+ostrzejszy: `SPIKE.rise` wynosił **12 minut**, a 19.08 od odczytu bazowego (13:46:23)
+do szczytu (13:58:40) upłynęło **12 min 17 s**. Cofnięcie po poziom sprzed wzrostu
+zatrzymywało się o jeden odczyt za wcześnie, za bazę brało już podniesione 26,3 °C
+i skok wychodził na 1,1 zamiast 1,6 °C — czyli pod progiem 1,5.
+
+Przy 15 minutach filtr łapie ten epizod i — zmierzone na pełnej historii — **nie rusza
+niczego innego**; wynik jest identyczny aż do 30 minut. Zmienione po obu stronach
+(`index.html` i `fetch.py`), z testem pilnującym, że obie kopie się zgadzają.
+
+**Wiersze zostają w CSV** — decyzja z poprzedniej sesji obowiązuje i nie była ruszana.
+Zmieniło się tylko to, co widać na wykresie i co wchodzi do agregatów dobowych:
+`data/dzienne.csv` przeliczone, maksimum Łazienki na 19.08 spadło z 27,4 na 26,6 °C
+(n z 25 na 23). Nic innego się nie ruszyło. Filtr nadal ma swój przycisk i da się
+wyłączyć — a wykrywanie wietrzenia odrzuca artefakt **także przy wyłączonym filtrze**,
+co pilnuje osobny test.
+
+### Testy, które naprawdę testują
+
+Dawna fikstura wietrzenia zrzucała wilgotność Salonu z 46% na 30%, czyli o ok. 3,6 g/m³
+— **dziewięć razy** więcej, niż ten pokój kiedykolwiek zrobił. Przechodziła przy progu
+0,7, przeszłaby przy 2,0 i przy 3,0, więc sprawdzała wyłącznie, że kod się wykonuje.
+
+Teraz pokój po prostu dąży do temperatury dworu, a wilgotność **bezwzględna** zostaje
+stała (podnosimy względną dokładnie tyle, ile trzeba) — inaczej dawny algorytm wykryłby
+epizod przez sam spadek wilgotności i test niczego by nie dowodził. Doszła fikstura
+`rekaNaCzujniku`, odtworzona z prawdziwego epizodu.
+
+Puszczone przeciwko kodowi sprzed poprawki, na wszystkich 24 godzinach doby:
+
+| Test | Stara wersja |
+|---|---|
+| wietrzenie widać po samej temperaturze | **nie wykrywa w 24/24 godzin** → test odrzuca starą wersję |
+| czujnik w dłoni nie jest liczony jako wietrzenie | **wykrywa w 24/24 godzin** → test odrzuca starą wersję |
+| to samo bez filtra skoków | jw. |
+| próg jest ułamkiem, nie skokiem w gramach | nie ma czego czytać → odrzuca |
+| odczyt z dworu sprzed wielu godzin | brak tolerancji → odrzuca |
+| **spokojne mieszkanie nie generuje wietrzeń** | przechodzi w obie strony — **to strażnik, nie test**, i tak ma być powiedziane wprost |
+
+Okna epizodów fikstura wybiera z własnych danych, szukając godzin z odpowiednią
+różnicą wobec dworu — nie odlicza ich od „teraz". Inaczej przy uruchomieniu o złej
+porze doby dwór bywałby cieplejszy od pokoju i wietrzenia nie wykryłby żaden algorytm.
+To ten sam błąd, na którym projekt przejechał się już przy zakresie „dziś".
+
+### Przy okazji
+
+- **Watchdog chodzi co 6 godzin**, nie raz na dobę. Próg alarmu to 6 godzin ciszy, więc
+  przy jednym sprawdzeniu dziennie awaria tuż po przebiegu leżała niezauważona prawie
+  dobę — a Tuya trzyma tylko 7 dni logów.
+- **`sw.js` podbity na `smart-home-v2`**, bo zmieniła się zawartość szkieletu.
+
+### Świadomie **nie** zrobione teraz
+
+**Granica `purge_before` a stan włącznika.** `collapse_power` zostawia wyłącznie zmiany
+stanu, więc gdyby klimatyzator przekroczył granicę `TUYA_SINCE` włączony, wiersz
+„włączony" zostałby skasowany i strona uznałaby, że sprzęt stoi. Dziś to czysta teoria:
+po ustawieniu granicy na 14.08 urządzenie nie ma w CSV ani jednego wiersza. Naprawa
+wymaga wyłamania włączników spod granicy historii, czyli decyzji o tym, że `TUYA_SINCE`
+przestaje znaczyć „nic starszego" — i to jest decyzja do podjęcia, nie oczywistość.
+
+---
+
+## Co powstało we wcześniejszej sesji
 
 ### Wykresy
 
@@ -142,15 +254,17 @@ maszyneria pętli została usunięta, a nie tylko wyłączona.
 
 Zanim któraś z nich wróci jako pomysł — oto powody.
 
-- **Filtrowanie skoków po stronie strony zostaje.** Zmierzone: filtr uznał za wyskok
-  0 z 1102 odczytów, a epizodu z czujnikiem w dłoni nie złapał w ogóle (jest napisany
-  na pojedynczy odczyt, który skacze i wraca, a tam było narastanie przez 25 minut).
-  Był raz usunięty razem z przyciskiem, potem **przywrócony na życzenie**.
+- **Filtrowanie skoków po stronie strony zostaje.** Był raz usunięty razem z przyciskiem,
+  potem **przywrócony na życzenie**. *(Diagnoza „0 z 1102 odczytów, bo filtr jest napisany
+  na pojedynczy odczyt" okazała się niepełna — prawdziwy powód to okno `SPIKE.rise`
+  krótsze o kilkanaście sekund od rozstawu odczytów w narastaniu; opisane wyżej.)*
 - **Odczyty z przenoszenia czujników zostają w danych.** Próbowaliśmy dwóch podejść:
   usunięcia wierszy (`TUYA_POMIN`) i odtworzenia ich interpolacją (`TUYA_ODTWORZ`).
   Oba zostały cofnięte — nienaturalny moment przenoszenia ma zostać jako ślad tego,
   co się działo. Kod obu mechanizmów jest w historii gita, gdyby kiedyś był potrzebny:
-  commity `c54379c` i `75720f9`, cofnięte przez `b67a533`.
+  commity `c54379c` i `75720f9`, cofnięte przez `b67a533`. **Decyzja obowiązuje** —
+  naprawa filtra skoków jej nie ruszyła: wiersze nadal leżą w CSV, zmieniło się tylko
+  to, co filtr ukrywa na wykresie i w agregatach dobowych.
 - **Historia dworu sprzed `TUYA_SINCE` nie jest trwała.** `purge_before` kasuje ją przy
   każdym przebiegu, a wraca tylko dlatego, że Open-Meteo oddaje siedem dni wstecz.
   To skutek świadomie ustawionej granicy — „naprawa" znaczyłaby wyłamanie dworu spod niej.
@@ -176,7 +290,11 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
   kluczuje po `(ts, device_id, code)`.
 - **`policzWietrzenia(od)` zwraca `{wietrz, klima, nazwy}`**, a nie mapę po
   identyfikatorze. Pomyliłem się na tym i zaraportowałem nieprawdziwe „zero wietrzeń";
-  poprawny odczyt to `policzWietrzenia(od).wietrz[d.id]`.
+  poprawny odczyt to `policzWietrzenia(od).wietrz[d.id]`. Testy strony korzystają z tego
+  wprost, zamiast czytać ostatnią kolumnę tabeli — tabela ma własny przełącznik zakresu.
+- **`python3 -m unittest` cache'uje bajtkod.** Po podmianie stałej w `fetch.py` w trakcie
+  eksperymentu testy pokazywały wynik sprzed zmiany. `find . -name __pycache__ -prune
+  -exec rm -rf {} +` przed rozstrzygającym przebiegiem.
 - **`githubstatus.com` jest zablokowany** przez proxy tej sesji — awarii Pages nie da
   się stąd potwierdzić u źródła, zostaje wnioskowanie z treści błędu (500 przy metadanych,
   503 przy tworzeniu wdrożenia).
@@ -187,9 +305,9 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **73** (`python -m unittest discover -s tests`) |
-| Testy strony | **72** (`cd tests/frontend && npx playwright test`) |
-| Workflowy | `zbieraj` co godzinę o :19 · `watchdog` raz na dobę · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
+| Testy kolektora | **75** (`python -m unittest discover -s tests`) |
+| Testy strony | **78** (`cd tests/frontend && npx playwright test`) |
+| Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
 

@@ -28,6 +28,49 @@ const AMPLITUDA = 0.5;
    „teraz", więc nie wpadają na wiersze bazowe. */
 const ZAPAS = 30 * 60e3;
 
+/* Jak wygląda wietrzenie w fiksturze.
+
+   Dawna wersja zrzucała wilgotność salonu z 46% na 30%, czyli o ok. 3,6 g/m³
+   wilgotności bezwzględnej. Zmierzone na pięciu dobach z mieszkania: żaden pokój nigdy
+   nie ruszył tej wartości o więcej niż 0,50 g/m³ w dwie godziny, a Salon o więcej niż
+   0,33. Fikstura była więc dziewięć razy poza skalą — przechodziła przy progu 0,7,
+   przeszłaby przy 2,0 i przy 3,0, czyli sprawdzała wyłącznie, że kod się wykonuje.
+
+   Tutaj pokój zachowuje się tak, jak przy naprawdę otwartym oknie: co godzinę domyka
+   ustalony ułamek różnicy temperatury z dworem. To jest dokładnie ten przypadek,
+   którego dawny algorytm — patrzący wyłącznie na wilgotność i wyłącznie na
+   bezwzględny skok — wykryć nie mógł. */
+/* Przy otwartym oknie spada temperatura, a wilgotność BEZWZGLĘDNA zostaje — bo tak
+   właśnie wyglądał 19.08: na dworze 12,8 g/m³, w mieszkaniu 12,8–13,9, czyli okno nie
+   miało czego wymieniać w tym kanale, a temperatura spadła o 1,9 °C. Gdyby fikstura
+   pozwoliła wilgotności bezwzględnej opaść razem z temperaturą, dawny algorytm wykryłby
+   epizod przez sam ten spadek i test niczego by nie dowodził. Trzymamy ją więc stałą,
+   podnosząc wilgotność względną dokładnie tyle, ile trzeba. */
+const absBez = (temp, rh) => 2.1674 * 6.112 * Math.exp(17.62 * temp / (243.12 + temp)) * rh / (273.15 + temp);
+const wilgWzgledna = (absDocelowa, temp) =>
+  absDocelowa * (273.15 + temp) / (2.1674 * 6.112 * Math.exp(17.62 * temp / (243.12 + temp)));
+
+const WIETRZ_UDZIAL = 0.35;     // ułamek różnicy z dworem domykany w ciągu godziny
+const WIETRZ_GODZIN = 2;
+const POWROT_UDZIAL = 0.20;     // po zamknięciu okna pokój wraca do swojego rytmu
+const WIETRZ_ROZNICA = [2.5, 7];  // na ile dwór ma być chłodniejszy od pokoju, min i max
+
+/* Czujnik w dłoni — epizod, który wykryty być NIE może.
+
+   Odtworzony z prawdziwego zdarzenia z 19.08.2026: temperatura rośnie o 1,0 °C w ciągu
+   dziewięciu minut, wilgotność względna o 5 punktów, po czym wszystko wraca. W
+   wilgotności bezwzględnej te dwa umiarkowane skoki mnożą się do 1,8 g/m³ — a powrót
+   po takim zaburzeniu idzie w stronę dworu i bez strażnika odbicia wygląda dokładnie
+   jak otwarte okno. Dawny algorytm łapał się na to i były to jedyne „wietrzenia",
+   jakie kiedykolwiek narysował. */
+const REKA = [
+  [7 * 60e3, 0.5, 5],
+  [9 * 60e3, 1.0, 0],
+  [15 * 60e3, 0.5, 0],
+  [21 * 60e3, 0.2, 0],
+  [27 * 60e3, 0.0, 0],
+];
+
 const iso = (ms) => new Date(Math.round(ms / 1000) * 1000).toISOString().replace(/\.\d+Z$/, 'Z');
 const miesiac = (ms) => { const d = new Date(ms); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
 
@@ -51,7 +94,8 @@ const kodyCzujnika = () => ({
  *   trend          {pokoj, tempo} — ostatnie 5 godzin rośnie o tyle °C/godz.
  *   martwy         id pokoju, który milczy od 9 godzin
  *   bateria        {pokoj, stan}
- *   wietrzenie     true — doba temu wilgotność w salonie zjeżdża do poziomu dworu
+ *   wietrzenie     true — salon przez 2 godz. dąży do temperatury dworu, jak przy otwartym oknie
+ *   rekaNaCzujniku true — salon dostaje krótki, nienaturalny skok „czujnik w dłoni” i powrót
  *   nazwaZnacznik  true — jeden pokój dostaje nazwę z „<” i cudzysłowem
  *   pogodaGodzinowa  'sucho' | 'parno' | 'brak'
  *   bezMiejsca     true — pogoda bez współrzędnych, czyli strona nie ma z czego liczyć łuku doby
@@ -60,7 +104,8 @@ const kodyCzujnika = () => ({
 function zbuduj(opcje = {}) {
   const {
     dni = 5, pusto = false, trend = null, martwy = null, bateria = null,
-    wietrzenie = false, nazwaZnacznik = false, pogodaGodzinowa = 'sucho', bezMiejsca = false,
+    wietrzenie = false, rekaNaCzujniku = false, nazwaZnacznik = false,
+    pogodaGodzinowa = 'sucho', bezMiejsca = false,
     waskaWilgotnosc = false,
   } = opcje;
   /* Prawdziwe pokoje stoją w paśmie kilku punktów wilgotności (46–51), a nie ośmiu.
@@ -75,13 +120,56 @@ function zbuduj(opcje = {}) {
   const wiersze = [];
   const push = (t, id, code, value) => wiersze.push(`${iso(t)},${id},${code},${value}`);
 
+  // Dwór idzie pierwszy, bo pokój przy otwartym oknie dąży właśnie do niego.
+  const dwor = new Map();
+  for (let t = start; t <= teraz; t += GODZ) {
+    const faza = ((new Date(t).getUTCHours() - 4) / 24) * 2 * Math.PI;
+    const temp = 18 + 8 * Math.sin(faza);
+    const wilg = Math.round(50 - 15 * Math.sin(faza));
+    dwor.set(t, temp);
+    push(t, 'zewnatrz', 'va_temperature', temp.toFixed(1));
+    push(t, 'zewnatrz', 'va_humidity', String(wilg));
+  }
+
+  /* Kiedy w fiksturze otworzyć okno — szukamy w danych, a nie liczymy z zegara.
+     Gdyby okno stało na sztywnym przesunięciu od „teraz", to przy uruchomieniu testu
+     o niewłaściwej porze doby dwór bywałby cieplejszy od pokoju i wietrzenia nie
+     wykryłby żaden algorytm; nocny przebieg z harmonogramu wywracałby się losowo.
+     Szukamy więc pierwszej godziny, od której przez cały epizod dwór jest chłodniejszy
+     od pokoju o tyle, żeby wymiana powietrza miała co robić — ale nie o tyle, żeby
+     pokój zjechał o kilkanaście stopni. */
+  const chlodneOkno = (baza, godzin) => {
+    for (let t0 = start; t0 <= teraz - 7 * GODZ; t0 += GODZ) {
+      let pasuje = true;
+      for (let i = 0; i <= godzin && pasuje; i++) {
+        const roznica = baza - dwor.get(t0 + i * GODZ);
+        pasuje = roznica >= WIETRZ_ROZNICA[0] && roznica <= WIETRZ_ROZNICA[1];
+      }
+      if (pasuje) return t0;
+    }
+    return null;
+  };
+
+  const oknoWietrzenia = wietrzenie ? chlodneOkno(POKOJE_TU[0].baza, WIETRZ_GODZIN) : null;
+  const oknoReki = rekaNaCzujniku ? chlodneOkno(POKOJE_TU[0].baza, 1) : null;
+
   for (const p of POKOJE_TU) {
+    // o ile pokój jest w tej chwili odsunięty od swojego rytmu przez otwarte okno
+    let odchylka = 0;
     for (let t = start; t <= teraz; t += GODZ) {
       const godzina = new Date(t).getUTCHours();
       // dobowy rytm, żeby mapa rytmu i animacja miały co pokazywać
-      const temp = p.baza + AMPLITUDA * Math.sin(((godzina - 4) / 24) * 2 * Math.PI);
-      let wilg = p.wilg;
-      if (wietrzenie && p.id === 'salon' && t > teraz - 25 * GODZ && t < teraz - 21 * GODZ) wilg = 30;
+      const rytm = p.baza + AMPLITUDA * Math.sin(((godzina - 4) / 24) * 2 * Math.PI);
+      if (oknoWietrzenia != null && p.id === 'salon'
+          && t >= oknoWietrzenia && t <= oknoWietrzenia + WIETRZ_GODZIN * GODZ) {
+        odchylka += WIETRZ_UDZIAL * (dwor.get(t) - (rytm + odchylka));
+      } else if (odchylka !== 0) {
+        odchylka *= 1 - POWROT_UDZIAL;
+        if (Math.abs(odchylka) < 0.05) odchylka = 0;
+      }
+      const temp = rytm + odchylka;
+      // dopóki okno nie ruszyło pokoju, wilgotność jest dokładnie taka jak dotąd
+      const wilg = odchylka === 0 ? p.wilg : wilgWzgledna(absBez(rytm, p.wilg), temp);
       if (martwy === p.id && t > teraz - 9 * GODZ) continue;
       // przy zadanym trendzie ostatnie godziny pisze osobna pętla niżej; bez tego
       // powstałyby dwa odczyty na ten sam znacznik i regresja liczyłaby się z obu
@@ -89,6 +177,14 @@ function zbuduj(opcje = {}) {
       push(t, p.id, 'va_temperature', temp.toFixed(1));
       push(t, p.id, 'va_humidity', String(Math.round(wilg)));
       push(t, p.id, 'battery_state', bateria && bateria.pokoj === p.id ? bateria.stan : 'high');
+      // czujnik w dłoni: kilka odczytów gęściej niż co godzinę, w górę i z powrotem
+      if (oknoReki != null && p.id === 'salon' && t === oknoReki) {
+        for (const [odstep, dt, dw] of REKA) {
+          push(t + odstep, p.id, 'va_temperature', (temp + dt).toFixed(1));
+          push(t + odstep, p.id, 'va_humidity', String(Math.round(wilg + dw)));
+          push(t + odstep, p.id, 'battery_state', 'high');
+        }
+      }
     }
   }
   if (trend) {
@@ -99,11 +195,6 @@ function zbuduj(opcje = {}) {
       push(teraz - i * GODZ, trend.pokoj, 'va_humidity', String(p.wilg));
       push(teraz - i * GODZ, trend.pokoj, 'battery_state', 'high');
     }
-  }
-  for (let t = start; t <= teraz; t += GODZ) {
-    const godzina = new Date(t).getUTCHours();
-    push(t, 'zewnatrz', 'va_temperature', (18 + 8 * Math.sin(((godzina - 4) / 24) * 2 * Math.PI)).toFixed(1));
-    push(t, 'zewnatrz', 'va_humidity', String(Math.round(50 - 15 * Math.sin(((godzina - 4) / 24) * 2 * Math.PI))));
   }
   // włącznik: dwie zmiany stanu, tak jak zapisuje je collapse_power
   push(teraz - 30 * GODZ, 'klima', 'switch', '1');
