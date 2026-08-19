@@ -228,11 +228,10 @@ test.describe('zakresy', () => {
 });
 
 test.describe('adres i przełączniki', () => {
-  test('deep link ustawia zakres i ukryte czujniki', async ({ page }) => {
-    // filtr= zostaje w adresie starych linków — ma być po cichu zignorowany, nie wywrócić strony
+  test('deep link ustawia zakres, ukryte czujniki i filtr', async ({ page }) => {
     const bledy = await otworz(page, {}, { hash: '#zakres=7d&bez=salon&filtr=0' });
     expect(await wcisniety(page, '.range[data-hours]')).toEqual(['7 dni']);
-    await expect(page.locator('#filtr')).toHaveCount(0);
+    expect(await page.isChecked('#filtr')).toBe(false);
     expect(await wcisniety(page, '#toggles .toggle')).not.toContain('Salon');
     const etykiety = await page.$$eval('#summary tbody tr td:first-child', (n) => n.map((x) => x.textContent));
     expect(etykiety).not.toContain('Salon');

@@ -352,125 +352,6 @@ def purge_before(since_ms: int) -> int:
     return removed
 
 
-def parse_windows(text: str) -> list[tuple[str, int, int]]:
-    """Okna odczytów do odtworzenia — jeden wiersz na okno.
-
-        identyfikator  od  do        # komentarz
-
-    Powód istnienia: czasem odczyt jest prawdziwy technicznie, a bezwartościowy
-    faktycznie — czujnik trzymany w dłoni przy przestawianiu pokazuje temperaturę ręki,
-    nie pokoju.
-    """
-    okna = []
-    for numer, linia in enumerate((text or "").splitlines(), 1):
-        linia = linia.split("#", 1)[0].strip()
-        if not linia:
-            continue
-        czesci = linia.split()
-        if len(czesci) != 3:
-            raise TuyaError(
-                f"TUYA_ODTWORZ, wiersz {numer}: oczekiwano 'identyfikator od do', jest {linia!r}."
-            )
-        dev, od, do = czesci
-        try:
-            granice = [datetime.fromisoformat(x) for x in (od, do)]
-        except ValueError:
-            raise TuyaError(
-                f"TUYA_ODTWORZ, wiersz {numer}: zła data w {linia!r}.\n"
-                "Użyj np. 2026-08-19T11:50Z albo 2026-08-19T13:50+02:00."
-            )
-        ms = [int(m.replace(tzinfo=timezone.utc).timestamp() * 1000) if m.tzinfo is None
-              else int(m.timestamp() * 1000) for m in granice]
-        if ms[1] <= ms[0]:
-            raise TuyaError(f"TUYA_ODTWORZ, wiersz {numer}: koniec okna nie jest po jego początku.")
-        okna.append((dev, ms[0], ms[1]))
-    return okna
-
-
-def in_window(okna: list[tuple[str, int, int]], device_id: str, ms: int) -> bool:
-    """Czy odczyt wpada w któreś z okien. Granice domknięte z obu stron."""
-    return any(dev == device_id and od <= ms <= do for dev, od, do in okna)
-
-
-# Do ilu miejsc po przecinku zaokrąglamy odtworzoną wartość. Tyle samo, ile ma czujnik —
-# inaczej odtworzone punkty rzucałyby się w oczy nienaturalną precyzją.
-ROZDZIELCZOSC = {"temp": 1, "hum": 0}
-
-
-def rebuild_windows(okna: list[tuple[str, int, int]], devices: dict) -> int:
-    """Zastępuje odczyty z okien interpolacją między sąsiadami spoza okna.
-
-    Usuwanie tych wierszy byłoby prostsze, ale robi dziurę w szeregu — a z niej znika
-    także kontekst dla wykrywania wietrzeń, które wokół tego okna bywa poprawne.
-    Zamiast dziury wstawiamy przejście liniowe od ostatniego wiarygodnego odczytu przed
-    oknem do pierwszego po nim, więc krzywa idzie płynnie przez przenoszenie czujnika.
-
-    Wartości są odtworzone, nie zmierzone — okna są wypisane w TUYA_ODTWORZ, żeby było
-    wiadomo, których fragmentów to dotyczy. Zaokrąglamy do rozdzielczości czujnika, bo
-    liczba w rodzaju 25,735 zdradzałaby, że nikt jej nie zmierzył.
-
-    Przebieg jest idempotentny: liczy się zawsze z kotwic spoza okna, więc powtórzenie
-    daje ten sam wynik. Gdy brakuje kotwicy z jednej strony, bierzemy wartość z drugiej;
-    gdy z obu — zostawiamy odczyt bez zmian, bo nie ma z czego interpolować.
-    """
-    if not okna:
-        return 0
-    kinds = code_kinds(devices or {})
-    zmienione = 0
-    for path in DATA_DIR.glob("[0-9]*.csv"):
-        rows = load_month(path.stem)
-        if not rows:
-            continue
-        czas: dict[int, int] = {}
-        for i, row in enumerate(rows):
-            try:
-                czas[i] = int(datetime.fromisoformat(
-                    row["ts"].replace("Z", "+00:00")).timestamp() * 1000)
-            except (KeyError, ValueError, TypeError):
-                continue
-
-        serie: dict[tuple[str, str], list[int]] = {}
-        for i, row in enumerate(rows):
-            if i in czas:
-                serie.setdefault((row.get("device_id", ""), row.get("code", "")), []).append(i)
-
-        for (dev, code), indeksy in serie.items():
-            miejsca = ROZDZIELCZOSC.get(kinds.get((dev, code)))
-            if miejsca is None:
-                continue                      # bateria i włączniki nie są liczbami do interpolacji
-            indeksy.sort(key=lambda i: czas[i])
-            w_oknie = [i for i in indeksy if in_window(okna, dev, czas[i])]
-            if not w_oknie:
-                continue
-            czyste = [i for i in indeksy if i not in set(w_oknie)]
-            for i in w_oknie:
-                przed = [j for j in czyste if czas[j] < czas[i]]
-                po = [j for j in czyste if czas[j] > czas[i]]
-                lewa = przed[-1] if przed else None
-                prawa = po[0] if po else None
-                if lewa is None and prawa is None:
-                    continue
-                try:
-                    if lewa is None:
-                        wartosc = float(rows[prawa]["value"])
-                    elif prawa is None:
-                        wartosc = float(rows[lewa]["value"])
-                    else:
-                        a, b = float(rows[lewa]["value"]), float(rows[prawa]["value"])
-                        rozpietosc = czas[prawa] - czas[lewa]
-                        udzial = (czas[i] - czas[lewa]) / rozpietosc if rozpietosc else 0
-                        wartosc = a + (b - a) * udzial
-                except (ValueError, TypeError):
-                    continue
-                nowa = f"{round(wartosc, miejsca):.{miejsca}f}" if miejsca else str(int(round(wartosc)))
-                if rows[i]["value"] != nowa:
-                    rows[i]["value"] = nowa
-                    zmienione += 1
-        if zmienione:
-            save_month(path.stem, rows)
-    return zmienione
-
-
 def merge(new_rows: list[dict]) -> int:
     """Dokłada odczyty do plików miesięcznych, pomijając te już zapisane."""
     by_month: dict[str, list[dict]] = {}
@@ -1096,7 +977,6 @@ def main() -> int:
     end_ms = int(time.time() * 1000)
     start_ms = int((datetime.now(timezone.utc) - timedelta(days=args.days)).timestamp() * 1000)
     since_ms = parse_since(os.environ.get("TUYA_SINCE", ""))
-    okna_odtworzenia = parse_windows(os.environ.get("TUYA_ODTWORZ", ""))
     if since_ms:
         start_ms = max(start_ms, since_ms)
         print(f"Zbieram wyłącznie odczyty od {iso(since_ms)}.\n", flush=True)
@@ -1212,11 +1092,6 @@ def main() -> int:
     fetch_weather()
 
     added = merge(collected)
-    # po scaleniu, żeby świeżo dopisane odczyty z okna też zostały odtworzone,
-    # i przed agregatami, żeby dobowe min/śr/max liczyły się już z poprawionych wartości
-    odtworzone = rebuild_windows(okna_odtworzenia, manifest_devices)
-    if odtworzone:
-        print(f"Odtworzono {odtworzone} odczytów z okien wypisanych w TUYA_ODTWORZ.", flush=True)
     zwiniete = collapse_power(manifest_devices)
     if zwiniete:
         print(f"Włączniki: zwinięto {zwiniete} powtórzeń tego samego stanu.")

@@ -86,28 +86,12 @@ Wszystkie w sekcji `env` w `.github/workflows/zbieraj.yml`:
 | `TUYA_REGION` | `eu` | data center projektu Tuya |
 | `TUYA_DEVICE_IDS` | — | identyfikatory czujników po przecinku |
 | `TUYA_SINCE` | puste | granica: starsze odczyty są kasowane i nie wracają |
-| `TUYA_ODTWORZ` | puste | okna odczytów odtwarzanych interpolacją, po jednym na wiersz: `identyfikator od do` |
 | `OUTDOOR_LAT` / `OUTDOOR_LON` | Katowice | pogoda i smog z Open-Meteo, a także wschód i zachód na łuku doby. Puste = wyłączone |
 | `TZ_LOCAL` | `Europe/Warsaw` | według tej strefy tną się doby w agregatach i przelicza się prognozę godzinową. Musi być nazwą strefy, nie przesunięciem: prognoza sięga 36 godz. naprzód, więc dwa razy w roku przechodzi przez zmianę czasu |
 
-**`TUYA_ODTWORZ`** służy do odczytów, które są technicznie poprawne, a faktycznie
-bezwartościowe — czujnik trzymany w dłoni przy przestawianiu pokazuje temperaturę ręki,
-nie pokoju. Wartości z takiego okna są **zastępowane interpolacją** między ostatnim
-wiarygodnym odczytem przed nim a pierwszym po nim, a nie usuwane: dziura w szeregu
-zabrałaby też kontekst dla wykrywania wietrzeń, które wokół takiego okna bywa poprawne.
-Krzywa idzie więc płynnie przez czas przenoszenia czujnika.
-
-Odtworzone wartości są zaokrąglane do rozdzielczości czujnika (0,1 °C, 1%), żeby nie
-rzucały się w oczy nienaturalną precyzją — a to znaczy, że **w samym CSV nie odróżnisz
-ich od zmierzonych**. Dlatego lista okien jest jedynym zapisem tego, które fragmenty są
-odtworzone; trzymaj ją aktualną. Format to `identyfikator od do`, po jednym oknie na
-wiersz, `#` zaczyna komentarz. Przebieg jest idempotentny — liczy zawsze z kotwic spoza
-okna — a wykasowanie wpisu przywraca oryginalne odczyty przy najbliższej zbiórce,
-dopóki okno mieści się w siedmiu dniach, które trzyma Tuya.
-
 Proporcje pokoi na rzucie mieszkania siedzą w stałej `PLAN` w `index.html` —
 to `x, y, w, h` w siatce 400×500. Progi alarmów (`HEARTBEAT`, `STALE_WARN`)
-są tuż obok.
+i filtra chwilowych skoków (`SPIKE`) są tuż obok.
 
 Tam też stoi **orientacja mieszkania**: pole `okno` mówi, na którą stronę świata
 patrzy pokój (`pld` albo `pln`, opisane w `STRONY`). Sypialnia wychodzi na południe,
@@ -280,8 +264,8 @@ cd tests/frontend && npm ci && npx playwright test
 
 Dwie warstwy, bo są dwa różne rodzaje ryzyka.
 
-**Kolektor** ma testy jednostkowe czystych funkcji — rozpoznawanie pól Tuya, okna
-odtwarzanych odczytów, przeliczanie stref w prognozie, progi diagnostyki — plus zestaw sprawdzający
+**Kolektor** ma testy jednostkowe czystych funkcji — rozpoznawanie pól Tuya, filtr
+wyskoków, przeliczanie stref w prognozie, progi diagnostyki — plus zestaw sprawdzający
 **prawdziwe `data/`**: czy pliki miesięczne są posortowane i bez duplikatów, czy każde
 urządzenie z odczytów jest w manifeście, czy włącznik ma wyłącznie zmiany stanu i czy
 `dzienne.csv` da się odtworzyć z surowych odczytów co do bajtu. Ta druga grupa nie
