@@ -507,19 +507,33 @@ class TestManifest(WKatalogu):
         self.assertEqual(fetch.code_kinds({}), {})
 
 
-class TestPomijanie(WKatalogu):
-    """Okna odczytów pomijanych na stałe (TUYA_POMIN).
+class TestOdtwarzanie(WKatalogu):
+    """Okna odczytów odtwarzanych interpolacją (TUYA_ODTWORZ).
 
     19.08 czujniki w łazience i sypialni przenoszono na wysokość 80-90 cm. Trzymane
-    w dłoni pokazały przez kilkanaście minut temperaturę ręki — odczyty technicznie
-    poprawne, faktycznie bezwartościowe. Samo skasowanie ich z CSV nic nie daje, bo
-    każdy przebieg pobiera z Tuya pełne okno 7 dni i wpisuje je z powrotem.
+    w dłoni pokazały przez kilkanaście minut temperaturę ręki: Łazienka 25,8 → 27,4.
+    Usunięcie tych wierszy robiłoby dziurę w szeregu, a z nią znikałby kontekst dla
+    wykrywania wietrzeń — dlatego wartości są zastępowane, a nie kasowane.
     """
 
     OKNO = "dev1 2026-08-19T11:50Z 2026-08-19T12:15Z"
+    URZADZENIA = {
+        "dev1": {"name": "Łazienka", "codes": {
+            "va_temperature": {"kind": "temp", "unit": "℃", "scale": 1},
+            "va_humidity": {"kind": "hum", "unit": "%", "scale": 0},
+            "battery_state": {"kind": "battery", "unit": "%", "scale": 0}}},
+        "dev2": {"name": "Salon", "codes": {
+            "va_temperature": {"kind": "temp", "unit": "℃", "scale": 1}}},
+    }
+
+    def wartosci(self, code="va_temperature", dev="dev1"):
+        return [(r["ts"][11:16], r["value"]) for r in fetch.load_month("2026-08")
+                if r["device_id"] == dev and r["code"] == code]
+
+    # --- czytanie konfiguracji -------------------------------------------------
 
     def test_czyta_okna_z_komentarzami_i_pustymi_wierszami(self):
-        okna = fetch.parse_skips("\n# komentarz\n\n" + self.OKNO + "   # w dłoni\n")
+        okna = fetch.parse_windows("\n# komentarz\n\n" + self.OKNO + "   # w dłoni\n")
         self.assertEqual(len(okna), 1)
         dev, od, do = okna[0]
         self.assertEqual(dev, "dev1")
@@ -527,48 +541,89 @@ class TestPomijanie(WKatalogu):
         self.assertEqual(do, int(datetime(2026, 8, 19, 12, 15, tzinfo=timezone.utc).timestamp() * 1000))
 
     def test_pusty_wpis_znaczy_brak_okien(self):
-        self.assertEqual(fetch.parse_skips(""), [])
-        self.assertEqual(fetch.parse_skips("   \n\n# tylko komentarz\n"), [])
+        self.assertEqual(fetch.parse_windows(""), [])
+        self.assertEqual(fetch.parse_windows("   \n\n# tylko komentarz\n"), [])
 
     def test_data_bez_strefy_jest_czytana_jako_utc(self):
-        (_, od, _), = fetch.parse_skips("dev1 2026-08-19T11:50 2026-08-19T12:15")
+        (_, od, _), = fetch.parse_windows("dev1 2026-08-19T11:50 2026-08-19T12:15")
         self.assertEqual(od, int(datetime(2026, 8, 19, 11, 50, tzinfo=timezone.utc).timestamp() * 1000))
 
     def test_zly_zapis_konczy_sie_czytelnym_bledem(self):
         for zly in ("dev1 2026-08-19T11:50Z", "dev1 wczoraj dzisiaj",
                     "dev1 2026-08-19T12:15Z 2026-08-19T11:50Z"):
             with self.subTest(zly=zly), self.assertRaises(fetch.TuyaError) as e:
-                fetch.parse_skips(zly)
-            self.assertIn("TUYA_POMIN", str(e.exception))
+                fetch.parse_windows(zly)
+            self.assertIn("TUYA_ODTWORZ", str(e.exception))
 
     def test_granice_okna_sa_domkniete(self):
-        okna = fetch.parse_skips(self.OKNO)
+        okna = fetch.parse_windows(self.OKNO)
         rowno = int(datetime(2026, 8, 19, 11, 50, tzinfo=timezone.utc).timestamp() * 1000)
-        self.assertTrue(fetch.in_skip(okna, "dev1", rowno))
-        self.assertTrue(fetch.in_skip(okna, "dev1", rowno + 60_000))
-        self.assertFalse(fetch.in_skip(okna, "dev1", rowno - 1))
-        self.assertFalse(fetch.in_skip(okna, "dev2", rowno), "okno dotyczy jednego czujnika")
+        self.assertTrue(fetch.in_window(okna, "dev1", rowno))
+        self.assertFalse(fetch.in_window(okna, "dev1", rowno - 1))
+        self.assertFalse(fetch.in_window(okna, "dev2", rowno), "okno dotyczy jednego czujnika")
 
-    def test_usuwa_z_plikow_tylko_wskazane_okno_i_czujnik(self):
-        miesiac = "2026-08"
-        self.zapisz(miesiac, [
-            ("2026-08-19T11:45:00Z", "dev1", "va_temperature", "25.8"),   # przed oknem
-            ("2026-08-19T11:56:00Z", "dev1", "va_temperature", "27.4"),   # w oknie
-            ("2026-08-19T11:56:00Z", "dev1", "va_humidity", "60"),        # w oknie
-            ("2026-08-19T11:56:00Z", "dev2", "va_temperature", "25.5"),   # inny czujnik
-            ("2026-08-19T12:23:00Z", "dev1", "va_temperature", "25.6"),   # po oknie
+    # --- samo odtwarzanie ------------------------------------------------------
+
+    def zapisz_epizod(self):
+        self.zapisz("2026-08", [
+            ("2026-08-19T11:46:00Z", "dev1", "va_temperature", "25.8"),   # kotwica przed
+            ("2026-08-19T11:46:00Z", "dev1", "va_humidity", "55"),
+            ("2026-08-19T11:58:00Z", "dev1", "va_temperature", "27.4"),   # w dłoni
+            ("2026-08-19T11:58:00Z", "dev1", "va_humidity", "60"),
+            ("2026-08-19T11:58:00Z", "dev1", "battery_state", "high"),
+            ("2026-08-19T11:58:00Z", "dev2", "va_temperature", "25.5"),   # inny czujnik
+            ("2026-08-19T12:23:00Z", "dev1", "va_temperature", "25.6"),   # kotwica po
+            ("2026-08-19T12:23:00Z", "dev1", "va_humidity", "54"),
         ])
-        self.assertEqual(fetch.purge_skipped(fetch.parse_skips(self.OKNO)), 2)
-        zostalo = [(r["ts"][11:16], r["device_id"], r["value"])
-                   for r in fetch.load_month(miesiac)]
-        self.assertEqual(zostalo, [("11:45", "dev1", "25.8"), ("11:56", "dev2", "25.5"),
-                                   ("12:23", "dev1", "25.6")])
+
+    def test_zastepuje_wartosc_interpolacja_i_nie_gubi_wiersza(self):
+        self.zapisz_epizod()
+        zmian = fetch.rebuild_windows(fetch.parse_windows(self.OKNO), self.URZADZENIA)
+        self.assertEqual(zmian, 2, "temperatura i wilgotność, bateria bez zmian")
+        self.assertEqual(len(fetch.load_month("2026-08")), 8, "żaden wiersz nie zniknął")
+        # 11:58 leży 12/37 drogi między 25,8 a 25,6 — czyli 25,7 po zaokrągleniu
+        self.assertEqual(self.wartosci(), [("11:46", "25.8"), ("11:58", "25.7"), ("12:23", "25.6")])
+
+    def test_zaokragla_do_rozdzielczosci_czujnika(self):
+        self.zapisz_epizod()
+        fetch.rebuild_windows(fetch.parse_windows(self.OKNO), self.URZADZENIA)
+        odtworzona = dict(self.wartosci("va_humidity"))["11:58"]
+        self.assertEqual(odtworzona, "55", "wilgotność ma być całkowita, nie 54.68")
+        self.assertNotIn(".", odtworzona)
+
+    def test_nie_rusza_baterii_ani_innych_czujnikow(self):
+        self.zapisz_epizod()
+        fetch.rebuild_windows(fetch.parse_windows(self.OKNO), self.URZADZENIA)
+        wiersze = {(r["device_id"], r["code"]): r["value"] for r in fetch.load_month("2026-08")}
+        self.assertEqual(wiersze[("dev1", "battery_state")], "high")
+        self.assertEqual(wiersze[("dev2", "va_temperature")], "25.5")
+
+    def test_jest_idempotentne(self):
+        self.zapisz_epizod()
+        okna = fetch.parse_windows(self.OKNO)
+        self.assertEqual(fetch.rebuild_windows(okna, self.URZADZENIA), 2)
+        self.assertEqual(fetch.rebuild_windows(okna, self.URZADZENIA), 0,
+                         "drugi przebieg nie ma już czego poprawiać")
+
+    def test_bez_kotwicy_z_jednej_strony_bierze_druga(self):
+        # okno na samym końcu danych — nie ma odczytu po nim
+        self.zapisz("2026-08", [
+            ("2026-08-19T11:46:00Z", "dev1", "va_temperature", "25.8"),
+            ("2026-08-19T11:58:00Z", "dev1", "va_temperature", "27.4"),
+        ])
+        fetch.rebuild_windows(fetch.parse_windows(self.OKNO), self.URZADZENIA)
+        self.assertEqual(self.wartosci(), [("11:46", "25.8"), ("11:58", "25.8")])
+
+    def test_bez_zadnej_kotwicy_zostawia_odczyt(self):
+        # całą serię pochłania okno — nie ma z czego interpolować, więc nie zmyślamy
+        self.zapisz("2026-08", [("2026-08-19T11:58:00Z", "dev1", "va_temperature", "27.4")])
+        self.assertEqual(fetch.rebuild_windows(fetch.parse_windows(self.OKNO), self.URZADZENIA), 0)
+        self.assertEqual(self.wartosci(), [("11:58", "27.4")])
 
     def test_bez_okien_nic_nie_rusza(self):
-        miesiac = "2026-08"
-        self.zapisz(miesiac, [("2026-08-19T11:56:00Z", "dev1", "va_temperature", "27.4")])
-        self.assertEqual(fetch.purge_skipped([]), 0)
-        self.assertEqual(len(fetch.load_month(miesiac)), 1)
+        self.zapisz_epizod()
+        self.assertEqual(fetch.rebuild_windows([], self.URZADZENIA), 0)
+        self.assertEqual(dict(self.wartosci())["11:58"], "27.4")
 
 
 class TestKeepKnown(WKatalogu):
