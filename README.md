@@ -222,11 +222,19 @@ przełącznik; inaczej wybór „dziś" po cichu obcinałby połowę strony do k
 
 ## Co strona radzi i skąd to wie
 
-Poza wykresami dashboard odpowiada na dwa pytania. **Czy wietrzyć teraz** — przez
-porównanie wilgotności bezwzględnej w mieszkaniu i na dworze; jeśli na zewnątrz jest
-sucho, otwarte okno osuszy. **O której dziś wietrzyć** — z prognozy godzinowej
-Open-Meteo, ta sama różnica policzona na dobę naprzód. Godziny cieplejsze od
-mieszkania odpadają: wietrzenie ma osuszyć, nie dogrzać.
+Poza wykresami dashboard odpowiada na dwa pytania.
+
+**Czy wietrzyć teraz** — z dwóch różnic naraz: temperatury i wilgotności bezwzględnej
+między mieszkaniem a dworem. Otwarte okno robi obie rzeczy, a która z nich się liczy,
+zależy od pory roku: zimą i w suchy dzień pracuje wilgotność, w letni wieczór wyłącznie
+temperatura. Werdykt nazywa ten skutek, który naprawdę wystąpi — „schłodzi", „osuszy",
+„osuszy, ale dogrzeje" — zamiast wypowiadać się o jednej osi i milczeć o drugiej.
+
+**O której dziś będzie najsuchsze powietrze** — z prognozy godzinowej Open-Meteo,
+różnica wilgotności policzona na dobę naprzód. Godziny cieplejsze od mieszkania
+odpadają: to okno ma osuszyć, nie dogrzać. Ramka mówi wprost, że chodzi o suchość,
+bo inaczej przeczyłaby kaflowi obok — w letni wieczór najlepiej otworzyć okno *teraz*,
+dla chłodu, a najsuchsze powietrze przychodzi nad ranem.
 
 Progi (`WIETRZ_ZYSK`, `WIETRZ_CIEPLO`, `SLONCE_MOCNE`) siedzą w `index.html` obok
 tych funkcji.

@@ -394,15 +394,97 @@ test.describe('podpowiedzi i diagnostyka', () => {
     expect(bledy).toEqual([]);
   });
 
-  test('okno wietrzenia wychodzi z prognozy godzinowej', async ({ page }) => {
+  /* Werdykt „czy wietrzyć teraz" ma dwie osie: temperaturę i wilgotność. Do 19.08.2026
+     miał jedną i przez to potrafił powiedzieć „wietrzenie bez wpływu" w wieczór, w który
+     otwarte okno ścinało mieszkaniu 2 °C — a także „dobry moment na wietrzenie" w upalne
+     popołudnie, gdy powietrze z dworu było wprawdzie suchsze, ale o pięć stopni cieplejsze.
+     Tabelka niżej przejeżdża wszystkie osiem kombinacji; dwa wiersze oznaczone jako
+     `dawniej` to dokładnie te dwa przypadki, w których stara wersja odpowiadała inaczej. */
+  const werdykt = (page, dwor, dom, dW) => page.evaluate(
+    ([t, d, roznica]) => {
+      const out = absHum(t, 60);
+      return airingTip({ temperature_2m: t, relative_humidity_2m: 60 }, out - roznica, d).title;
+    }, [dwor, dom, dW]);
+
+  test('werdykt o wietrzeniu waży temperaturę razem z wilgotnością', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const przypadki = [
+      // dwór °C, mieszkanie °C, dwór − mieszkanie w g/m³, oczekiwany nagłówek
+      [21, 25, -1.5, 'Najlepszy moment na wietrzenie'],
+      [21, 25, +1.5, 'Schłodzi, ale dołoży wilgoci'],
+      [21, 25, 0, 'Otwarte okno schłodzi mieszkanie'],      // dawniej: „bez wpływu na wilgotność"
+      [30, 25, -1.5, 'Osuszy, ale dogrzeje'],               // dawniej: „Dobry moment na wietrzenie"
+      [30, 25, 0, 'Wietrzenie teraz dogrzeje'],
+      [25, 25, -1.5, 'Dobry moment na wietrzenie'],
+      [25, 25, +1.5, 'Wietrzenie dołoży wilgoci'],
+      [25, 25, 0, 'Wietrzenie bez większego wpływu'],
+    ];
+    for (const [dwor, dom, dW, oczekiwany] of przypadki) {
+      expect(await werdykt(page, dwor, dom, dW),
+        `dwór ${dwor} °C, mieszkanie ${dom} °C, różnica pary ${dW} g/m³`).toBe(oczekiwany);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('bez czujników w mieszkaniu werdykt idzie samą wilgotnością i nie kaleczy tekstu', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const tip = await page.evaluate(() => {
+      const out = absHum(21, 60);
+      return airingTip({ temperature_2m: 21, relative_humidity_2m: 60 }, out, null);
+    });
+    expect(tip.title).toBe('Wietrzenie bez większego wpływu');
+    expect(tip.text.startsWith(' ')).toBe(false);
+    expect(bledy).toEqual([]);
+  });
+
+  // Strażnik, nie test: pierwszeństwo AQI działało tak samo przed zmianą i przechodzi
+  // w obie strony. Stoi tu dlatego, że przepisując tabelkę werdyktów łatwo je zgubić.
+  test('zła jakość powietrza bije każdy inny werdykt', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const tytul = await page.evaluate(() => {
+      const zapas = state.weather.air;
+      state.weather.air = { european_aqi: 80 };
+      const t = airingTip({ temperature_2m: 21, relative_humidity_2m: 60 }, 20, 25).title;
+      state.weather.air = zapas;
+      return t;
+    });
+    expect(tytul).toBe('Lepiej nie otwierać okien');
+    expect(bledy).toEqual([]);
+  });
+
+  /* Ta ramka odpowiada wyłącznie na „kiedy powietrze będzie najsuchsze" i tak ma się
+     nazywać. Nagłówek „najlepiej wietrzyć" obiecywał werdykt o całym wietrzeniu i przez
+     to potrafił przeczyć kaflowi obok: kafel mówił „otwórz teraz, schłodzi", a ramka
+     „najlepiej jutro 01:00", bo wtedy jest najsuchsze. Oba zdania były prawdziwe, tylko
+     o czym innym. */
+  test('okno wietrzenia wychodzi z prognozy godzinowej i mówi wprost, że chodzi o suchość', async ({ page }) => {
     const bledy = await otworz(page, { pogodaGodzinowa: 'sucho' });
-    await expect(page.locator('.wx-okno')).toContainText(/wietrzyć|Sucho/);
+    await expect(page.locator('.wx-okno')).toContainText(/such/i);
+    await expect(page.locator('.wx-okno')).not.toContainText('Najlepiej wietrzyć');
+    expect(bledy).toEqual([]);
+  });
+
+  test('określenia czasu układają się w polskie zdanie', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const w = await page.evaluate(() => {
+      const jutro = new Date(); jutro.setDate(jutro.getDate() + 1); jutro.setHours(1, 0, 0, 0);
+      const jutroPozniej = new Date(jutro); jutroPozniej.setHours(4);
+      const dzis = new Date(); dzis.setHours(22, 0, 0, 0);
+      return {
+        wZdaniu: gdyO(+jutro),
+        tenSamDzien: gdyZakres(+jutro, +jutroPozniej),
+        przezPolnoc: gdyZakres(+dzis, +jutroPozniej),
+      };
+    });
+    expect(w.wZdaniu).toBe('jutro o 01:00');          // nie „o jutro 01:00"
+    expect(w.tenSamDzien).toBe('jutro 01:00 – 04:00'); // nie „jutro 01:00 – jutro 04:00"
+    expect(w.przezPolnoc).toBe('dziś 22:00 – jutro 04:00');
     expect(bledy).toEqual([]);
   });
 
   test('przy parnej prognozie mówi wprost, że nie ma okna', async ({ page }) => {
     const bledy = await otworz(page, { pogodaGodzinowa: 'parno' });
-    await expect(page.locator('.wx-okno')).toContainText('Brak dobrego okna');
+    await expect(page.locator('.wx-okno')).toContainText('Brak suchego powietrza');
     expect(bledy).toEqual([]);
   });
 

@@ -1244,9 +1244,12 @@ const WIETRZ_ZYSK=0.7;      // g/m³ różnicy; poniżej wymiana powietrza nic n
 const SLONCE_MOCNE=120;     // W/m² — od tyle południowa strona zaczyna dokładać ciepła
 /* Sucho na dworze to za mało: w upał powietrze o 15:00 bywa i suchsze, i o pięć stopni
    cieplejsze, więc otwarte okno owszem osuszy, ale zamieni mieszkanie w piekarnik.
-   Odcinamy godziny cieplejsze od mieszkania — w drugą stronę progu nie ma, bo zimą
-   właśnie zimne powietrze jest narzędziem, a wietrzy się wtedy krótko. */
-const WIETRZ_CIEPLO=1.0;    // °C ponad temperaturę w mieszkaniu, które jeszcze przepuszczamy
+   Ranking godzin odcina więc godziny cieplejsze od mieszkania.
+
+   Ta sama liczba służy za próg „różnica temperatur, którą warto w ogóle nazwać" —
+   w obie strony. Poniżej stopnia wymiana powietrza nie zrobi z mieszkaniem nic, co
+   dałoby się poczuć; powyżej robi, i to jest wtedy główny powód, żeby otworzyć okno. */
+const WIETRZ_CIEPLO=1.0;    // °C różnicy z mieszkaniem, od której temperatura zaczyna się liczyć
 function prognozaGodzinowa(){
   const h=state.weather?.hourly;
   if(!h?.time?.length)return[];
@@ -1279,10 +1282,18 @@ function oknoWietrzenia(home,dom){
     // północy" dotyczy chwili, w której naprawdę otworzysz okno
     slonce:zysk[best].slonce>=SLONCE_MOCNE};
 }
-const gdy=t=>{const d=new Date(t),dzis=new Date();dzis.setHours(0,0,0,0);
+/* „dziś" / „jutro" / skrót dnia tygodnia. Osobno od godziny, bo to samo określenie
+   wchodzi w zdanie na trzy sposoby i po polsku każdy brzmi inaczej: „jutro 02:00"
+   w nagłówku, „jutro o 02:00" w zdaniu (nie „o jutro 02:00"), a w zakresie drugi
+   koniec gubi dzień, gdy jest ten sam — „jutro 01:00 – 04:00", nie „jutro 01:00
+   – jutro 04:00". */
+const dzienPL=t=>{const d=new Date(t),dzis=new Date();dzis.setHours(0,0,0,0);
   const dni=Math.round((new Date(d).setHours(0,0,0,0)-dzis.getTime())/864e5);
-  const kiedy=dni<=0?'dziś':dni===1?'jutro':new Intl.DateTimeFormat('pl-PL',{weekday:'short'}).format(d);
-  return `${kiedy} ${pad(d.getHours())}:00`};
+  return dni<=0?'dziś':dni===1?'jutro':new Intl.DateTimeFormat('pl-PL',{weekday:'short'}).format(d)};
+const oGodzinie=t=>`${pad(new Date(t).getHours())}:00`;
+const gdy=t=>`${dzienPL(t)} ${oGodzinie(t)}`;
+const gdyO=t=>`${dzienPL(t)} o ${oGodzinie(t)}`;
+const gdyZakres=(a,b)=>dzienPL(a)===dzienPL(b)?`${gdy(a)} – ${oGodzinie(b)}`:`${gdy(a)} – ${gdy(b)}`;
 /* Prognoza temperatury nie widzi słońca, które wpada oknem. W bezchmurne popołudnie
    okno od południa dokłada ciepła niezależnie od tego, ile jest stopni w cieniu —
    dlatego wtedy wysyłamy najpierw na stronę północną. */
@@ -1301,7 +1312,7 @@ function tempWMieszkaniu(){
 function oknoTekst(home){
   const w=oknoWietrzenia(home,tempWMieszkaniu());
   if(!w)return'';
-  if(w.brak)return`<div class="wx-okno"><b>Brak dobrego okna w najbliższej dobie</b><span>`
+  if(w.brak)return`<div class="wx-okno"><b>Brak suchego powietrza w najbliższej dobie</b><span>`
     +(w.upal
       ? 'Sucho na dworze owszem bywa, ale w każdej z tych godzin jest tam cieplej niż u Ciebie — otwarte okno osuszyłoby i zarazem dogrzało. Poczekaj na chłodniejszą noc.'
       : 'Na dworze cały czas nie robi się na tyle sucho, żeby wietrzenie cokolwiek osuszyło. Na świeże powietrze — owszem, na osuszenie — nie w tej dobie.')
@@ -1314,21 +1325,60 @@ function oknoTekst(home){
   // jutro 08:00" mówi więcej niż "o dowolnej porze", bo to jednak tylko noc.
   const godzin=Math.round((w.do-w.od)/3600e3);
   const naglowek=godzin>=24
-    ? `<b>Wietrzyć można o dowolnej porze</b><span>Sucho na dworze nieprzerwanie przez ${godzin} godz., od ${gdy(w.od)}. Najsuchsze powietrze o ${gdy(w.szczyt.t)} — ${szczyt}${stopnie}.`
-    : `<b>Najlepiej wietrzyć: ${gdy(w.od)} – ${gdy(w.do)}</b><span>Szczyt o ${gdy(w.szczyt.t)} — ${szczyt}${stopnie}.`;
+    ? `<b>Suche powietrze o dowolnej porze</b><span>Sucho na dworze nieprzerwanie przez ${godzin} godz., od ${gdy(w.od)}. Najsuchsze powietrze ${gdyO(w.szczyt.t)} — ${szczyt}${stopnie}.`
+    : `<b>Najsuchsze powietrze: ${gdyZakres(w.od,w.do)}</b><span>Szczyt ${gdyO(w.szczyt.t)} — ${szczyt}${stopnie}.`;
   return `<div class="wx-okno">${naglowek}${stronaStartowa(w.slonce)}</span></div>`;
 }
-function airingTip(now,home){
+/* Werdykt „czy wietrzyć teraz".
+
+   Do 19.08.2026 patrzył wyłącznie na wilgotność — i tego wieczoru skłamał. Na dworze
+   było 21,0 °C przy 24,7 w mieszkaniu, okna stały otwarte, mieszkanie stygło o 2 °C,
+   a kafel mówił „wietrzenie bez wpływu", bo pary wodnej po obu stronach ściany było
+   tyle samo. Dokładnie ta sama ślepota, na której poległo wykrywanie wietrzeń: latem
+   otwarte okno jest przede wszystkim narzędziem do chłodzenia, a wilgotność jest drugą
+   osią, nie jedyną.
+
+   Przy okazji drugi błąd: gdy na dworze było suchsze, ale znacznie cieplejsze powietrze,
+   wychodziło „dobry moment na wietrzenie" — mimo że oknoWietrzenia() od dawna takie
+   godziny odrzuca właśnie dlatego, że otwarte okno osuszyłoby i zarazem dogrzało.
+   Oba doradcy patrzą teraz na to samo.
+
+   `dom` wchodzi parametrem, a nie z tempWMieszkaniu(), żeby całą tabelkę werdyktów
+   dało się przejechać testem bez ustawiania czterech czujników pod każdy przypadek. */
+function airingTip(now,home,dom){
   const out=absHum(now.temperature_2m,now.relative_humidity_2m);
   if(home==null||out==null)return null;
-  const diff=out-home;
   const aqi=state.weather?.air?.european_aqi,band=aqiBand(aqi);
   if(band&&aqi>60)return{c:'--bad',title:'Lepiej nie otwierać okien',
     text:`Jakość powietrza na zewnątrz jest ${band[0]} — indeks ${Math.round(aqi)}. Wietrz krótko albo poczekaj.`};
-  const liczby=`Na zewnątrz ${fmtNum(out)} g/m³ pary wodnej, w mieszkaniu ${fmtNum(home)}.`;
-  if(diff<-0.7)return{c:'--ok',title:'Dobry moment na wietrzenie',text:`${liczby} Otwarte okno osuszy powietrze.${jakWietrzyc()}`};
-  if(diff>0.7)return{c:'--warn',title:'Wietrzenie dołoży wilgoci',text:`${liczby} Na wymianę powietrza — owszem, na osuszenie — nie teraz.`};
-  return{c:'--dim',title:'Wietrzenie bez wpływu na wilgotność',text:`${liczby} Po obu stronach ściany podobnie — ale na świeże powietrze i tak warto.${jakWietrzyc()}`};
+  const dwor=now.temperature_2m;
+  const dW=out-home;                                            // + dokłada pary, − osusza
+  const dT=(dom!=null&&dwor!=null&&isFinite(dwor))?dwor-dom:null; // + dogrzewa, − chłodzi
+  const chlodzi=dT!=null&&dT<=-WIETRZ_CIEPLO,grzeje=dT!=null&&dT>=WIETRZ_CIEPLO;
+  const osusza=dW<=-WIETRZ_ZYSK,parno=dW>=WIETRZ_ZYSK;
+  // Kafel czyta się jednym rzutem oka, więc dwa zdania: liczby i wniosek. Wszystko,
+  // co da się wyczytać z nagłówka, z treści wylatuje.
+  const para=`Pary wodnej na zewnątrz ${fmtNum(out)} g/m³, w mieszkaniu ${fmtNum(home)}.`;
+  const paraKrotko=`${fmtNum(out)} wobec ${fmtNum(home)} g/m³`;
+  const stopnie=dT!=null?`Na dworze ${fmtNum(dwor,1)} °C przy ${fmtNum(dom,1)} w mieszkaniu.`:'';
+  const oIle=v=>fmtNum(Math.abs(v),1);
+  const zdania=(...cz)=>cz.filter(Boolean).join(' ');   // bez czujników w mieszkaniu `stopnie` jest puste
+  if(chlodzi&&osusza)return{c:'--ok',title:'Najlepszy moment na wietrzenie',
+    text:`Na dworze chłodniej o ${oIle(dT)} °C i sucho — ${paraKrotko} pary wodnej. Otwarte okno naraz schłodzi i osuszy.${jakWietrzyc()}`};
+  if(chlodzi&&parno)return{c:'--warn',title:'Schłodzi, ale dołoży wilgoci',
+    text:`Na dworze chłodniej o ${oIle(dT)} °C, za to wilgotniej o ${oIle(dW)} g/m³. Na upał — owszem, na osuszenie — nie teraz.${jakWietrzyc()}`};
+  if(chlodzi)return{c:'--ok',title:'Otwarte okno schłodzi mieszkanie',
+    text:zdania(stopnie,`Pary wodnej po obu stronach podobnie (${paraKrotko}), więc na wilgotność bez wpływu.`)+jakWietrzyc()};
+  if(grzeje&&osusza)return{c:'--warn',title:'Osuszy, ale dogrzeje',
+    text:`Na dworze suchsze powietrze o ${oIle(dW)} g/m³, ale cieplejsze o ${oIle(dT)} °C. Wietrz krótko albo poczekaj na chłodniejszą porę.`};
+  if(grzeje)return{c:'--warn',title:'Wietrzenie teraz dogrzeje',
+    text:zdania(stopnie,'Na świeże powietrze — owszem, ale krótko.')};
+  if(osusza)return{c:'--ok',title:'Dobry moment na wietrzenie',
+    text:`${para} Otwarte okno osuszy powietrze.${jakWietrzyc()}`};
+  if(parno)return{c:'--warn',title:'Wietrzenie dołoży wilgoci',
+    text:`${para} Na wymianę powietrza — owszem, na osuszenie — nie teraz.`};
+  return{c:'--dim',title:'Wietrzenie bez większego wpływu',
+    text:zdania(stopnie,`Pary wodnej po obu stronach podobnie (${paraKrotko}) — ale na świeże powietrze i tak warto.`)+jakWietrzyc()};
 }
 function renderWeather(){
   const w=state.weather,panel=document.getElementById('wx-panel');
@@ -1351,7 +1401,7 @@ function renderWeather(){
   const band=aqiBand(air.european_aqi);
   if(band)out.push(`<div class="wx-air"><span class="wx-aqi" style="color:var(${band[1]})">AQI ${Math.round(air.european_aqi)}</span><span>jakość ${band[0]}</span>`
     +`<span>PM2,5 <em>${fmtNum(air.pm2_5,0)}</em></span><span>PM10 <em>${fmtNum(air.pm10,0)}</em> µg/m³</span></div>`);
-  const home=wilgWMieszkaniu(),tip=airingTip(now,home);
+  const home=wilgWMieszkaniu(),tip=airingTip(now,home,tempWMieszkaniu());
   if(tip)out.push(`<div class="wx-tip" style="--c:var(${tip.c})"><b>${tip.title}</b><span>${tip.text}</span></div>`);
   out.push(oknoTekst(home));
   document.getElementById('wx').innerHTML=out.join('');

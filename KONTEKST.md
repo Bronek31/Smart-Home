@@ -115,6 +115,20 @@ pod wilgotnością bezwzględną zostawiało z pytaniem „to skąd to wietrzeni
 na wykres, na którym nic nie widać. Wilgotność względna pasm nie dostaje: nie jest
 kanałem wykrywania. Licznik i legenda stoją teraz przy obu wykresach z pasmami.
 
+**Rada „czy wietrzyć teraz" miała tę samą ślepotę i też została naprawiona.** Patrzyła
+wyłącznie na wilgotność, więc 19.08 o 20:30 mówiła „wietrzenie bez wpływu" — przy 21,0 °C
+na dworze, 24,7 w mieszkaniu, otwartych oknach i mieszkaniu stygnącym o 2 °C. Kafel
+przeczył pasmom rysowanym dwa ekrany wyżej. Przy okazji wyszedł drugi błąd: gdy na dworze
+było suchsze, ale znacznie cieplejsze powietrze, wychodziło „dobry moment na wietrzenie",
+mimo że `oknoWietrzenia()` takie godziny odrzuca od dawna i z tego samego powodu. Oba
+doradcy patrzą teraz na to samo, a `airingTip(now, home, dom)` bierze temperaturę
+mieszkania parametrem, żeby całą tabelkę ośmiu werdyktów dało się przejechać testem.
+
+Ramka prognozy nazywa się teraz **„Najsuchsze powietrze"**, nie „Najlepiej wietrzyć".
+Odpowiada wyłącznie na pytanie o suchość i dawny nagłówek obiecywał więcej, niż liczył —
+w letni wieczór najlepiej otworzyć okno teraz, dla chłodu, a najsuchsze powietrze
+przychodzi nad ranem. Oba zdania były prawdziwe, tylko o czym innym.
+
 **λ = 0,10/godz. jest dobrane pomiarem, nie z głowy.** Przy tej wartości wykryte zostają
 wieczorne wietrzenia z 19.08 w Salonie i Sypialni, a Łazienka nie odzywa się ani razu.
 Przy 0,08 dochodzi wprawdzie słaba Kuchnia, ale razem z nią nocne stygnięcie Łazienki
@@ -298,6 +312,10 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
   identyfikatorze. Pomyliłem się na tym i zaraportowałem nieprawdziwe „zero wietrzeń";
   poprawny odczyt to `policzWietrzenia(od).wietrz[d.id]`. Testy strony korzystają z tego
   wprost, zamiast czytać ostatnią kolumnę tabeli — tabela ma własny przełącznik zakresu.
+- **Podgląd strony w tej sesji wymaga podstawienia Chart.js.** `cdn.jsdelivr.net`
+  i Google Fonts nie przechodzą przez proxy, więc zrzut ekranu bez podstawienia pokazuje
+  stronę bez wykresów — dokładnie tak, jak wygląda awaria CDN. Pliki leżą
+  w `tests/frontend/node_modules`, tak jak bierze je Playwright.
 - **`python3 -m unittest` cache'uje bajtkod.** Po podmianie stałej w `fetch.py` w trakcie
   eksperymentu testy pokazywały wynik sprzed zmiany. `find . -name __pycache__ -prune
   -exec rm -rf {} +` przed rozstrzygającym przebiegiem.
@@ -312,7 +330,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **80** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **84** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
