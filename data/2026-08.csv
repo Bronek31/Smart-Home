@@ -2014,3 +2014,11 @@ ts,device_id,code,value
 2026-08-19T12:23:25Z,bfd6f4f87fea9d866dvpve,battery_state,high
 2026-08-19T12:23:25Z,bfd6f4f87fea9d866dvpve,va_humidity,54
 2026-08-19T12:23:25Z,bfd6f4f87fea9d866dvpve,va_temperature,25.6
+2026-08-19T12:58:44Z,bf5741c97c96fa85b1d7do,battery_state,high
+2026-08-19T12:58:44Z,bf5741c97c96fa85b1d7do,va_humidity,54
+2026-08-19T12:58:44Z,bf5741c97c96fa85b1d7do,va_temperature,25.7
+2026-08-19T13:00:00Z,zewnatrz,va_humidity,54
+2026-08-19T13:00:00Z,zewnatrz,va_temperature,24.1
+2026-08-19T13:03:18Z,bf7e2a70935af7de78mjqt,battery_state,high
+2026-08-19T13:03:18Z,bf7e2a70935af7de78mjqt,va_humidity,50
+2026-08-19T13:03:18Z,bf7e2a70935af7de78mjqt,va_temperature,26
