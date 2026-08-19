@@ -1,13 +1,16 @@
 name: Watchdog kolektora
 
 # Actions nie powiadamia o przebiegach, które w ogóle nie ruszyły — a to najczęstsza
-# awaria tego zestawu. Ten workflow raz na dobę sprawdza wiek data/index.json
+# awaria tego zestawu. Ten workflow co 6 godzin sprawdza wiek data/index.json
 # i zakłada zgłoszenie, jeśli kolektor zamilkł. Przy okazji jego własne przebiegi
 # utrzymują repozytorium jako aktywne, więc GitHub nie wyłączy harmonogramów.
 
 on:
   schedule:
-    - cron: '41 7 * * *'     # 9:41 czasu polskiego latem
+    # Co 6 godzin, nie raz na dobę: próg alarmu to 6 godzin ciszy, więc przy jednym
+    # sprawdzeniu dziennie awaria tuż po przebiegu leżała niezauważona prawie dobę —
+    # a Tuya trzyma tylko 7 dni logów, czyli każda godzina zwłoki to dane do odzyskania.
+    - cron: '41 1,7,13,19 * * *'
   workflow_dispatch:
 
 permissions:
@@ -131,7 +134,7 @@ jobs:
             cat "$RUNNER_TEMP/alerty.md"
             echo
             echo "Szerszy obraz na <https://bronek31.github.io/Smart-Home/>, w tabeli *Łączność z bramką*."
-            echo "Treść tego zgłoszenia odświeża się co dobę, a zamknie się samo, gdy lista opustoszeje."
+            echo "Treść tego zgłoszenia odświeża się co kilka godzin, a zamknie się samo, gdy lista opustoszeje."
           } > "$RUNNER_TEMP/tresc.md"
           NUMER=$(gh issue list --label czujniki --state open --limit 1 --json number --jq '.[0].number // empty' || true)
           if [ -n "$NUMER" ]; then
