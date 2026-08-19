@@ -44,6 +44,7 @@ stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
 | `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
 | `zapisz.sh` | pobiera odczyty i zapisuje je na gałąź, przeżywając wyścig dwóch przebiegów |
 | `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
+| `KONTEKST.md` | notatka przekazania: dlaczego jest tak, jak jest, i na co uważać przy dalszej pracy |
 | `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
 | `.github/workflows/zbieraj.yml` | harmonogram zbierania, co godzinę o :19 |
