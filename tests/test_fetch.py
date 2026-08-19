@@ -507,6 +507,70 @@ class TestManifest(WKatalogu):
         self.assertEqual(fetch.code_kinds({}), {})
 
 
+class TestPomijanie(WKatalogu):
+    """Okna odczytów pomijanych na stałe (TUYA_POMIN).
+
+    19.08 czujniki w łazience i sypialni przenoszono na wysokość 80-90 cm. Trzymane
+    w dłoni pokazały przez kilkanaście minut temperaturę ręki — odczyty technicznie
+    poprawne, faktycznie bezwartościowe. Samo skasowanie ich z CSV nic nie daje, bo
+    każdy przebieg pobiera z Tuya pełne okno 7 dni i wpisuje je z powrotem.
+    """
+
+    OKNO = "dev1 2026-08-19T11:50Z 2026-08-19T12:15Z"
+
+    def test_czyta_okna_z_komentarzami_i_pustymi_wierszami(self):
+        okna = fetch.parse_skips("\n# komentarz\n\n" + self.OKNO + "   # w dłoni\n")
+        self.assertEqual(len(okna), 1)
+        dev, od, do = okna[0]
+        self.assertEqual(dev, "dev1")
+        self.assertEqual(od, int(datetime(2026, 8, 19, 11, 50, tzinfo=timezone.utc).timestamp() * 1000))
+        self.assertEqual(do, int(datetime(2026, 8, 19, 12, 15, tzinfo=timezone.utc).timestamp() * 1000))
+
+    def test_pusty_wpis_znaczy_brak_okien(self):
+        self.assertEqual(fetch.parse_skips(""), [])
+        self.assertEqual(fetch.parse_skips("   \n\n# tylko komentarz\n"), [])
+
+    def test_data_bez_strefy_jest_czytana_jako_utc(self):
+        (_, od, _), = fetch.parse_skips("dev1 2026-08-19T11:50 2026-08-19T12:15")
+        self.assertEqual(od, int(datetime(2026, 8, 19, 11, 50, tzinfo=timezone.utc).timestamp() * 1000))
+
+    def test_zly_zapis_konczy_sie_czytelnym_bledem(self):
+        for zly in ("dev1 2026-08-19T11:50Z", "dev1 wczoraj dzisiaj",
+                    "dev1 2026-08-19T12:15Z 2026-08-19T11:50Z"):
+            with self.subTest(zly=zly), self.assertRaises(fetch.TuyaError) as e:
+                fetch.parse_skips(zly)
+            self.assertIn("TUYA_POMIN", str(e.exception))
+
+    def test_granice_okna_sa_domkniete(self):
+        okna = fetch.parse_skips(self.OKNO)
+        rowno = int(datetime(2026, 8, 19, 11, 50, tzinfo=timezone.utc).timestamp() * 1000)
+        self.assertTrue(fetch.in_skip(okna, "dev1", rowno))
+        self.assertTrue(fetch.in_skip(okna, "dev1", rowno + 60_000))
+        self.assertFalse(fetch.in_skip(okna, "dev1", rowno - 1))
+        self.assertFalse(fetch.in_skip(okna, "dev2", rowno), "okno dotyczy jednego czujnika")
+
+    def test_usuwa_z_plikow_tylko_wskazane_okno_i_czujnik(self):
+        miesiac = "2026-08"
+        self.zapisz(miesiac, [
+            ("2026-08-19T11:45:00Z", "dev1", "va_temperature", "25.8"),   # przed oknem
+            ("2026-08-19T11:56:00Z", "dev1", "va_temperature", "27.4"),   # w oknie
+            ("2026-08-19T11:56:00Z", "dev1", "va_humidity", "60"),        # w oknie
+            ("2026-08-19T11:56:00Z", "dev2", "va_temperature", "25.5"),   # inny czujnik
+            ("2026-08-19T12:23:00Z", "dev1", "va_temperature", "25.6"),   # po oknie
+        ])
+        self.assertEqual(fetch.purge_skipped(fetch.parse_skips(self.OKNO)), 2)
+        zostalo = [(r["ts"][11:16], r["device_id"], r["value"])
+                   for r in fetch.load_month(miesiac)]
+        self.assertEqual(zostalo, [("11:45", "dev1", "25.8"), ("11:56", "dev2", "25.5"),
+                                   ("12:23", "dev1", "25.6")])
+
+    def test_bez_okien_nic_nie_rusza(self):
+        miesiac = "2026-08"
+        self.zapisz(miesiac, [("2026-08-19T11:56:00Z", "dev1", "va_temperature", "27.4")])
+        self.assertEqual(fetch.purge_skipped([]), 0)
+        self.assertEqual(len(fetch.load_month(miesiac)), 1)
+
+
 class TestKeepKnown(WKatalogu):
     """Manifest nie może gubić urządzenia, które ma jeszcze odczyty.
 

@@ -51,6 +51,14 @@ jobs:
           # w nocy naszego czasu. Starsze odczyty kasuje purge_before i nie wracają,
           # dopóki ta wartość tu stoi.
           TUYA_SINCE: '2026-08-14T00:00+02:00'
+          # Okna odczytów, które są technicznie poprawne, a faktycznie bezwartościowe —
+          # czujnik trzymany w dłoni pokazuje temperaturę ręki, nie pokoju. Bez tego wpisu
+          # kasowanie ich z CSV nic nie daje: każdy przebieg pobiera z Tuya pełne okno 7 dni
+          # i wpisuje je z powrotem. Wpis można skasować — dopóki okno mieści się w tych
+          # siedmiu dniach, odczyty wrócą przy najbliższym przebiegu.
+          TUYA_POMIN: |
+            bfd6f4f87fea9d866dvpve 2026-08-19T11:50Z 2026-08-19T12:15Z  # Łazienka — przenoszenie czujnika na 80-90 cm
+            bf7e2a70935af7de78mjqt 2026-08-19T11:50Z 2026-08-19T12:15Z  # Sypialnia — jw.
           TUYA_MIN_GAP: '1.2'
           # Pogoda z Open-Meteo — bez klucza API. Puste OUTDOOR_LAT wyłącza tę część.
           OUTDOOR_LAT: '50.2649'          # Katowice

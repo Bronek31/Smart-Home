@@ -352,6 +352,76 @@ def purge_before(since_ms: int) -> int:
     return removed
 
 
+def parse_skips(text: str) -> list[tuple[str, int, int]]:
+    """Okna odczytów do trwałego pominięcia — jeden wiersz na okno.
+
+        identyfikator  od  do        # komentarz
+
+    Powód istnienia: czasem odczyt jest prawdziwy technicznie, a bezwartościowy
+    faktycznie — czujnik trzymany w dłoni przy przestawianiu pokazuje temperaturę ręki,
+    nie pokoju. Samo skasowanie takich wierszy z CSV nic nie daje, bo każdy przebieg
+    pobiera z Tuya pełne okno 7 dni i wpisuje je z powrotem. Dopiero wpis tutaj sprawia,
+    że nie wracają: rows z tego okna są odrzucane przy zbiórce i usuwane z plików.
+
+    Wpis można w każdej chwili wykasować — dopóki okno mieści się w siedmiu dniach,
+    które trzyma Tuya, odczyty wrócą przy najbliższym przebiegu.
+    """
+    okna = []
+    for numer, linia in enumerate((text or "").splitlines(), 1):
+        linia = linia.split("#", 1)[0].strip()
+        if not linia:
+            continue
+        czesci = linia.split()
+        if len(czesci) != 3:
+            raise TuyaError(
+                f"TUYA_POMIN, wiersz {numer}: oczekiwano 'identyfikator od do', jest {linia!r}."
+            )
+        dev, od, do = czesci
+        try:
+            granice = [datetime.fromisoformat(x) for x in (od, do)]
+        except ValueError:
+            raise TuyaError(
+                f"TUYA_POMIN, wiersz {numer}: zła data w {linia!r}.\n"
+                "Użyj np. 2026-08-19T11:50Z albo 2026-08-19T13:50+02:00."
+            )
+        ms = [int(m.replace(tzinfo=timezone.utc).timestamp() * 1000) if m.tzinfo is None
+              else int(m.timestamp() * 1000) for m in granice]
+        if ms[1] <= ms[0]:
+            raise TuyaError(f"TUYA_POMIN, wiersz {numer}: koniec okna nie jest po jego początku.")
+        okna.append((dev, ms[0], ms[1]))
+    return okna
+
+
+def in_skip(okna: list[tuple[str, int, int]], device_id: str, ms: int) -> bool:
+    """Czy odczyt wpada w któreś z pominiętych okien. Granice domknięte z obu stron."""
+    return any(dev == device_id and od <= ms <= do for dev, od, do in okna)
+
+
+def purge_skipped(okna: list[tuple[str, int, int]]) -> int:
+    """Usuwa z istniejących CSV odczyty z pominiętych okien."""
+    if not okna:
+        return 0
+    removed = 0
+    for path in DATA_DIR.glob("[0-9]*.csv"):
+        rows = load_month(path.stem)
+        if not rows:
+            continue
+        kept = []
+        for row in rows:
+            try:
+                when = int(datetime.fromisoformat(row["ts"].replace("Z", "+00:00")).timestamp() * 1000)
+            except (KeyError, ValueError, TypeError):
+                kept.append(row)
+                continue
+            if in_skip(okna, row.get("device_id", ""), when):
+                removed += 1
+            else:
+                kept.append(row)
+        if len(kept) != len(rows):
+            save_month(path.stem, kept)
+    return removed
+
+
 def merge(new_rows: list[dict]) -> int:
     """Dokłada odczyty do plików miesięcznych, pomijając te już zapisane."""
     by_month: dict[str, list[dict]] = {}
@@ -977,6 +1047,7 @@ def main() -> int:
     end_ms = int(time.time() * 1000)
     start_ms = int((datetime.now(timezone.utc) - timedelta(days=args.days)).timestamp() * 1000)
     since_ms = parse_since(os.environ.get("TUYA_SINCE", ""))
+    pomijane = parse_skips(os.environ.get("TUYA_POMIN", ""))
     if since_ms:
         start_ms = max(start_ms, since_ms)
         print(f"Zbieram wyłącznie odczyty od {iso(since_ms)}.\n", flush=True)
@@ -987,6 +1058,9 @@ def main() -> int:
     removed = purge_before(since_ms)
     if removed:
         print(f"Usunięto {removed} starych odczytów sprzed TUYA_SINCE.", flush=True)
+    wyciete = purge_skipped(pomijane)
+    if wyciete:
+        print(f"Usunięto {wyciete} odczytów z okien wypisanych w TUYA_POMIN.", flush=True)
 
     manifest_devices, collected = {}, []
     cached, ostatni_log = {}, {}
@@ -1091,6 +1165,16 @@ def main() -> int:
 
     fetch_weather()
 
+    if pomijane:
+        # odrzucamy tuż przed zapisem, żeby żadna ścieżka zbierania tego nie ominęła
+        przed = len(collected)
+        collected = [r for r in collected
+                     if not in_skip(pomijane, r["device_id"],
+                                    int(datetime.fromisoformat(
+                                        r["ts"].replace("Z", "+00:00")).timestamp() * 1000))]
+        if przed != len(collected):
+            print(f"Pominięto {przed - len(collected)} świeżo pobranych odczytów z okien TUYA_POMIN.",
+                  flush=True)
     added = merge(collected)
     zwiniete = collapse_power(manifest_devices)
     if zwiniete:
