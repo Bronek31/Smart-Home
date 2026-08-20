@@ -184,6 +184,13 @@ tygodniu prawdziwych danych: średnia odsuwa linię najwyżej o **0,067 °C**, c
 niż krok, o który czujnik i tak zaokrągla — wygładzona linia jest bliżej prawdy niż
 surowe schodki, bo kwantyzacja się uśrednia.
 
+Uśredniany jest **wyłącznie punkt, który ma sąsiadów po obu stronach**. Pierwszy, ostatni
+i każdy przy dłuższej przerwie w raportach zostaje surowy, bo średnia z dwóch odczytów
+zamiast trzech ma inne ograniczenie: przesuwa punkt o połowę kroku do sąsiada, czyli przy
+skoku 0,2 °C odsuwa linię o 0,1 — półtora raza dalej niż wnętrze serii. Na prawdziwych
+danych brzegiem jest ostatni odczyt, czyli „teraz", i akurat przy wietrzeniu potrafi
+lecieć 0,5 °C w kwadrans.
+
 Rusza wyłącznie rysowana linia. Kafle, tabela zakresów, rzut mieszkania i wykrywanie
 wietrzeń liczą z surowych odczytów, a dymek na wykresie pokazuje ten odczyt, który
 naprawdę przyszedł z czujnika. Dwór zostaje surowy: z Open-Meteo przychodzi już gładki,

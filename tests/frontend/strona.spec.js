@@ -756,6 +756,35 @@ test.describe('wygładzanie linii', () => {
     expect(bledy).toEqual([]);
   });
 
+  /* Test bez zegara: sam podaje serię, sam zna odpowiedź. Ta obok mierzy maksimum na
+     fiksturze i przez to zależy od tego, jakie godziny doby akurat w niej wypadły —
+     przy oknie liczonym z dwóch odczytów zamiast trzech potrafiła wychodzić dokładnie
+     na próg 0,100 i przechodzić albo nie zależnie od zaokrąglenia zmiennoprzecinkowego.
+     Ten trzyma się reguły, a nie liczby: uśredniamy tylko przy pełnym oknie. */
+  test('wygładzanie rusza wyłącznie punkty z sąsiadami po obu stronach', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const w = await page.evaluate(() => {
+      const g = 3600e3;
+      const seria = [
+        { x: 0, y: 25.0 },
+        { x: g, y: 25.2 },
+        { x: 2 * g, y: 25.4 },
+        // przerwa dłuższa niż WYGLADZ_LUKA — sąsiad jest z innej epoki
+        { x: 2 * g + 5 * 3600e3, y: 26.0 },
+        { x: 2 * g + 6 * 3600e3, y: 26.2 },
+      ];
+      return wygladz(seria).map((p) => ({ y: +p.y.toFixed(4), v: p.v }));
+    });
+    expect(w[0].y, 'pierwszy punkt ma zostać surowy').toBe(w[0].v);
+    expect(w.at(-1).y, 'ostatni punkt ma zostać surowy').toBe(w.at(-1).v);
+    expect(w[1].y, 'punkt z pełnym oknem ma być średnią z trzech').toBe(25.2);
+    expect(w[2].y, 'punkt przed długą przerwą ma zostać surowy').toBe(w[2].v);
+    expect(w[3].y, 'punkt po długiej przerwie ma zostać surowy').toBe(w[3].v);
+    // każdy punkt niesie prawdziwy odczyt, żeby dymek i tabela mówiły to samo
+    expect(w.every((p) => p.v !== undefined)).toBe(true);
+    expect(bledy).toEqual([]);
+  });
+
   test('wygładzenie nie odsuwa linii dalej niż o krok czujnika', async ({ page }) => {
     const bledy = await otworzTydzien(page, { waskaWilgotnosc: true });
     const p = await seria(page, 'temp', 'Salon');

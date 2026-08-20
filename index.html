@@ -797,11 +797,22 @@ const pustka={id:'pustka',afterDraw(chart){
    liczą się z surowych odczytów, a dymek pokazuje w polu „v” to, co naprawdę przyszło
    z czujnika — inaczej wykres i tabela mówiłyby o tej samej chwili co innego. */
 const WYGLADZ_LUKA=2*HEARTBEAT;   // dalej niż to sąsiad jest z innej epoki i nie ma czego uśredniać
+/* Uśredniamy wyłącznie tam, gdzie sąsiedzi są po obu stronach. Punkt bez pełnego okna
+   — pierwszy, ostatni i każdy przy dłuższej przerwie w raportach — zostaje surowy.
+
+   To nie jest szczegół. Średnia z dwóch odczytów zamiast trzech to inna operacja i ma
+   inne ograniczenie: przesuwa punkt o połowę kroku do sąsiada, więc przy skoku 0,2 °C
+   odsuwa linię o 0,1 °C, podczas gdy wnętrze serii nie wychodzi poza 0,067. Zmierzone
+   na fiksturze: każde przekroczenie progu siedziało na brzegu, ani jedno w środku.
+   A na prawdziwych danych brzegiem jest **ostatni odczyt**, czyli „teraz" — ten, na
+   który się patrzy — i przy wietrzeniu potrafi lecieć 0,5 °C w dwanaście minut.
+   Rysowanie go z połową tego skoku byłoby kłamstwem dokładnie tam, gdzie boli. */
 function wygladz(pkt){
   if(pkt.length<3)return pkt;
   return pkt.map((p,i)=>{
-    const okno=[pkt[i-1],p,pkt[i+1]].filter(q=>q&&Math.abs(q.x-p.x)<=WYGLADZ_LUKA);
-    return{x:p.x,y:okno.reduce((a,q)=>a+q.y,0)/okno.length,v:p.y};
+    const przed=pkt[i-1],po=pkt[i+1];
+    const pelne=przed&&po&&Math.abs(przed.x-p.x)<=WYGLADZ_LUKA&&Math.abs(po.x-p.x)<=WYGLADZ_LUKA;
+    return{x:p.x,y:pelne?(przed.y+p.y+po.y)/3:p.y,v:p.y};
   });
 }
 

@@ -183,6 +183,21 @@ różnicą wobec dworu — nie odlicza ich od „teraz". Inaczej przy uruchomien
 porze doby dwór bywałby cieplejszy od pokoju i wietrzenia nie wykryłby żaden algorytm.
 To ten sam błąd, na którym projekt przejechał się już przy zakresie „dziś".
 
+### Wygładzanie tylko przy pełnym oknie
+
+Średnia z dwóch odczytów zamiast trzech to inna operacja i ma inne ograniczenie: przesuwa
+punkt o **połowę kroku** do sąsiada, więc przy skoku 0,2 °C odsuwa linię o 0,1 °C, podczas
+gdy wnętrze serii nie wychodzi poza 0,067. Punkt bez pełnego okna — pierwszy, ostatni
+i każdy przy dłuższej przerwie w raportach — zostaje więc surowy.
+
+Na prawdziwych danych brzegiem jest **ostatni odczyt**, czyli „teraz" — ten, na który się
+patrzy — a przy wietrzeniu potrafi lecieć 0,5 °C w dwanaście minut. Rysowanie go z połową
+tego skoku byłoby kłamstwem dokładnie tam, gdzie boli.
+
+Usterka jest starsza niż ta sesja (siedzi w `23f0142`), a wyszła dopiero przy pushu o innej
+porze doby niż poprzednie. Doszedł test bez zegara: podaje własną serię ze stromym skokiem
+na brzegu i długą przerwą w środku, i sprawdza regułę, a nie liczbę.
+
 ### Przy okazji
 
 - **Watchdog chodzi co 6 godzin**, nie raz na dobę. Próg alarmu to 6 godzin ciszy, więc
@@ -312,6 +327,12 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
   identyfikatorze. Pomyliłem się na tym i zaraportowałem nieprawdziwe „zero wietrzeń";
   poprawny odczyt to `policzWietrzenia(od).wietrz[d.id]`. Testy strony korzystają z tego
   wprost, zamiast czytać ostatnią kolumnę tabeli — tabela ma własny przełącznik zakresu.
+- **Piąty raz ten sam wzorzec: próg kontra liczba na jego krawędzi.** Test „wygładzenie
+  nie odsuwa linii dalej niż o krok czujnika" wychodził dokładnie na 0,100 przy progu
+  `< 0,1` i przechodził albo nie zależnie od pory doby, o której poszedł. Zmierzone:
+  każde przekroczenie siedziało **na brzegu serii**, gdzie okno ma dwie próbki zamiast
+  trzech; wnętrze nie wychodziło poza 0,067 o żadnej godzinie. Naprawa jest w aplikacji,
+  nie w teście — patrz niżej.
 - **„Cancelled" w Actions nie znaczy „ktoś anulował".** 19.08 przebieg `Testy` na
   commicie `2c4f574` ruszył o 21:43 i skończył się o 03:43 jako *cancelled* — dokładnie
   sześć godzin, czyli domyślny limit wykonania GitHuba. Testów nie oblał: ten sam zestaw
@@ -336,7 +357,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **84** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **85** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
