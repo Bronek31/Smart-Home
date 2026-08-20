@@ -166,18 +166,39 @@ kontraście tyle co nic, płaci tylko ten najbardziej stabilny, i to jest uczciw
 `skala pokoju` rozciąga paletę na zakres jednego pomieszczenia, gdy chcesz obejrzeć
 sam jego rytm.
 
-## Dwie osie na wykresach
+## Skale: gdzie dwór, a gdzie pokoje
 
-Dwór potrafi w tygodniu przejść 16 → 32 °C, a pokoje stoją wtedy w paśmie 25 → 26.
+Dwór potrafi w tygodniu przejść 14 → 34 °C, a pokoje stoją wtedy w paśmie 22,8 → 26,7.
 Na wspólnej osi cały ruch w mieszkaniu spłaszcza się do kilku pikseli i cztery linie
-zlewają się w jedną. Dlatego **temperatura** i **wilgotność względna** mają serię
-zewnętrzną na osobnej osi po prawej, podpisanej jej kolorem i bez własnej siatki —
-żeby było widać, że to druga miarka. Nagłówek każdego z tych wykresów mówi to wprost;
-podpis pojawia się tylko wtedy, gdy druga oś naprawdę powstała, czyli gdy jest czujnik
-zewnętrzny.
+zlewają się w jedną. Rozwiązania są trzy i każdy z wykresów dostał inne — bo każdy
+odpowiada na inne pytanie.
+
+**Temperatura: dwa panele ze wspólną osią czasu.** Górny to same pokoje na własnej
+skali, dolny to pasek „mieszkanie kontra dwór”. Podwójna oś, którą ten wykres miał do
+21.08, jest w wizualizacji danych techniką odradzaną i nie jest to kwestia gustu:
+**punkt przecięcia dwóch linii na dwóch skalach nie znaczy nic**, bo zależy wyłącznie
+od tego, jak dobrano zakresy — można nimi „pokazać” dowolną korelację. Grafana ostrzega
+przed drugą osią w dokumentacji, Datadog ją odradza, Home Assistant w ogóle jej nie
+oferuje. Rozwiązaniem, po które sięgają narzędzia monitoringu, są osobne panele nad sobą.
+
+W pasku obie krzywe — dwór i **średnia mieszkania** — siedzą na jednej skali, więc
+odległość między nimi to dosłownie różnica w stopniach. Pole między nimi jest zabarwione:
+**błękit, gdy na dworze chłodniej** (jest po co otwierać), **czerwień, gdy cieplej**
+(zamykaj). Moment przecięcia to chwila, w której warto ruszyć okna. Podziałkę czasu
+niesie wyłącznie dolny panel: stykają się krawędziami i czytają jak jedna całość.
+Bez czujnika zewnętrznego pasek się chowa, a podpisy godzin wracają na górę.
+
+**Wilgotność względna: druga oś po prawej**, podpisana kolorem serii dworu i bez własnej
+siatki — żeby było widać, że to druga miarka. Nagłówek mówi to wprost. Osobnego panelu
+tam nie ma, bo nikt go nie zamawiał, a sam wykres jest pomocniczy: po wilgotności
+względnej i tak nie poznasz, czy wietrzenie coś dało (od tego jest bezwzględna).
+
+**Wilgotność bezwzględna: jedna wspólna oś** — i tak ma zostać. Tam sensem wykresu jest
+to, że przy wietrzeniu linia mieszkania zbliża się do linii dworu; na dwóch skalach ta
+odległość przestałaby cokolwiek znaczyć.
 
 Linie pokoi są **wygładzone średnią z trzech kolejnych odczytów**. Czujniki raportują
-z krokiem 0,1 °C i 1%, a po rozdzieleniu osi lewa skala pokazuje niecałe dwa stopnie na
+z krokiem 0,1 °C i 1%, a odkąd pokoje mają wykres dla siebie, skala pokazuje niecałe cztery stopnie na
 całą wysokość — jedna dziesiąta urosła do kilkudziesięciu pikseli i krzywe zamieniły się
 w schodki, które są rozdzielczością sprzętu, a nie zjawiskiem w mieszkaniu. Zmierzone na
 tygodniu prawdziwych danych: średnia odsuwa linię najwyżej o **0,067 °C**, czyli mniej

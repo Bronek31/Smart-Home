@@ -28,6 +28,9 @@
 .trace{margin-top:1.7rem}.trace h2{margin:0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;align-items:baseline;gap:.55rem}.trace h2 small{font-weight:400;letter-spacing:.06em;color:var(--faint);text-transform:none}.plot{position:relative;height:238px;background:var(--panel);border:1px solid var(--edge)}@media(min-width:700px){.plot{height:300px}}
 /* przewijanie w pionie i szczypanie zostają przy przeglądarce, poziome przeciąganie jest nasze — bez tego podwójne stuknięcie w wykres przybliża stronę */
 .plot canvas{touch-action:pan-y pinch-zoom}
+/* Pasek zestawienia siedzi tuż pod wykresem pokoi i czyta się z nim jako jedna całość,
+   dlatego nie ma własnej górnej krawędzi ani własnych podpisów godzin. */
+.plot-dwor{height:132px;border-top:0}@media(min-width:700px){.plot-dwor{height:150px}}
 .trace .hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);max-width:52rem}
 /* komunikat zamiast wykresu nie potrzebuje 300 px wysokości zarezerwowanych na płótno */
 .plot-blad{margin:0;padding:1.1rem 1.2rem;font-size:.82rem;line-height:1.5;color:var(--faint)}.plot:has(.plot-blad){height:auto}
@@ -101,8 +104,9 @@
   <div class="pens" id="pens"></div>
   <div class="controls"><span class="lbl">Zakres wykresów</span><button class="range" data-hours="dzis">dziś</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><label class="chk" title="Ukrywa krótkie skoki, po których wartość wraca do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki. Trwałe zmiany, takie jak włączony grzejnik, zostają."><input type="checkbox" id="filtr" checked>Ukryj chwilowe skoki</label><div class="toggles" id="toggles"></div></div>
 
-  <div class="trace"><h2>Temperatura <small>&deg;C</small><small class="osie"></small><small id="cut-temp"></small><small class="wietrz-licznik"></small></h2><div class="plot"><canvas id="temp"></canvas></div>
-    <div class="pasma-legenda" hidden></div></div>
+  <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small><small class="wietrz-licznik"></small></h2><div class="plot"><canvas id="temp"></canvas></div>
+    <div class="plot plot-dwor" id="plot-dwor"><canvas id="temp-dwor"></canvas></div>
+    <div class="pasma-legenda" id="legenda-temp" hidden></div></div>
   <div class="trace"><h2>Wilgotność względna <small>%</small><small class="osie"></small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
   <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small><small class="wietrz-licznik"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
     <div class="pasma-legenda" hidden></div>
@@ -689,14 +693,17 @@ function scalPasma(lista){
 const pasma={id:'pasma',beforeDatasetsDraw(chart){
   const{ctx,chartArea:a,scales:{x}}=chart;
   ctx.save();
-  [[state.klima,'rgba(226,112,143,.13)'],[state.wietrzPasma,'rgba(95,184,224,.14)']].forEach(([ev,kolor])=>{
+  [[state.klima,'rgba(226,112,143,.75)'],[state.wietrzPasma,'rgba(95,184,224,.85)']].forEach(([ev,kolor])=>{
     if(!ev?.length)return;
     ctx.fillStyle=kolor;
     ev.forEach(w=>{
       const x1=x.getPixelForValue(w.od),x2=x.getPixelForValue(w.do);
       if(x2<a.left||x1>a.right)return;
       const l=Math.max(x1,a.left),r=Math.min(Math.max(x2,l+2),a.right);
-      ctx.fillRect(l,a.top,r-l,a.bottom-a.top);
+      // wstążka przy dolnej krawędzi, nie prostokąt na całą wysokość: przy 7 dniach
+      // epizodów robi się kilkanaście i pełna wysokość zamieniała wykres w pasy
+      const wys=Math.max(6,(a.bottom-a.top)*0.045);
+      ctx.fillRect(l,a.bottom-wys,r-l,wys);
     });
   });
   ctx.restore();
@@ -892,35 +899,132 @@ function wygladz(pkt){
    Wilgotność bezwzględna zostaje na jednej osi świadomie. Tam cały sens wykresu
    polega na tym, że linia mieszkania zbliża się do linii dworu przy wietrzeniu —
    na dwóch skalach ta odległość przestałaby cokolwiek znaczyć. */
-function draw(canvasId,sets,unit,decimals,extra=[],dwieOsie=false){
+/* Stała szerokość osi pionowej. Wykres pokoi i pasek zestawienia stoją jeden pod drugim
+   i muszą się pokrywać co do piksela — a Chart.js dobiera szerokość osi do najdłuższego
+   podpisu, więc „26,5" i „34" dałyby dwa różne lewe marginesy i przesunięte panele. */
+const OS_Y=46;
+/* Wspólny zakres czasu dla panelu górnego i dolnego. Bez tego każdy z nich wziąłby
+   krańce ze swoich danych — a pokoje i dwór kończą się o innych porach, więc panele
+   rozjechałyby się w poziomie i porównywanie chwil przestałoby mieć sens. */
+function zakresOsi(sets){
+  const wsz=sets.flatMap(s=>s.points);
+  if(!wsz.length)return null;
+  return{min:lewaKrawedz(sets),max:Math.max(...wsz.map(p=>p.x))};
+}
+function draw(canvasId,sets,unit,decimals,extra=[],dwieOsie=false,os=null,bezX=false){
   // krok podziałki ustala się przy każdym przeliczeniu osi i stąd bierze go format podpisu
   let krokH=24;
   const zewn=dwieOsie?sets.find(s=>s.device.ext):null,barwaZ=zewn?zewn.device.color:null;
   // agregaty dobowe to już średnie z całej doby — nie ma w nich schodka do wygładzania
   const glad=!useDaily();
-  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:glad&&!s.device.ext?wygladz(s.points):s.points,yAxisID:zewn&&s.device.ext?'y2':'y',...(zewn&&s.device.ext?{borderColor:DWOR_LINIA,backgroundColor:DWOR_TLO,borderWidth:1,borderDash:[],fill:'start',order:10}:{borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],order:1}),pointRadius:c=>s.points.length<=SAMOTNE?2.6:(!s.device.ext&&c.dataIndex===c.dataset.data.length-1?2.6:0),pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:zewn?4:16,top:6}},scales:{x:{type:'time',min:lewaKrawedz(sets),afterBuildTicks:s=>{const mk=useDaily()?24:1;krokH=krokPodzialki(s.min,s.max,s.chart.width,mk);s.ticks=timeTicks(s.min,s.max,s.chart.width,mk)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),krokH)}},y:{border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{precision:decimals,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}},...(zewn?{y2:{position:'right',border:{color:barwaZ},grid:{drawOnChartArea:false},ticks:{precision:decimals,color:barwaZ,font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}}:{})},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.raw?.v??item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);return !!zewn}
+  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:glad&&!s.device.ext?wygladz(s.points):s.points,yAxisID:zewn&&s.device.ext?'y2':'y',...(zewn&&s.device.ext?{borderColor:DWOR_LINIA,backgroundColor:DWOR_TLO,borderWidth:1,borderDash:[],fill:'start',order:10}:{borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],order:1}),pointRadius:c=>s.points.length<=SAMOTNE?2.6:(!s.device.ext&&c.dataIndex===c.dataset.data.length-1?2.6:0),pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:zewn?4:16,top:6}},scales:{x:{type:'time',min:os?os.min:lewaKrawedz(sets),...(os?{max:os.max}:{}),afterBuildTicks:s=>{const mk=useDaily()?24:1;krokH=krokPodzialki(s.min,s.max,s.chart.width,mk);s.ticks=timeTicks(s.min,s.max,s.chart.width,mk)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{display:!bezX,color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),krokH)}},y:{afterFit:sc=>{sc.width=OS_Y},border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{precision:decimals,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}},...(zewn?{y2:{position:'right',border:{color:barwaZ},grid:{drawOnChartArea:false},ticks:{precision:decimals,color:barwaZ,font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}}:{})},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.raw?.v??item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);return !!zewn}
 /* Chart.js leci z CDN, więc jedna zablokowana domena albo jego awaria i wykresów
    nie ma. Bez tej klamry wyjątek z draw() przerywał render() w połowie i zabierał ze
    sobą obie tabele oraz stempel w nagłówku — czyli rzeczy, które z wykresami nie mają
    nic wspólnego. Teraz rysowanie idzie na końcu render() i we własnym try, a w miejscu
    wykresu staje wyjaśnienie zamiast pustej kratki. */
+/* --- Pasek „mieszkanie kontra dwór" ---
+
+   Do 21.08 dwór jechał po drugiej osi tego samego wykresu, co pokoje. Podwójna oś jest
+   w wizualizacji danych techniką odradzaną i to nie jest kwestia gustu: **punkt przecięcia
+   dwóch linii na dwóch skalach nie znaczy nic**, bo zależy wyłącznie od tego, jak dobrano
+   zakresy. Zmierzone tutaj: przez tydzień dwór chodził 14,0–33,8 °C, a wszystkie cztery
+   pokoje zmieściły się w 22,8–26,7 — pasmo dworu przykrywało pół pola, a pokoje zlewały
+   się w kreskę, bo jedna oś musiała objąć oba zakresy.
+
+   Rozwiązanie jest takie, po jakie sięgają narzędzia monitoringu, gdy skale naprawdę się
+   rozjeżdżają: **dwa panele nad sobą ze wspólną osią czasu**. Górny odpowiada na pytanie
+   „co się dzieje w pokojach" i ma całą wysokość dla siebie. Dolny odpowiada na „mieszkanie
+   kontra dwór" — obie krzywe na JEDNEJ skali, więc odległość między nimi to dosłownie
+   różnica w stopniach, a pole między nimi jest zabarwione: błękit, gdy na dworze chłodniej,
+   czerwień, gdy cieplej. Moment przecięcia to chwila, w której warto ruszyć okna.
+
+   Średnia mieszkania, a nie cztery osobne linie: pasek ma odpowiadać na jedno pytanie,
+   a od porównywania pokoi między sobą jest panel wyżej. */
+const ZEST_CIEPLEJ='rgba(226,112,143,.24)',ZEST_CHLODNIEJ='rgba(95,184,224,.26)';
+function sredniaMieszkania(zewnPts,wewnSets){
+  return zewnPts.map(p=>{
+    const v=wewnSets.map(s=>wartoscW(s.points,p.x,MISS_GAP)).filter(x=>x!=null);
+    return v.length?{x:p.x,y:v.reduce((a,b)=>a+b,0)/v.length}:null;
+  }).filter(Boolean);
+}
+let krokZest=24;   // krok podziałki paska, tak jak krokH w draw()
+function rysujZestawienie(id,zewnSet,wewnSets,os){
+  const srednia=sredniaMieszkania(zewnSet.points,wewnSets);
+  if(srednia.length<2)return false;
+  const przy=(t)=>wartoscW(srednia,t,MISS_GAP);
+  const cfg={type:'line',plugins:[dotyk,pustka],data:{datasets:[
+    {label:'na zewnątrz',data:zewnSet.points,borderColor:DWOR_LINIA,borderWidth:1.4,borderDash:[5,4],
+     pointRadius:0,pointHitRadius:12,tension:.18,spanGaps:3*3600e3,
+     // fill.above to obszar, w którym dwór jest NAD mieszkaniem, czyli cieplej na zewnątrz
+     fill:{target:1,above:ZEST_CIEPLEJ,below:ZEST_CHLODNIEJ}},
+    {label:'średnia mieszkania',data:srednia,borderColor:'rgba(200,214,220,.60)',borderWidth:1.2,
+     pointRadius:0,pointHitRadius:0,tension:.18,fill:false}]},
+   options:{responsive:true,maintainAspectRatio:false,animation:false,
+    interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},
+    scales:{x:{type:'time',min:os.min,max:os.max,
+      // podziałkę czasu niesie wyłącznie ten panel — górny ją ukrywa, bo stykają się
+      // krawędziami i jeden komplet podpisów wystarcza na oba
+      afterBuildTicks:sc=>{const mk=useDaily()?24:1;krokZest=krokPodzialki(sc.min,sc.max,sc.chart.width,mk);sc.ticks=timeTicks(sc.min,sc.max,sc.chart.width,mk)},
+      border:{color:C('--edge')},
+      grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},
+      ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,
+        callback:v=>fmtWhen(new Date(v),krokZest)}},
+      y:{afterFit:sc=>{sc.width=OS_Y},border:{color:C('--edge')},grid:{color:C('--grid')},
+        ticks:{precision:0,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,0)}}},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),
+      borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,
+      titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},
+      filter:i=>i.datasetIndex===0,
+      callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),
+        label:item=>{const w=przy(item.parsed.x);
+          return w==null?` na zewnątrz ${fmtNum(item.parsed.y,1)} °C`
+            :[` na zewnątrz  ${fmtNum(item.parsed.y,1)} °C`,` mieszkanie   ${fmtNum(w,1)} °C`,
+              ` różnica      ${item.parsed.y>=w?'+':'−'}${fmtNum(Math.abs(item.parsed.y-w),1)} °C`]}}}}}};
+  state.charts[id]?.destroy();state.charts[id]=new Chart(document.getElementById(id),cfg);
+  return true;
+}
+/* Legenda paska mówi, co znaczy kolor pola — bez tego zestawienie jest ładne, ale nieme.
+   Stoi w tym samym bloku co legenda pasm wietrzenia, żeby pod wykresem był jeden rządek. */
+function legendaZestawienia(pasek){
+  const box=document.getElementById('legenda-temp');
+  if(!box)return;
+  const cz=[];
+  if(pasek){
+    cz.push(`<span><i style="background:${ZEST_CHLODNIEJ}"></i>na dworze chłodniej</span>`);
+    cz.push(`<span><i style="background:${ZEST_CIEPLEJ}"></i>na dworze cieplej</span>`);
+  }
+  if(state.wietrzPasma?.length)cz.push('<span><i style="background:rgba(95,184,224,.85)"></i>wietrzenie</span>');
+  if(state.klima?.length)cz.push(`<span><i style="background:rgba(226,112,143,.75)"></i>${esc(state.klimaNazwy.join(', ')||'urządzenie')} w pracy</span>`);
+  box.innerHTML=cz.join('');box.hidden=!cz.length;
+}
 function rysujWykresy(T,H,A){
   if(typeof Chart==='undefined')return brakWykresow('Nie udało się wczytać biblioteki wykresów z cdn.jsdelivr.net. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.');
   try{
+    // Temperatura idzie dwoma panelami: pokoje u góry na własnej skali, zestawienie
+    // z dworem w pasku pod spodem. Podpisy godzin rysuje tylko ten dolny — panele
+    // stykają się krawędziami i czytają jak jedna całość, więc jeden komplet wystarczy.
+    const wewnT=T.filter(s=>!s.device.ext),zewnT=T.find(s=>s.device.ext);
+    const osT=zakresOsi(T);
+    const pasek=!!zewnT&&wewnT.length>0&&osT!=null&&rysujZestawienie('temp-dwor',zewnT,wewnT,osT);
+    draw('temp',wewnT.length?wewnT:T,'°C',1,[pasma],false,osT,pasek);
+    document.getElementById('plot-dwor').hidden=!pasek;
     // Pasma rysujemy na tych dwóch wykresach, z których wykrywanie naprawdę korzysta.
     // Wilgotność względna ich nie dostaje: skacze od samej temperatury, więc pasmo nad
     // nią obiecywałoby związek, którego tam nie ma.
-    const dwie=draw('temp',T,'°C',1,[pasma],true)&draw('hum',H,'%',0,[],true);
+    const dwie=draw('hum',H,'%',0,[],true);
     draw('abs',A,'g/m³',1,[pasma]);
     // podpis stawiamy dopiero, gdy druga oś naprawdę powstała — bez czujnika
     // zewnętrznego obiecywałby coś, czego na wykresie nie ma
     document.querySelectorAll('.osie').forEach(e=>{e.textContent=dwie?'lewa oś: mieszkanie · prawa: dwór':''});
+    legendaZestawienia(pasek);
   }
   catch(blad){console.error(blad);brakWykresow(`Wykresy się nie narysowały: ${blad.message}. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.`)}
 }
 function brakWykresow(tekst){
   state.charts={};
-  document.querySelectorAll('.plot').forEach(p=>{p.innerHTML=`<p class="plot-blad">${esc(tekst)}</p>`});
+  document.querySelectorAll('.plot:not(.plot-dwor)').forEach(p=>{p.innerHTML=`<p class="plot-blad">${esc(tekst)}</p>`});
+  const pasek=document.getElementById('plot-dwor');if(pasek)pasek.hidden=true;   // komunikat ma paść raz
   document.querySelectorAll('.pasma-legenda').forEach(e=>{e.hidden=true});
 }
 /* --- Odtwarzanie historii na rzucie ---
@@ -1646,9 +1750,10 @@ async function render(){await ensureRows();state.indeks=indeksSerii();computeHea
   const licznik=state.wietrzPasma.length?` · ${plWietrz(state.wietrzPasma.length)}`:'';
   document.querySelectorAll('.wietrz-licznik').forEach(e=>{e.textContent=licznik});
   const legenda=[];
-  if(state.wietrzPasma.length)legenda.push('<span><i style="background:rgba(95,184,224,.32)"></i>wietrzenie</span>');
-  if(state.klima.length)legenda.push(`<span><i style="background:rgba(226,112,143,.30)"></i>${esc(state.klimaNazwy.join(', ')||'urządzenie')} w pracy</span>`);
-  document.querySelectorAll('.pasma-legenda').forEach(box=>{box.innerHTML=legenda.join('');box.hidden=!legenda.length});
+  if(state.wietrzPasma.length)legenda.push('<span><i style="background:rgba(95,184,224,.85)"></i>wietrzenie</span>');
+  if(state.klima.length)legenda.push(`<span><i style="background:rgba(226,112,143,.75)"></i>${esc(state.klimaNazwy.join(', ')||'urządzenie')} w pracy</span>`);
+  // legendę pod temperaturą składa legendaZestawienia() — ma tam dojść znaczenie kolorów paska
+  document.querySelectorAll('.pasma-legenda:not(#legenda-temp)').forEach(box=>{box.innerHTML=legenda.join('');box.hidden=!legenda.length});
   ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary();renderHealth();renderRytm();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
   rysujWykresy(T,H,A)}
 boot();

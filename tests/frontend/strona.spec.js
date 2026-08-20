@@ -693,13 +693,26 @@ test.describe('osie wykresów', () => {
     return { y2: !!ch.scales.y2, dworNaY2: ch.data.datasets.filter((d) => d.borderDash.length).every((d) => d.yAxisID === 'y2') };
   }, id);
 
-  test('temperatura i wilgotność względna dają dworowi własną oś', async ({ page }) => {
+  /* Temperatura straciła drugą oś 21.08 — dwór ma tam własny panel, patrz „pasek
+     zestawienia" niżej. Wilgotność względna drugą oś zachowuje: tam dwór chodzi 30–90%
+     przy pokojach w paśmie kilkunastu punktów, a osobnego panelu nikt nie zamawiał. */
+  test('wilgotność względna daje dworowi własną oś', async ({ page }) => {
     const bledy = await otworzTydzien(page);
-    for (const id of ['temp', 'hum']) {
-      const o = await osie(page, id);
-      expect(o.y2, `${id}: brak prawej osi`).toBe(true);
-      expect(o.dworNaY2, `${id}: seria dworu nie trafiła na prawą oś`).toBe(true);
-    }
+    const o = await osie(page, 'hum');
+    expect(o.y2, 'hum: brak prawej osi').toBe(true);
+    expect(o.dworNaY2, 'hum: seria dworu nie trafiła na prawą oś').toBe(true);
+    expect(bledy).toEqual([]);
+  });
+
+  test('temperatura nie ma już ani drugiej osi, ani serii dworu', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const o = await osie(page, 'temp');
+    expect(o.y2, 'temperatura wróciła do podwójnej osi').toBe(false);
+    const maDwor = await page.evaluate(() => {
+      const n = state.devices.find((d) => d.ext).name;
+      return state.charts.temp.data.datasets.some((d) => d.label === n);
+    });
+    expect(maDwor, 'dwór wciąż jedzie po wykresie pokoi').toBe(false);
     expect(bledy).toEqual([]);
   });
 
@@ -712,25 +725,108 @@ test.describe('osie wykresów', () => {
   });
 
   test('druga oś naprawdę rozciąga mieszkanie', async ({ page }) => {
-    // sedno zmiany: bez niej lewa oś obejmowała cały zakres dworu
+    // sedno tamtej zmiany: bez niej lewa oś obejmowała cały zakres dworu
     const bledy = await otworzTydzien(page);
     const z = await page.evaluate(() => {
-      const ch = state.charts.temp;
+      const ch = state.charts.hum;
       return { lewa: ch.scales.y.max - ch.scales.y.min, prawa: ch.scales.y2.max - ch.scales.y2.min };
     });
-    expect(z.prawa).toBeGreaterThan(z.lewa * 3);
+    expect(z.prawa).toBeGreaterThan(z.lewa * 2);
     expect(bledy).toEqual([]);
   });
 
   test('prawa oś jest podpisana kolorem serii dworu', async ({ page }) => {
     const bledy = await otworzTydzien(page);
     const zgodne = await page.evaluate(() => {
-      const ch = state.charts.temp;
       const dwor = state.devices.find((d) => d.ext);
-      return ch.options.scales.y2.ticks.color === dwor.color;
+      return state.charts.hum.options.scales.y2.ticks.color === dwor.color;
     });
     expect(zgodne).toBe(true);
     await expect(page.locator('.trace h2 .osie').first()).toHaveText(/lewa oś: mieszkanie/);
+    expect(bledy).toEqual([]);
+  });
+});
+
+/* Pasek zestawienia pod wykresem temperatury.
+
+   Do 21.08 dwór jechał po drugiej osi tego samego wykresu, co pokoje. Podwójna oś jest
+   techniką odradzaną, bo punkt przecięcia dwóch linii na dwóch skalach nie znaczy nic —
+   zależy wyłącznie od tego, jak dobrano zakresy. Zmierzone na tygodniu: dwór 14,0–33,8 °C
+   przy pokojach w 22,8–26,7, więc jedna oś dla obu spłaszczała mieszkanie do kreski,
+   a dwie dawały fałszywe przecięcia. Teraz są dwa panele ze wspólną osią czasu.
+
+   Testy pilnują trzech rzeczy: że obie krzywe paska siedzą na JEDNEJ skali (inaczej cały
+   zabieg traci sens), że panele mają identyczny zakres poziomy (inaczej rozjeżdżają się
+   w pionie i porównywanie chwil przestaje być prawdziwe) i że bez czujnika zewnętrznego
+   strona nie zostaje z pustym paskiem ani bez podziałki czasu. */
+test.describe('pasek zestawienia z dworem', () => {
+  test('obie krzywe siedzą na jednej skali, a pole między nimi jest barwione znakiem różnicy', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const p = await page.evaluate(() => {
+      const ch = state.charts['temp-dwor'];
+      const [dwor, dom] = ch.data.datasets;
+      return {
+        serie: ch.data.datasets.length,
+        y2: !!ch.scales.y2,
+        osie: ch.data.datasets.map((d) => d.yAxisID || 'y'),
+        cel: dwor.fill.target,
+        cieplej: dwor.fill.above, chlodniej: dwor.fill.below,
+        etykiety: [dwor.label, dom.label],
+      };
+    });
+    expect(p.serie, 'pasek ma nieść dwór i średnią mieszkania').toBe(2);
+    expect(p.y2, 'pasek dorobił sobie drugą oś — cała zmiana na nic').toBe(false);
+    expect(new Set(p.osie).size, 'krzywe paska rozjechały się na dwie osie').toBe(1);
+    expect(p.cel, 'wypełnienie nie sięga do linii mieszkania').toBe(1);
+    expect(p.cieplej).not.toBe(p.chlodniej);
+    expect(p.etykiety[1]).toMatch(/mieszkani/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('oba panele mają identyczny zakres poziomy i tę samą szerokość osi', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const z = await page.evaluate(() => {
+      const g = state.charts.temp.scales.x, d = state.charts['temp-dwor'].scales.x;
+      return { gmin: g.min, gmax: g.max, dmin: d.min, dmax: d.max,
+        gy: state.charts.temp.scales.y.width, dy: state.charts['temp-dwor'].scales.y.width };
+    });
+    expect(z.dmin, 'panele zaczynają się w innych chwilach').toBe(z.gmin);
+    expect(z.dmax, 'panele kończą się w innych chwilach').toBe(z.gmax);
+    expect(z.dy, 'różna szerokość osi pionowej rozjedzie panele w poziomie').toBe(z.gy);
+    expect(bledy).toEqual([]);
+  });
+
+  test('podziałkę czasu niesie tylko dolny panel', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const p = await page.evaluate(() => ({
+      gora: state.charts.temp.options.scales.x.ticks.display,
+      dol: state.charts['temp-dwor'].options.scales.x.ticks.display !== false,
+    }));
+    expect(p.gora, 'górny panel dubluje podpisy godzin').toBe(false);
+    expect(p.dol, 'dolny panel zgubił podpisy godzin').toBe(true);
+    expect(bledy).toEqual([]);
+  });
+
+  test('bez czujnika zewnętrznego pasek znika, a podziałka wraca na górę', async ({ page }) => {
+    const bledy = await otworz(page, {}, { hash: '#zakres=7d&bez=' + encodeURIComponent('na zewnątrz') });
+    await page.waitForFunction(() => state.hours === 168 && state.charts.temp);
+    const p = await page.evaluate(() => ({
+      pasek: !!state.charts['temp-dwor'],
+      schowany: document.getElementById('plot-dwor').hidden,
+      gora: state.charts.temp.options.scales.x.ticks.display,
+      pokoje: state.charts.temp.data.datasets.length,
+    }));
+    expect(p.schowany, 'pusty pasek został na stronie').toBe(true);
+    expect(p.gora, 'strona została bez podziałki czasu').toBe(true);
+    expect(p.pokoje, 'pokoje zniknęły razem z dworem').toBeGreaterThan(3);
+    expect(bledy).toEqual([]);
+  });
+
+  test('legenda tłumaczy kolory pola', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const t = await page.locator('#legenda-temp').innerText();
+    expect(t).toMatch(/chłodniej/);
+    expect(t).toMatch(/cieplej/);
     expect(bledy).toEqual([]);
   });
 });
@@ -763,7 +859,7 @@ test.describe('dwór jako tło', () => {
 
   test('na własnej osi jest pasmem pod pokojami, nie linią', async ({ page }) => {
     const bledy = await otworzTydzien(page);
-    for (const w of ['temp', 'hum']) {
+    for (const w of ['hum']) {
       const d = await dwor(page, w);
       expect(d.fill, `${w}: dwór bez wypełnienia`).toBe('start');
       expect(d.dash, `${w}: dwór nadal kreskowany`).toBe(0);
@@ -820,7 +916,8 @@ test.describe('wygładzanie linii', () => {
 
   test('dwór zostaje surowy', async ({ page }) => {
     const bledy = await otworzTydzien(page);
-    for (const w of ['temp', 'hum', 'abs']) {
+    // temperatury nie ma na liście: dwór ma tam własny panel i własną funkcję rysującą
+    for (const w of ['hum', 'abs']) {
       const p = await seria(page, w, 'Na zewnątrz');
       expect(p, `${w}: brak serii dworu`).not.toBeNull();
       expect(p.length, `${w}: pusta seria, test nic nie sprawdza`).toBeGreaterThan(50);

@@ -260,6 +260,44 @@ nie wolno domalowywać — a to jest dokładnie ta różnica, o którą chodził
 `TUYA_ODTWORZ` w danych źródłowych. Tam odtwarzanie dotyczyłoby zapisu na dysku; tutaj
 wyłącznie jednej komórki w wizualizacji, oznaczonej jako odtworzona.
 
+### Dwa panele zamiast dwóch osi (temperatura)
+
+Zgłoszone jako „temperatura na zewnątrz jest zaznaczona tak, że psuje wszystko wizualnie"
+i „tygodniowy wykres temperatury wygląda tak, że nic z niego nie da się przeczytać".
+Użytkownik sam zapytał, czy jedna oś nie byłaby lepsza, i poprosił o warianty do wyboru.
+
+Wyrenderowałem trzy na jego danych i to renderowanie rozstrzygnęło sprawę:
+
+| wariant | wynik |
+|---|---|
+| jedna wspólna oś | cztery pokoje zlewają się w jedną wstążkę — dokładnie to, przed czym ostrzegała notatka z poprzedniej sesji |
+| dwie osie (stan sprzed) | pasmo dworu przykrywa pół pola, przecięcia linii są przypadkowe |
+| **dwa panele** | pokoje czytelne, dwór w kadrze, żadnych fałszywych przecięć |
+
+Pierwsza wersja paska miała własną, niezależną skalę i użytkownik od razu wytknął, że
+„ciężko zestawić ze sobą temperaturę w pokojach z temperaturą na zewnątrz". Miał rację
+i problem nie leżał w wysokości: przy dwóch niezależnych skalach pytanie „o ile cieplej"
+wymagało czytania dwóch osi i odejmowania w głowie. Druga runda wariantów: podniesiony
+pasek, pasek z dwiema krzywymi na jednej skali, pasek samej różnicy wokół zera. Wybrany
+został środkowy.
+
+Rzeczy, które trzeba było zrobić, żeby panele naprawdę do siebie pasowały — i które są
+osobnymi testami, bo bez nich całość jest tylko ładna:
+
+- **Wspólny zakres poziomy** (`zakresOsi`). Bez niego każdy panel bierze krańce ze swoich
+  danych, a pokoje i dwór kończą się o innych porach — panele rozjeżdżają się i porównanie
+  chwil przestaje być prawdziwe.
+- **Stała szerokość osi pionowej** (`OS_Y`). Chart.js dobiera ją do najdłuższego podpisu,
+  więc „26,5" i „34" dałyby dwa różne lewe marginesy.
+- **Podziałka czasu tylko w dolnym panelu.** Stykają się krawędziami, jeden komplet
+  wystarcza, a dwa wyglądały jak dwa osobne wykresy postawione przypadkiem obok siebie.
+- **Wyłączony czujnik zewnętrzny chowa pasek** i oddaje podpisy godzin na górę. Da się to
+  zrobić z poziomu adresu (`#bez=na zewnątrz`), więc nie jest to przypadek teoretyczny.
+
+Przy okazji pasma wietrzenia zamieniły prostokąty na całą wysokość na **wstążkę przy
+dolnej krawędzi**: przy 7 dniach epizodów robi się kilkanaście i pełna wysokość
+zamieniała wykres w pasy.
+
 ### Przy okazji
 
 - **Watchdog chodzi co 6 godzin**, nie raz na dobę. Próg alarmu to 6 godzin ciszy, więc
@@ -285,7 +323,8 @@ przestaje znaczyć „nic starszego" — i to jest decyzja do podjęcia, nie ocz
 - **Druga oś dla dworu** (temperatura i wilgotność względna). Dwór potrafi w tygodniu
   przejść 16 → 32 °C, a pokoje stoją w paśmie 25 → 26; na wspólnej osi cały ruch
   w mieszkaniu spłaszczał się do kilku pikseli. Zmierzone: prawa oś obejmuje ponad
-  trzykrotnie szerszy zakres niż lewa.
+  trzykrotnie szerszy zakres niż lewa. *(Dla temperatury **cofnięte 21.08** — patrz
+  „Dwa panele zamiast dwóch osi" wyżej. Dla wilgotności względnej obowiązuje dalej.)*
 - **Wilgotność bezwzględna zostaje na jednej osi** — i tak ma zostać. Tam sensem wykresu
   jest to, że przy wietrzeniu linia mieszkania zbliża się do linii dworu; na dwóch
   skalach ta odległość przestałaby cokolwiek znaczyć.
@@ -419,7 +458,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **91** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **97** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
