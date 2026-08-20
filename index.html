@@ -1700,8 +1700,7 @@ function renderRytm(){
   }
   mapa.innerHTML=kom.join('');
   document.getElementById('rytm-skala').innerHTML=
-    `<span><em>${fmtNum(zakres.min,1)}°</em><i style="background:linear-gradient(90deg,${gradientRampy(.85)})"></i><em>${fmtNum(zakres.max,1)}°</em></span>`
-    +`<span>ciemne pole — brak odczytu w tej godzinie</span>`+(document.querySelector('#mapa .zszyte')?`<span><i style="background:transparent;outline:1px dashed rgba(255,255,255,.34);outline-offset:-2px"></i>odtworzone z sąsiadów</span>`:'');
+    `<span><em>${fmtNum(zakres.min,1)}°</em><i style="background:linear-gradient(90deg,${gradientRampy(.85)})"></i><em>${fmtNum(zakres.max,1)}°</em></span>`;
   const wybor=document.getElementById('rytm-wybor');
   wybor.querySelectorAll('[data-rytm]').forEach(b=>{b.onclick=()=>{state.rytmDev=b.dataset.rytm;renderRytm()}});
   wybor.querySelectorAll('[data-rskala]').forEach(b=>{b.onclick=()=>{state.rytmSkala=b.dataset.rskala;renderRytm()}});
