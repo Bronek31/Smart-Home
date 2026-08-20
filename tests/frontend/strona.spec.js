@@ -646,6 +646,47 @@ test.describe('podpowiedzi i diagnostyka', () => {
    pokoje stoją w paśmie poniżej stopnia. Na wspólnej osi cały ruch w mieszkaniu
    spłaszcza się do kilku pikseli — stąd druga oś po prawej. Wilgotność bezwzględna
    jest wyjątkiem i musi nim zostać, bo tam porównanie z dworem jest sensem wykresu. */
+/* Godzina zegarowa bez odczytu zostawiała w mapie czarną kratkę — a raporty przychodzą
+   co ok. 59 minut i ta minuta dryfuje, więc co jakiś czas jedna godzina zostaje pusta.
+   20.08 tak wypadła Sypialnia o 17:00. Mapa ma pokazywać powtarzalny rytm, a dziura
+   w środku doby rozbija dokładnie to, po co się ją ogląda. */
+test.describe('rytm doby', () => {
+  const mapaPokoju = (page, pokoj) => page.evaluate((id) => {
+    state.rytmDev = id;
+    renderRytm();
+    const cells = [...document.querySelectorAll('#mapa .cell')];
+    return {
+      puste: cells.filter((c) => !c.style.background).length,
+      zszyte: cells.filter((c) => c.classList.contains('zszyte'))
+        .map((c) => ({ tytul: c.title, wartosc: parseFloat(c.title.match(/(\d+,\d+) °C/)[1].replace(',', '.')) })),
+    };
+  }, pokoj);
+
+  test('zgubiony raport nie zostawia dziury w mapie', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { zgubionyRaport: true });
+    const bez = await mapaPokoju(page, 'sypialnia');
+    const z = await mapaPokoju(page, 'salon');
+    expect(z.zszyte.length, 'dziura nie została domknięta').toBe(1);
+    expect(bez.zszyte.length, 'pokój bez zgubionego raportu nie ma czego zszywać').toBe(0);
+    // odtworzona wartość musi siedzieć w paśmie, w jakim ten pokój w ogóle chodzi
+    expect(z.zszyte[0].wartosc).toBeGreaterThan(23);
+    expect(z.zszyte[0].wartosc).toBeLessThan(27);
+    expect(z.zszyte[0].tytul).toContain('odtworzone');
+    expect(bledy).toEqual([]);
+  });
+
+  // Strażnik, nie test: przed poprawką przechodził tak samo, bo wtedy nic się nie zszywało.
+  // Stoi tu, żeby domykanie dziur nigdy nie rozlało się na prawdziwą ciszę czujnika.
+  test('dłuższa cisza czujnika zostaje czarna, nie jest zamalowywana', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { martwy: 'kuchnia' });
+    const z = await mapaPokoju(page, 'kuchnia');
+    // dziewięć godzin ciszy to nie jest zgubiony raport — nie ma z czego interpolować
+    expect(z.zszyte.length, 'martwy czujnik nie może zostać domalowany').toBe(0);
+    expect(z.puste, 'brak ciemnych pól, test nic nie sprawdza').toBeGreaterThan(5);
+    expect(bledy).toEqual([]);
+  });
+});
+
 test.describe('osie wykresów', () => {
   const osie = (page, id) => page.evaluate((k) => {
     const ch = state.charts[k];

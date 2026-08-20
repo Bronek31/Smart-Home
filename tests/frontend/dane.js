@@ -122,6 +122,7 @@ const kodyCzujnika = () => ({
  *   bateria        {pokoj, stan}
  *   wietrzenie     true — salon przez 2 godz. dąży do temperatury dworu, jak przy otwartym oknie
  *   rekaNaCzujniku true — salon dostaje krótki, nienaturalny skok „czujnik w dłoni” i powrót
+ *   zgubionyRaport true — salon nie wysyła jednego raportu, więc jedna godzina zegarowa zostaje pusta
  *   upalDzien      true — salon powoli ogrzewa się ku cieplejszemu dworowi przy ZAMKNIĘTYCH oknach,
  *                  a para z gotowania podciąga jego wilgotność bezwzględną w stronę dworu
  *   nazwaZnacznik  true — jeden pokój dostaje nazwę z „<” i cudzysłowem
@@ -133,7 +134,8 @@ const kodyCzujnika = () => ({
 function zbuduj(opcje = {}) {
   const {
     dni = 5, pusto = false, trend = null, martwy = null, bateria = null,
-    wietrzenie = false, rekaNaCzujniku = false, upalDzien = false, nazwaZnacznik = false,
+    wietrzenie = false, rekaNaCzujniku = false, upalDzien = false, zgubionyRaport = false,
+    nazwaZnacznik = false,
     pogodaGodzinowa = 'sucho', bezMiejsca = false,
     waskaWilgotnosc = false, przesuniete = false,
   } = opcje;
@@ -184,6 +186,10 @@ function zbuduj(opcje = {}) {
   const oknoWietrzenia = wietrzenie ? chlodneOkno(POKOJE_TU[0].baza, WIETRZ_GODZIN) : null;
   const oknoReki = rekaNaCzujniku ? chlodneOkno(POKOJE_TU[0].baza, 1) : null;
   const oknoUpalu = upalDzien ? oknoORoznicy(POKOJE_TU[0].baza, UPAL_GODZIN, UPAL_ROZNICA, true) : null;
+  /* Jeden zgubiony raport w środku historii — nie na brzegu, żeby po obu stronach dziury
+     był z czego interpolować, i nie w ostatnich godzinach, żeby nie mylić się z martwym
+     czujnikiem. 30 godzin wstecz trafia w środek przedostatniej doby. */
+  const zgubiony = zgubionyRaport ? start + Math.round((teraz - 30 * GODZ - start) / GODZ) * GODZ : null;
 
   for (const p of POKOJE_TU) {
     // o ile pokój jest w tej chwili odsunięty od swojego rytmu przez otwarte okno
@@ -222,6 +228,7 @@ function zbuduj(opcje = {}) {
         const cel = absBez(dwor.get(t), 55);
         wilg = wilgWzgledna(absStart + (cel - absStart) * (1 - (1 - UPAL_PARA) ** kroki), temp);
       }
+      if (zgubiony != null && p.id === 'salon' && tSiatka === zgubiony) continue;
       if (martwy === p.id && t > teraz - 9 * GODZ) continue;
       // przy zadanym trendzie ostatnie godziny pisze osobna pętla niżej; bez tego
       // powstałyby dwa odczyty na ten sam znacznik i regresja liczyłaby się z obu

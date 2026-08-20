@@ -227,6 +227,20 @@ mówiły to samo: dwór to odniesienie, nie pomieszczenie.
 polega na tym, że przy wietrzeniu linia mieszkania zbliża się do linii dworu — na dwóch
 skalach ta odległość przestałaby cokolwiek znaczyć. Testy pilnują obu tych decyzji.
 
+### Dziury w rytmie doby
+
+Raporty przychodzą co ok. 59 minut i ta minuta dryfuje, więc co jakiś czas jedna godzina
+zegarowa zostaje bez odczytu, a następna dostaje dwa. W mapie robiła się wtedy czarna
+kratka w środku doby — a mapa istnieje po to, żeby pokazywać **powtarzalny rytm**, więc
+dziura rozbija dokładnie to, po co się ją ogląda.
+
+Taka kratka jest **odtwarzana liniowo z sąsiednich odczytów**: temperatura jest wielkością
+ciągłą, a pomiary mamy po obu stronach. To jedyny odtwarzany kawałek danych w projekcie,
+więc dostaje kreskowaną ramkę, dopisek w dymku i własną pozycję w legendzie — ma nie
+udawać pomiaru. Gdy przerwa przekracza `MISS_GAP` (2,5 godz.), czyli czujnik naprawdę
+milczał, pole **zostaje czarne**: nie ma z czego odtwarzać i nie wolno tego zamalowywać.
+Pilnuje tego osobny test.
+
 ## Który fragment jaki okres pokazuje
 
 Przełącznik u góry nazywa się **Zakres wykresów** i tyle obejmuje — same wykresy.

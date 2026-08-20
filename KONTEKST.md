@@ -251,6 +251,15 @@ Fikstura dostała opcję `przesuniete`: każdy pokój raportuje w innej minucie 
 Bez tego wszystkie serie stały na jednej siatce co do sekundy i żaden test nie mógł
 tego zjawiska złapać.
 
+### Dziury w rytmie doby
+
+Zgłoszone i zatwierdzone przez użytkownika: „nie możemy sobie na to pozwolić". Kratka bez
+odczytu jest odtwarzana liniowo z sąsiadów i oznaczana kreskowaną ramką. Granica jest
+twarda i ma swój test: przerwa dłuższa niż `MISS_GAP` zostaje czarna, bo martwego czujnika
+nie wolno domalowywać — a to jest dokładnie ta różnica, o którą chodziło przy odrzuceniu
+`TUYA_ODTWORZ` w danych źródłowych. Tam odtwarzanie dotyczyłoby zapisu na dysku; tutaj
+wyłącznie jednej komórki w wizualizacji, oznaczonej jako odtworzona.
+
 ### Przy okazji
 
 - **Watchdog chodzi co 6 godzin**, nie raz na dobę. Próg alarmu to 6 godzin ciszy, więc
@@ -410,7 +419,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **89** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **91** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
