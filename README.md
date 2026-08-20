@@ -191,6 +191,23 @@ skoku 0,2 °C odsuwa linię o 0,1 — półtora raza dalej niż wnętrze serii. 
 danych brzegiem jest ostatni odczyt, czyli „teraz", i akurat przy wietrzeniu potrafi
 lecieć 0,5 °C w kwadrans.
 
+### Krawędzie wykresu
+
+Czujniki raportują każdy w innej minucie godziny i te minuty dryfują, więc bez zabiegu
+każda linia zaczyna się i kończy tam, gdzie akurat wypadł jej raport. Zmierzone 20.08
+w widoku „dziś": starty rozjechane o **46 minut**, końce o **53** — przy oknie 8,5 godziny
+to po dziesiątej części szerokości wykresu z każdej strony, a linia urwana w powietrzu
+wygląda jak martwy czujnik, nie jak czujnik, który jeszcze się nie odezwał.
+
+Lewą krawędź wyrównuje **kotwica**: do rysowania dokładany jest jeden prawdziwy odczyt
+sprzed granicy zakresu, a odcinek do niego przycina oś ustawiona na najwcześniejszy
+odczyt z zakresu. Nic nie jest dorysowywane — linia po prostu wchodzi w kadr z lewej.
+Do tabeli zakresów ani do wykrywania wietrzeń kotwica nie wchodzi; pilnują tego testy.
+
+Prawej krawędzi tak wyrównać się nie da, bo przyszłych odczytów nie ma. Tam ostatni
+odczyt każdego pokoju dostaje **kropkę** — koniec linii jest wtedy znakiem, a nie
+urwaniem, i zgadza się z tym, co kafel mówi słowami („ostatni raport 52 min temu”).
+
 Rusza wyłącznie rysowana linia. Kafle, tabela zakresów, rzut mieszkania i wykrywanie
 wietrzeń liczą z surowych odczytów, a dymek na wykresie pokazuje ten odczyt, który
 naprawdę przyszedł z czujnika. Dwór zostaje surowy: z Open-Meteo przychodzi już gładki,

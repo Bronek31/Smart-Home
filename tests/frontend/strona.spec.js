@@ -761,6 +761,53 @@ test.describe('wygładzanie linii', () => {
      przy oknie liczonym z dwóch odczytów zamiast trzech potrafiła wychodzić dokładnie
      na próg 0,100 i przechodzić albo nie zależnie od zaokrąglenia zmiennoprzecinkowego.
      Ten trzyma się reguły, a nie liczby: uśredniamy tylko przy pełnym oknie. */
+  /* Czujniki raportują każdy w innej minucie godziny, więc bez kotwicy każda linia
+     zaczynała się tam, gdzie akurat wypadł jej pierwszy raport po granicy zakresu.
+     20.08 w widoku „dziś" dawało to starty rozjechane o 46 minut — dziesiątą część
+     szerokości wykresu — i linie zaczynające się w powietrzu, jedna po drugiej.
+
+     Zakres to 7 dni przy 10 dobach historii, żeby granica zakresu na pewno wypadła
+     w środku danych: wtedy każdy pokój ma co zakotwiczyć i reguła obowiązuje bez
+     wyjątku, niezależnie od pory doby, o której test poszedł. */
+  test('każda linia wchodzi w kadr z lewej, mimo że czujniki raportują w różnych minutach', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { dni: 10, przesuniete: true });
+    const w = await page.evaluate(() => {
+      const ch = state.charts.temp;
+      return {
+        min: ch.scales.x.min,
+        serie: ch.data.datasets.map((d) => ({ nazwa: d.label, start: d.data[0].x })),
+      };
+    });
+    expect(w.serie.length, 'za mało serii, test nic nie sprawdza').toBeGreaterThan(3);
+    for (const s of w.serie) {
+      expect(s.start, `${s.nazwa}: linia zaczyna się dopiero w środku wykresu`).toBeLessThanOrEqual(w.min);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('kotwica nie wchodzi do tabeli zakresów ani do wykrywania wietrzeń', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { dni: 10, przesuniete: true });
+    const w = await page.evaluate(() => {
+      const od = odKiedy(168);
+      const s = series('temp', 168, false).find((x) => x.device.id === 'salon');
+      const surowe = state.rows
+        .filter((r) => r.id === 'salon' && r.code === 'va_temperature' && r.t >= od)
+        .map((r) => r.v);
+      return {
+        kotwicaPrzedZakresem: s.points[0].x < od,
+        statMin: s.stats.min, statMax: s.stats.max,
+        oczMin: Math.min(...surowe), oczMax: Math.max(...surowe),
+        wykrywanieOdZakresu: kanalyPokoju(state.devices.find((d) => d.id === 'salon'), od)
+          .temp.every((p) => p.x >= od),
+      };
+    });
+    expect(w.kotwicaPrzedZakresem, 'brak kotwicy, test nic nie sprawdza').toBe(true);
+    expect(w.statMin).toBeCloseTo(w.oczMin, 6);
+    expect(w.statMax).toBeCloseTo(w.oczMax, 6);
+    expect(w.wykrywanieOdZakresu, 'kotwica wyciekła do wykrywania wietrzeń').toBe(true);
+    expect(bledy).toEqual([]);
+  });
+
   test('wygładzanie rusza wyłącznie punkty z sąsiadami po obu stronach', async ({ page }) => {
     const bledy = await otworzTydzien(page);
     const w = await page.evaluate(() => {

@@ -28,6 +28,13 @@ const AMPLITUDA = 0.5;
    „teraz", więc nie wpadają na wiersze bazowe. */
 const ZAPAS = 30 * 60e3;
 
+/* Prawdziwe czujniki raportują każdy w innej minucie godziny i te minuty dryfują.
+   20.08 w widoku „dziś" dawało to starty rozjechane o 46 minut, a końce o 53 — czyli
+   po dziesiątej części szerokości wykresu z każdej strony. Fikstura stawiała wszystkie
+   pokoje na jednej siatce co do sekundy, więc tego zjawiska nie odtwarzała w ogóle
+   i żaden test nie mógł go złapać. */
+const PRZESUNIECIE = [0, 11 * 60e3, 22 * 60e3, 33 * 60e3];
+
 /* Jak wygląda wietrzenie w fiksturze.
 
    Dawna wersja zrzucała wilgotność salonu z 46% na 30%, czyli o ok. 3,6 g/m³
@@ -100,13 +107,14 @@ const kodyCzujnika = () => ({
  *   pogodaGodzinowa  'sucho' | 'parno' | 'brak'
  *   bezMiejsca     true — pogoda bez współrzędnych, czyli strona nie ma z czego liczyć łuku doby
  *   waskaWilgotnosc  true — wszystkie pokoje w paśmie kilku punktów, jak w prawdziwym mieszkaniu
+ *   przesuniete    true — każdy pokój raportuje w innej minucie godziny, jak prawdziwe czujniki
  */
 function zbuduj(opcje = {}) {
   const {
     dni = 5, pusto = false, trend = null, martwy = null, bateria = null,
     wietrzenie = false, rekaNaCzujniku = false, nazwaZnacznik = false,
     pogodaGodzinowa = 'sucho', bezMiejsca = false,
-    waskaWilgotnosc = false,
+    waskaWilgotnosc = false, przesuniete = false,
   } = opcje;
   /* Prawdziwe pokoje stoją w paśmie kilku punktów wilgotności (46–51), a nie ośmiu.
      Przy tak wąskim zakresie Chart.js dzieli oś na kreski co pół procenta i podpisy
@@ -156,7 +164,10 @@ function zbuduj(opcje = {}) {
   for (const p of POKOJE_TU) {
     // o ile pokój jest w tej chwili odsunięty od swojego rytmu przez otwarte okno
     let odchylka = 0;
-    for (let t = start; t <= teraz; t += GODZ) {
+    const przesun = przesuniete ? PRZESUNIECIE[POKOJE_TU.indexOf(p) % PRZESUNIECIE.length] : 0;
+    for (let tSiatka = start; tSiatka <= teraz; tSiatka += GODZ) {
+      const t = tSiatka + przesun;
+      if (t > teraz) continue;
       const godzina = new Date(t).getUTCHours();
       // dobowy rytm, żeby mapa rytmu i animacja miały co pokazywać
       const rytm = p.baza + AMPLITUDA * Math.sin(((godzina - 4) / 24) * 2 * Math.PI);

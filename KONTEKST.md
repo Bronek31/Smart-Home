@@ -198,6 +198,33 @@ Usterka jest starsza niż ta sesja (siedzi w `23f0142`), a wyszła dopiero przy 
 porze doby niż poprzednie. Doszedł test bez zegara: podaje własną serię ze stromym skokiem
 na brzegu i długą przerwą w środku, i sprawdza regułę, a nie liczbę.
 
+### Krawędzie wykresu „dziś"
+
+Zgłoszone jako „na początku i końcu wygląda to beznadziejnie". Zmierzone: 20.08 starty
+serii rozjechane o 46 minut, końce o 53 — przy 8,5-godzinnym oknie po dziesiątej części
+szerokości z każdej strony. Przyczyna jest strukturalna: każdy czujnik Tuya ma własną
+fazę raportowania w godzinie i ta faza dryfuje. Nigdy się nie zejdą.
+
+Lewą stronę da się wyrównać uczciwie i kod miał już na to precedens — krzywa dworu jest
+od dawna przycinana do startu odczytów z mieszkania, *„żeby nie ciągnęła się samotnie"*.
+Ta sama zasada, rozciągnięta na wszystkich: do rysowania dokładamy **jeden prawdziwy
+odczyt sprzed granicy zakresu**, a oś ustawiona na najwcześniejszy odczyt z zakresu
+chowa go za kadrem. Ważne: oś **nie** jest pinowana do granicy zakresu — przy „7 dniach"
+historia bywa krótsza niż okno i zostawiłoby to kilkanaście godzin pustki.
+
+Prawej strony wyrównać się nie da, bo przyszłych odczytów nie ma. Ostatni odczyt każdego
+pokoju dostaje kropkę; dwór jej nie dostaje, bo rysuje się pasmem i kropka na jego
+krawędzi czyta się jak brud.
+
+Kotwica jest zabiegiem wyłącznie rysunkowym: nie wchodzi do statystyk tabeli ani do
+wykrywania wietrzeń, i oba te wyłączenia mają swój test. Filtr skoków dostał za to
+zapas 3 godzin przed granicą — pierwszy odczyt w zakresie ma się wreszcie z czym
+porównać — ale licznik „ukryto N skoków" liczy dalej tylko to, co widać.
+
+Fikstura dostała opcję `przesuniete`: każdy pokój raportuje w innej minucie godziny.
+Bez tego wszystkie serie stały na jednej siatce co do sekundy i żaden test nie mógł
+tego zjawiska złapać.
+
 ### Przy okazji
 
 - **Watchdog chodzi co 6 godzin**, nie raz na dobę. Próg alarmu to 6 godzin ciszy, więc
@@ -357,7 +384,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **85** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **87** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
