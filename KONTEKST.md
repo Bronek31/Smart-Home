@@ -328,6 +328,16 @@ znikało wypełnienie. Zostawał sam pasek z jedną linią i legenda obiecująca
 nie było. Warto zapamiętać wzorzec: **każda stała czasowa napisana pod widok godzinowy
 musi mieć wariant dobowy**, tak jak ma go `spanGaps` w `draw()` od dawna.
 
+### Czego nowy pasek omal nie zgubił
+
+Kreska „jesteś tutaj" przy odtwarzaniu historii rysuje wtyczka `znacznik`, wpięta
+w `draw()`. Pasek zestawienia ma własną funkcję rysującą i wtyczki trzeba było wpiąć
+ręcznie — pierwsza wersja miała tylko `dotyk` i `pustka`, więc przy odtwarzaniu kreska
+urywała się na górnej krawędzi paska. Wygląda to jak usterka renderowania, a nie jak
+decyzja. Wniosek na przyszłość: **każda nowa funkcja rysująca wykres musi przejść listę
+wtyczek z `draw()` i świadomie odrzucić te, których nie chce** — tu odrzucona jest tylko
+`pasma`, bo wietrzenie ma wstążkę nad temperaturą, nie pod nią.
+
 ### Przy okazji
 
 - **Watchdog chodzi co 6 godzin**, nie raz na dobę. Próg alarmu to 6 godzin ciszy, więc
@@ -488,7 +498,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **94** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **95** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |

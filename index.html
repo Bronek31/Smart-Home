@@ -954,7 +954,10 @@ function rysujZestawienie(id,zewnSet,wewnSets,os){
   const srednia=sredniaMieszkania(zewnSet.points,wewnSets);
   if(srednia.length<2)return false;
   const przy=(t)=>wartoscW(srednia,t,MISS_GAP);
-  const cfg={type:'line',plugins:[dotyk,pustka],data:{datasets:[
+  // znacznik odtwarzania musi przechodzić i przez ten panel: stoi tuż pod wykresem pokoi
+  // i czyta się z nim jako całość, więc kreska „jesteś tutaj" urwana na jego górnej
+  // krawędzi wyglądałaby jak usterka
+  const cfg={type:'line',plugins:[dotyk,pustka,znacznik],data:{datasets:[
     {label:'na zewnątrz',data:zewnSet.points,borderColor:DWOR_LINIA,borderWidth:1.4,borderDash:[5,4],
      // agregaty dobowe dzieli 24 godziny — przy sztywnych 3 godzinach krzywa dworu
      // w widoku „całość" nie rysowała się wcale, a razem z nią znikało wypełnienie

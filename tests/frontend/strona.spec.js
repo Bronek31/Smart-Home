@@ -807,6 +807,18 @@ test.describe('osie wykresów', () => {
     expect(bledy).toEqual([]);
   });
 
+  /* Pasek stoi tuż pod wykresem pokoi i czyta się z nim jako całość, więc wszystko, co
+     przecina jeden panel w pionie, musi przeciąć i drugi. Kreska „jesteś tutaj" urwana
+     na górnej krawędzi paska wyglądałaby jak usterka renderowania. */
+  test('kreska odtwarzania przechodzi przez oba panele', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const maZnacznik = (id) => page.evaluate(
+      (k) => (state.charts[k].config.plugins || []).some((p) => p.id === 'znacznik'), id);
+    expect(await maZnacznik('temp'), 'górny panel bez znacznika').toBe(true);
+    expect(await maZnacznik('temp-dwor'), 'pasek bez znacznika odtwarzania').toBe(true);
+    expect(bledy).toEqual([]);
+  });
+
   test('legenda tłumaczy kolory pola', async ({ page }) => {
     const bledy = await otworzTydzien(page);
     const t = await page.locator('#legenda-temp').innerText();
