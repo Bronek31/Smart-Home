@@ -312,6 +312,12 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
   identyfikatorze. Pomyliłem się na tym i zaraportowałem nieprawdziwe „zero wietrzeń";
   poprawny odczyt to `policzWietrzenia(od).wietrz[d.id]`. Testy strony korzystają z tego
   wprost, zamiast czytać ostatnią kolumnę tabeli — tabela ma własny przełącznik zakresu.
+- **„Cancelled" w Actions nie znaczy „ktoś anulował".** 19.08 przebieg `Testy` na
+  commicie `2c4f574` ruszył o 21:43 i skończył się o 03:43 jako *cancelled* — dokładnie
+  sześć godzin, czyli domyślny limit wykonania GitHuba. Testów nie oblał: ten sam zestaw
+  przeszedł w 82 sekundy w nocnym przebiegu na kodzie zawierającym ten commit. Zanim
+  zaczniesz szukać błędu w kodzie, sprawdź czas trwania — sześć godzin to zawieszenie,
+  nie porażka. Wszystkie zadania mają teraz `timeout-minutes`, żeby to się nie powtórzyło.
 - **Podgląd strony w tej sesji wymaga podstawienia Chart.js.** `cdn.jsdelivr.net`
   i Google Fonts nie przechodzą przez proxy, więc zrzut ekranu bez podstawienia pokazuje
   stronę bez wykresów — dokładnie tak, jak wygląda awaria CDN. Pliki leżą

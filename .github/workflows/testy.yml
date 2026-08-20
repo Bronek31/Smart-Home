@@ -24,6 +24,12 @@ on:
 permissions:
   contents: read
 
+# Limity czasu, bo domyślny to sześć godzin. 19.08 przebieg na commicie 2c4f574 wisiał
+# dokładnie tyle i skończył się jako „cancelled" — co w Actions wygląda identycznie jak
+# przerwany push i kazało szukać błędu w kodzie, którego nie było (ten sam zestaw przeszedł
+# w 82 sekundy w nocnym przebiegu). Limit zamienia takie zawieszenie w szybką, uczciwą
+# porażkę i zwalnia runnera zamiast trzymać go pół doby.
+
 concurrency:
   group: testy-${{ github.ref }}
   cancel-in-progress: true
@@ -32,6 +38,7 @@ jobs:
   kolektor:
     name: Kolektor (Python)
     runs-on: ubuntu-latest
+    timeout-minutes: 10          # zwykle 8 s
     steps:
       - uses: actions/checkout@v4
 
@@ -58,6 +65,7 @@ jobs:
   strona:
     name: Strona (przeglądarka)
     runs-on: ubuntu-latest
+    timeout-minutes: 20          # zwykle 80 s, z pobieraniem Chromium kilka minut
     steps:
       - uses: actions/checkout@v4
 
@@ -107,6 +115,7 @@ jobs:
   strona-bez-budowania:
     name: Strona zostaje jednym plikiem
     runs-on: ubuntu-latest
+    timeout-minutes: 5          # zwykle 5 s
     steps:
       - uses: actions/checkout@v4
       - name: Pilnuj, czym ta strona jest

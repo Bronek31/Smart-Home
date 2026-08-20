@@ -28,6 +28,11 @@ concurrency:
 jobs:
   zbierz:
     runs-on: ubuntu-latest
+    # Bez limitu zawieszony przebieg trzymałby grupę `zbieranie` przez sześć godzin —
+    # a `cancel-in-progress: false` znaczy, że kolejne czekają w kolejce zamiast go
+    # zastąpić. Sześć godzin ciszy kolektora to sześć godzin zbliżania się do granicy
+    # 7 dni, po której logi Tuya przepadają. Zwykły przebieg to 2–3 minuty.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
