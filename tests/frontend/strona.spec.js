@@ -533,6 +533,38 @@ test.describe('podpowiedzi i diagnostyka', () => {
     expect(bledy).toEqual([]);
   });
 
+  /* Drugi test negatywny, z prawdziwej wpadki. 20.08.2026 detektor narysował wietrzenie
+     od 13 do 16 w czterech pokojach naraz — a okna były zamknięte od 8 do 18, bo na
+     dworze było cieplej niż w mieszkaniu. Ściany i słońce robią dokładnie to samo co
+     otwarte okno, tylko wolniej, a para z gotowania podciąga wilgotność bezwzględną
+     w stronę dworu bez żadnej wymiany powietrza. Zmierzone tamtej doby: przy zamkniętych
+     oknach temperatura dawała λ do 0,18/godz., a wilgotność aż do 2,45 — czyli więcej
+     niż przy większości prawdziwych wietrzeń. Dlatego wyzwala już tylko temperatura. */
+  test('upalne popołudnie przy zamkniętych oknach to nie jest wietrzenie', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { upalDzien: true });
+    expect(await ileWietrzen(page, 'salon')).toBe(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('sama wilgotność nie wystarcza, żeby ogłosić wietrzenie', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { upalDzien: true });
+    // fikstura ma w tym oknie mocny ruch wilgotności ku dworowi i słaby ruch temperatury
+    const kanaly = await page.evaluate(() => {
+      const d = state.devices.find((x) => x.id === 'salon');
+      const k = kanalyPokoju(d, odKiedy(168));
+      const zew = kanalyPokoju(state.devices.find((x) => x.ext), odKiedy(168));
+      const skok = (s, r) => Math.max(...s.slice(1).map((p, i) => {
+        const ref = wartoscW(r, p.x, WIETRZ.odniesienie);
+        const luka = ref == null ? 0 : ref - s[i].y;
+        return Math.abs(luka) < 0.4 ? 0 : (p.y - s[i].y) / luka;
+      }));
+      return { abs: skok(k.abs, zew.abs) };
+    });
+    expect(kanaly.abs, 'fikstura nie rusza wilgotnością, test nic nie sprawdza').toBeGreaterThan(0.2);
+    expect(await ileWietrzen(page, 'salon')).toBe(0);
+    expect(bledy).toEqual([]);
+  });
+
   /* Test negatywny, i to on jest tu najważniejszy: 19.08.2026 jedyne trzy pasma, jakie
      dawny algorytm kiedykolwiek narysował, wzięły się z czujników trzymanych w dłoniach.
      Powrót po takim zaburzeniu idzie w stronę dworu i wygląda dokładnie jak otwarte okno,

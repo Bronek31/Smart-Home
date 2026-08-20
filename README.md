@@ -275,10 +275,19 @@ dobach: największy ruch dwugodzinny w mieszkaniu to **0,50 g/m³** (w Salonie 0
 czyli próg stał wyżej niż fizycznie osiągalne maksimum i przez cały czas zbierania
 nie wykrył **ani jednego** wietrzenia.
 
-Liczą się **dwa kanały naraz** — temperatura i wilgotność bezwzględna — i wystarczy,
-żeby którykolwiek domykał różnicę odpowiednio szybko. Zimą i w suchy dzień pracuje
-wilgotność; w letni wieczór potrafi nie pracować wcale, bo po obu stronach ściany
-jest tyle samo pary, a wtedy całą informację niesie temperatura.
+Wyzwala **wyłącznie temperatura**, i to jest wynik pomiaru. Pierwsza wersja pozwalała
+wyzwalać także wilgotności bezwzględnej i 20.08 narysowała wietrzenie od 13 do 16
+w czterech pokojach naraz — przy oknach zamkniętych od 8 do 18. Zmierzone na tej dobie:
+
+| kanał | przy oknach ZAMKNIĘTYCH | przy oknach OTWARTYCH |
+|---|---|---|
+| wilgotność bezwzględna | λ **do 2,45/godz.** — parę produkuje kuchnia, prysznic i domownicy, a na dworze w upał jest jej dużo | milczy: różnica z dworem spada poniżej progu, kanał nie ma czego mierzyć |
+| temperatura | λ **do 0,18/godz.** — tyle dowożą ściany i słońce | pewne kroki od 0,25/godz. w górę |
+
+Wilgotność myli się więc w obie strony naraz: kłamie, gdy okna są zamknięte, i milczy,
+gdy są otwarte. Temperatura myli się przewidywalnie i da się to odciąć progiem. Kanał
+wilgotności zostaje wyłącznie jako strażnik odbicia — tam jego czułość na parę
+z gotowania jest zaletą, bo garnek ma być odsiany razem z ręką na czujniku.
 
 Trzy zabezpieczenia, wszystkie w stałej `WIETRZ` w `index.html`:
 
@@ -293,9 +302,11 @@ dwoma wykresami, z których wykrywanie korzysta. Wilgotność względna ich nie 
 celowo: skacze od samej temperatury, więc pasmo nad nią obiecywałoby związek, którego
 tam nie ma.
 
-Czego to nadal nie wykryje: wietrzenia słabszego niż ok. 10% różnicy na godzinę.
-Przy raportach co godzinę takiego epizodu nie da się odróżnić od nocnego stygnięcia
-przez ściany, więc próg jest tam, gdzie jest, świadomie.
+Czego to nadal nie wykryje: wietrzenia słabszego niż **20% różnicy temperatur na
+godzinę**, ani żadnego, gdy na dworze jest niemal tyle samo stopni co w mieszkaniu.
+Przy raportach co godzinę takiego epizodu nie da się odróżnić od ścian i słońca, więc
+próg jest tam, gdzie jest, świadomie — sprawdzone przeciwko dwóm dobom, o których
+wiadomo, kiedy okna były otwarte, a kiedy zamknięte.
 
 Kafel pokoju dopisuje też, **dokąd temperatura zmierza**: regresja liniowa z ostatnich
 czterech godzin wyciągnięta naprzód. Gdy z przedłużenia wychodzi przekroczenie progu

@@ -62,6 +62,25 @@ const WIETRZ_GODZIN = 2;
 const POWROT_UDZIAL = 0.20;     // po zamknięciu okna pokój wraca do swojego rytmu
 const WIETRZ_ROZNICA = [2.5, 7];  // na ile dwór ma być chłodniejszy od pokoju, min i max
 
+/* Upalne popołudnie przy ZAMKNIĘTYCH oknach — epizod, który wykryty być NIE może.
+
+   Odtworzone z 20.08.2026: dwór szedł 19,9 → 29,2 °C, a pokoje przy zamkniętych oknach
+   pełzły w górę o niecały stopień przez osiem godzin, bo grzały je ściany i słońce.
+   To jest ruch „w stronę dworu" bez żadnej wymiany powietrza — zmierzone λ do 0,18/godz.
+   Do tego para z gotowania i prysznica podnosi wilgotność bezwzględną, a na dworze
+   w upał jest jej dużo, więc i ten kanał pokazuje zbliżanie. Pierwsza wersja detektora
+   narysowała wtedy wietrzenie od 13 do 16 w czterech pokojach naraz. */
+const UPAL_UDZIAL = 0.10;      // ułamek różnicy temperatur na godzinę → λ ≈ 0,11, wyraźnie pod progiem 0,20
+const UPAL_PARA = 0.45;        // ułamek różnicy wilgotności na godzinę → λ ≈ 0,60, mocno nad progiem
+const UPAL_GODZIN = 4;
+const UPAL_ROZNICA = [2, 9];   // o ile dwór ma być CIEPLEJSZY od pokoju
+/* Zwykły dwór w fiksturze chodzi 10–26 °C, więc nigdy nie jest cieplejszy od pokoju na
+   tyle, żeby ściany zdążyły go dogonić — okna upału nie dałoby się w takich danych
+   znaleźć. Przy `upalDzien` podnosimy go do 15–33 °C, czyli w falę upałów, w której
+   ten projekt wystartował. */
+const DWOR_BAZA = { zwykly: 18, upal: 24 };
+const DWOR_AMPL = { zwykly: 8, upal: 9 };
+
 /* Czujnik w dłoni — epizod, który wykryty być NIE może.
 
    Odtworzony z prawdziwego zdarzenia z 19.08.2026: temperatura rośnie o 1,0 °C w ciągu
@@ -103,6 +122,8 @@ const kodyCzujnika = () => ({
  *   bateria        {pokoj, stan}
  *   wietrzenie     true — salon przez 2 godz. dąży do temperatury dworu, jak przy otwartym oknie
  *   rekaNaCzujniku true — salon dostaje krótki, nienaturalny skok „czujnik w dłoni” i powrót
+ *   upalDzien      true — salon powoli ogrzewa się ku cieplejszemu dworowi przy ZAMKNIĘTYCH oknach,
+ *                  a para z gotowania podciąga jego wilgotność bezwzględną w stronę dworu
  *   nazwaZnacznik  true — jeden pokój dostaje nazwę z „<” i cudzysłowem
  *   pogodaGodzinowa  'sucho' | 'parno' | 'brak'
  *   bezMiejsca     true — pogoda bez współrzędnych, czyli strona nie ma z czego liczyć łuku doby
@@ -112,7 +133,7 @@ const kodyCzujnika = () => ({
 function zbuduj(opcje = {}) {
   const {
     dni = 5, pusto = false, trend = null, martwy = null, bateria = null,
-    wietrzenie = false, rekaNaCzujniku = false, nazwaZnacznik = false,
+    wietrzenie = false, rekaNaCzujniku = false, upalDzien = false, nazwaZnacznik = false,
     pogodaGodzinowa = 'sucho', bezMiejsca = false,
     waskaWilgotnosc = false, przesuniete = false,
   } = opcje;
@@ -132,7 +153,8 @@ function zbuduj(opcje = {}) {
   const dwor = new Map();
   for (let t = start; t <= teraz; t += GODZ) {
     const faza = ((new Date(t).getUTCHours() - 4) / 24) * 2 * Math.PI;
-    const temp = 18 + 8 * Math.sin(faza);
+    const temp = (upalDzien ? DWOR_BAZA.upal : DWOR_BAZA.zwykly)
+      + (upalDzien ? DWOR_AMPL.upal : DWOR_AMPL.zwykly) * Math.sin(faza);
     const wilg = Math.round(50 - 15 * Math.sin(faza));
     dwor.set(t, temp);
     push(t, 'zewnatrz', 'va_temperature', temp.toFixed(1));
@@ -146,24 +168,26 @@ function zbuduj(opcje = {}) {
      Szukamy więc pierwszej godziny, od której przez cały epizod dwór jest chłodniejszy
      od pokoju o tyle, żeby wymiana powietrza miała co robić — ale nie o tyle, żeby
      pokój zjechał o kilkanaście stopni. */
-  const chlodneOkno = (baza, godzin) => {
+  const oknoORoznicy = (baza, godzin, [min, max], cieplejszy) => {
     for (let t0 = start; t0 <= teraz - 7 * GODZ; t0 += GODZ) {
       let pasuje = true;
       for (let i = 0; i <= godzin && pasuje; i++) {
-        const roznica = baza - dwor.get(t0 + i * GODZ);
-        pasuje = roznica >= WIETRZ_ROZNICA[0] && roznica <= WIETRZ_ROZNICA[1];
+        const roznica = cieplejszy ? dwor.get(t0 + i * GODZ) - baza : baza - dwor.get(t0 + i * GODZ);
+        pasuje = roznica >= min && roznica <= max;
       }
       if (pasuje) return t0;
     }
     return null;
   };
+  const chlodneOkno = (baza, godzin) => oknoORoznicy(baza, godzin, WIETRZ_ROZNICA, false);
 
   const oknoWietrzenia = wietrzenie ? chlodneOkno(POKOJE_TU[0].baza, WIETRZ_GODZIN) : null;
   const oknoReki = rekaNaCzujniku ? chlodneOkno(POKOJE_TU[0].baza, 1) : null;
+  const oknoUpalu = upalDzien ? oknoORoznicy(POKOJE_TU[0].baza, UPAL_GODZIN, UPAL_ROZNICA, true) : null;
 
   for (const p of POKOJE_TU) {
     // o ile pokój jest w tej chwili odsunięty od swojego rytmu przez otwarte okno
-    let odchylka = 0;
+    let odchylka = 0, absStart = null, upalStan = null;
     const przesun = przesuniete ? PRZESUNIECIE[POKOJE_TU.indexOf(p) % PRZESUNIECIE.length] : 0;
     for (let tSiatka = start; tSiatka <= teraz; tSiatka += GODZ) {
       const t = tSiatka + przesun;
@@ -174,13 +198,30 @@ function zbuduj(opcje = {}) {
       if (oknoWietrzenia != null && p.id === 'salon'
           && t >= oknoWietrzenia && t <= oknoWietrzenia + WIETRZ_GODZIN * GODZ) {
         odchylka += WIETRZ_UDZIAL * (dwor.get(t) - (rytm + odchylka));
+      } else if (oknoUpalu != null && p.id === 'salon'
+          && t >= oknoUpalu && t <= oknoUpalu + UPAL_GODZIN * GODZ) {
+        // Ściany i słońce: ruch w stronę dworu, ale wolniejszy niż wymiana powietrza.
+        // Pokój prowadzi tu własny stan zamiast doliczać odchyłkę do rytmu dobowego —
+        // inaczej nachylenie sinusa dodawałoby się do relaksacji i zmierzone λ wychodziło
+        // wyżej, niż mówi stała.
+        if (upalStan == null) upalStan = rytm;
+        upalStan += UPAL_UDZIAL * (dwor.get(t) - upalStan);
+        odchylka = upalStan - rytm;
       } else if (odchylka !== 0) {
         odchylka *= 1 - POWROT_UDZIAL;
         if (Math.abs(odchylka) < 0.05) odchylka = 0;
       }
       const temp = rytm + odchylka;
       // dopóki okno nie ruszyło pokoju, wilgotność jest dokładnie taka jak dotąd
-      const wilg = odchylka === 0 ? p.wilg : wilgWzgledna(absBez(rytm, p.wilg), temp);
+      let wilg = odchylka === 0 ? p.wilg : wilgWzgledna(absBez(rytm, p.wilg), temp);
+      if (oknoUpalu != null && p.id === 'salon'
+          && t >= oknoUpalu && t <= oknoUpalu + UPAL_GODZIN * GODZ) {
+        // para z gotowania i prysznica goni wilgotność dworu — bez żadnej wymiany powietrza
+        if (absStart == null) absStart = absBez(rytm, p.wilg);
+        const kroki = Math.round((t - oknoUpalu) / GODZ);
+        const cel = absBez(dwor.get(t), 55);
+        wilg = wilgWzgledna(absStart + (cel - absStart) * (1 - (1 - UPAL_PARA) ** kroki), temp);
+      }
       if (martwy === p.id && t > teraz - 9 * GODZ) continue;
       // przy zadanym trendzie ostatnie godziny pisze osobna pętla niżej; bez tego
       // powstałyby dwa odczyty na ten sam znacznik i regresja liczyłaby się z obu

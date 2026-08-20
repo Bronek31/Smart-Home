@@ -115,6 +115,32 @@ pod wilgotnością bezwzględną zostawiało z pytaniem „to skąd to wietrzeni
 na wykres, na którym nic nie widać. Wilgotność względna pasm nie dostaje: nie jest
 kanałem wykrywania. Licznik i legenda stoją teraz przy obu wykresach z pasmami.
 
+### Fałszywe wietrzenie w upał — poprawka z 20.08
+
+Zgłoszone przez użytkownika z twardą prawdą: okna zamknięte od 8 do 18, bo na dworze
+było cieplej niż w domu, otwarte od 18. Detektor narysował wietrzenie od 13 do 16
+w czterech pokojach naraz.
+
+Przyczyna jest w modelu, nie w progu. Ściany i słońce robią to samo co otwarte okno —
+przesuwają pokój w stronę dworu — tylko wolniej. A parę produkuje kuchnia i prysznic,
+więc wilgotność bezwzględna też goni dwór bez żadnej wymiany powietrza. Zmierzone
+na tej dobie, per krok:
+
+| kanał | okna ZAMKNIĘTE | okna OTWARTE |
+|---|---|---|
+| wilgotność | λ do **2,45**/godz. | milczy (różnica poniżej progu) |
+| temperatura | λ do **0,18**/godz. | pewne kroki od **0,25**/godz. |
+
+Przemiatanie progu pokazało, że przy obu kanałach fałszywek nie da się zejść poniżej
+sześciu przy ŻADNYM progu — bo to wilgotność je produkuje. Przy samej temperaturze
+i progu 0,20 jest **zero fałszywek** i pięć epizodów, z których każdy trafia w okno
+otwarte. Dlatego wyzwala już tylko temperatura, a kanał wilgotności zostaje wyłącznie
+jako strażnik odbicia.
+
+Wniosek ogólniejszy, wart zapamiętania: **„wystarczy, żeby którykolwiek kanał zadziałał"
+to zła reguła, gdy kanały mają różne zaburzenia.** Suma dwóch czułych detektorów jest
+czulsza na zaburzenia niż na zjawisko.
+
 **Rada „czy wietrzyć teraz" miała tę samą ślepotę i też została naprawiona.** Patrzyła
 wyłącznie na wilgotność, więc 19.08 o 20:30 mówiła „wietrzenie bez wpływu" — przy 21,0 °C
 na dworze, 24,7 w mieszkaniu, otwartych oknach i mieszkaniu stygnącym o 2 °C. Kafel
@@ -384,7 +410,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **87** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **89** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |

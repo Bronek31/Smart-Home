@@ -557,17 +557,29 @@ function seriesAbs(){
    Ułamek różnicy tego problemu nie ma, bo skaluje się sam: 0,3 °C przy różnicy 1 °C
    znaczy to samo, co 3 °C przy różnicy 10 °C.
 
-   Dwa kanały zamiast jednego. Zimą i w suchy dzień pracuje wilgotność, w letni wieczór
-   temperatura — 19.08 różnica wilgotności między mieszkaniem a dworem spadła poniżej
-   0,5 g/m³, czyli okno nie miało czego wymieniać w tym kanale, a temperatura w tym
-   samym czasie spadła o 1,9 °C. Wystarczy więc, żeby **którykolwiek** kanał domykał
-   różnicę odpowiednio szybko. */
+   Wyzwala **wyłącznie temperatura**, i to jest wynik pomiaru, nie założenia. Pierwsza
+   wersja tego detektora pozwalała wyzwalać obu kanałom („wystarczy, żeby którykolwiek")
+   i 20.08 narysowała wietrzenie od 13 do 16 w czterech pokojach naraz, przy oknach
+   zamkniętych od 8 do 18. Zmierzone na tej dobie:
+
+   - **wilgotność bezwzględna kłamie w obie strony.** Przy oknach ZAMKNIĘTYCH dawała
+     λ do 2,45/godz. — bo parę produkuje kuchnia, prysznic i domownicy, a na dworze
+     w letni dzień jest jej dużo, więc pokój „dąży do dworu" bez żadnej wymiany
+     powietrza. Przy oknach OTWARTYCH milczała: różnica z dworem spadała poniżej progu
+     i kanał nie miał czego mierzyć. W obu znanych epizodach wietrzenia nie wniosła nic.
+   - **temperatura myli się przewidywalnie i da się to odciąć progiem.** Ściany i słońce
+     przy zamkniętych oknach dowiozły najwyżej λ = 0,18/godz., a pewne kroki przy
+     otwartym oknie zaczynają się od 0,25.
+
+   Kanał wilgotności zostaje w kodzie, ale wyłącznie jako strażnik odbicia — tam jego
+   czułość na parę z gotowania jest zaletą, bo garnek ma być odsiany razem z ręką. */
 const WIETRZ={
-  // λ = 0,10/godz. Dobrane pomiarem, nie z głowy: przy 0,10 wykryte zostają wieczorne
-  // wietrzenia z 19.08 w Salonie i Sypialni, a Łazienka — jedyny pokój bez okna —
-  // nie odzywa się ani razu. Niżej (0,08) dochodzi wprawdzie słaba Kuchnia, ale razem
-  // z nią nocne stygnięcie Łazienki przez ściany, czyli fałszywka.
-  tempo:0.10,
+  // λ = 0,20/godz. Dobrane pomiarem przeciwko dwóm dobom, o których wiadomo, jak było
+  // naprawdę (19.08 okna otwarte od 17, 20.08 zamknięte 8–18 i otwarte od 18). Przy
+  // 0,20 wszystkie pięć wykrytych epizodów trafia w okna otwarte i nie ma ani jednej
+  // fałszywki; przy 0,15 dochodzi popołudniowa Łazienka przy oknach zamkniętych.
+  // Sufit jest po drugiej stronie: powyżej 0,25 gubi się słabe wietrzenie w Kuchni.
+  tempo:0.20,
   // poniżej tej różnicy z dworem kanał nic nie mówi — „w stronę dworu" przestaje mieć
   // znaczenie, a dzielenie małego ruchu przez małą różnicę produkuje wielkie λ z szumu
   luka:{temp:1.0,abs:0.4},
@@ -631,7 +643,9 @@ function wietrzenia(pokoj,dwor){
         // punktem odniesienia, strażnik puściłby dalej cały ogon artefaktu
         podejrzany[k]={baza:podejrzany[k]?.baza??v0[k],doKiedy:x1+WIETRZ.odbicieMax};
       }
-      if(f>0&&Math.abs(ruch)>=WIETRZ.ruch[k])tempa.push(-Math.log(1-Math.min(f,0.9))/h);
+      // wyzwala tylko temperatura — wilgotność bezwzględna została zmierzona jako
+      // niezdatna do tego (patrz komentarz nad WIETRZ); jej rola kończy się na strażniku
+      if(k==='temp'&&f>0&&Math.abs(ruch)>=WIETRZ.ruch[k])tempa.push(-Math.log(1-Math.min(f,0.9))/h);
     }
     // strażnik gaśnie, gdy minie czas albo gdy pokój wróci przez poziom sprzed zaburzenia
     for(const k of Object.keys(podejrzany)){
