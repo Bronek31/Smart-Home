@@ -1,13 +1,13 @@
 {
-  "updated": "2026-08-20T06:22:17Z",
+  "updated": "2026-08-20T06:46:39Z",
   "current": {
-    "time": "2026-08-20T08:15",
+    "time": "2026-08-20T08:45",
     "interval": 900,
-    "temperature_2m": 20.2,
-    "relative_humidity_2m": 85,
-    "apparent_temperature": 21.2,
-    "weather_code": 1,
-    "wind_speed_10m": 11.5
+    "temperature_2m": 20.8,
+    "relative_humidity_2m": 84,
+    "apparent_temperature": 21.6,
+    "weather_code": 0,
+    "wind_speed_10m": 15.1
   },
   "daily": {
     "time": [
@@ -28,7 +28,7 @@
     "temperature_2m_min": [
       19.2,
       20.5,
-      15.9
+      15.5
     ],
     "precipitation_probability_max": [
       53,
@@ -38,7 +38,7 @@
     "precipitation_sum": [
       1.9,
       2.5,
-      6.37
+      6.55
     ]
   },
   "hourly": {
