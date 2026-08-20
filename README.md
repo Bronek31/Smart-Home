@@ -188,14 +188,28 @@ odległość między nimi to dosłownie różnica w stopniach. Pole między nimi
 niesie wyłącznie dolny panel: stykają się krawędziami i czytają jak jedna całość.
 Bez czujnika zewnętrznego pasek się chowa, a podpisy godzin wracają na górę.
 
-**Wilgotność względna: druga oś po prawej**, podpisana kolorem serii dworu i bez własnej
-siatki — żeby było widać, że to druga miarka. Nagłówek mówi to wprost. Osobnego panelu
-tam nie ma, bo nikt go nie zamawiał, a sam wykres jest pomocniczy: po wilgotności
-względnej i tak nie poznasz, czy wietrzenie coś dało (od tego jest bezwzględna).
+**Wilgotność względna i bezwzględna: jedna wspólna oś.** Bez drugiej osi i bez osobnego
+panelu — i to jest wynik pomiaru, nie oszczędności. Decyduje jedna liczba: **ile wysokości
+zajęłyby pokoje, gdyby dzieliły oś z dworem**.
 
-**Wilgotność bezwzględna: jedna wspólna oś** — i tak ma zostać. Tam sensem wykresu jest
-to, że przy wietrzeniu linia mieszkania zbliża się do linii dworu; na dwóch skalach ta
-odległość przestałaby cokolwiek znaczyć.
+| wykres | zakres dworu | zakres pokoi | pokoje na wspólnej osi |
+|---|---|---|---|
+| temperatura | 14,0–33,8 °C | 22,8–26,7 °C | **20%** — nie do przyjęcia, stąd dwa panele |
+| wilgotność względna | 18–87% | 46–80% | **49%** — czytelne |
+| wilgotność bezwzględna | 6,1–16,2 g/m³ | 10,6–16,9 g/m³ | **58%** — czytelne |
+
+Wilgotność względna nie dostaje też paska zestawienia, i to z drugiego powodu:
+**porównywanie jej z dworem jest fizycznie mylące**, bo skacze od samej temperatury.
+Pasek obiecywałby odpowiedź na pytanie, na które ten wykres nie odpowiada — od tego jest
+wilgotność bezwzględna.
+
+Przy wilgotności bezwzględnej wspólna oś to nie tylko dopuszczalny kompromis, ale sens
+wykresu: przy wietrzeniu linia mieszkania zbliża się do linii dworu, a na dwóch skalach
+ta odległość przestałaby cokolwiek znaczyć.
+
+Po tych zmianach **na całej stronie nie ma ani jednej podwójnej osi**, a maszyneria, która
+ją rysowała, została z `draw()` usunięta, nie wyłączona. Wszędzie, gdzie dwór dzieli wykres
+z pokojami, jest kreskowaną linią; własnego pasma nie ma już gdzie rysować.
 
 Linie pokoi są **wygładzone średnią z trzech kolejnych odczytów**. Czujniki raportują
 z krokiem 0,1 °C i 1%, a odkąd pokoje mają wykres dla siebie, skala pokazuje niecałe cztery stopnie na

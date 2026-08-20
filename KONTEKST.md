@@ -298,6 +298,36 @@ Przy okazji pasma wietrzenia zamieniły prostokąty na całą wysokość na **ws
 dolnej krawędzi**: przy 7 dniach epizodów robi się kilkanaście i pełna wysokość
 zamieniała wykres w pasy.
 
+### Reszta wykresów, czyli koniec podwójnych osi
+
+Użytkownik poprosił, żeby „pozostałe wykresy też dostosować", i dopytał o zakładkę
+„całość". Pomiar zmienił odpowiedź: **wilgotności NIE należało dawać drugiego panelu.**
+
+Decyduje jedna liczba — ile wysokości zajęłyby pokoje na wspólnej osi z dworem:
+
+| wykres | pokoje na wspólnej osi | wniosek |
+|---|---|---|
+| temperatura | **20%** | dwa panele, jak zrobiono |
+| wilgotność względna | **49%** | wystarczy zdjąć drugą oś |
+| wilgotność bezwzględna | **58%** | już było dobrze, nic nie ruszać |
+
+Czyli mechaniczne skopiowanie układu dwóch paneli na wszystkie wykresy byłoby błędem.
+Wilgotność względna ma jeszcze drugi powód, żeby paska nie dostać: **porównywanie jej
+z dworem jest fizycznie mylące**, bo skacze od samej temperatury — pasek obiecywałby
+odpowiedź na pytanie, na które ten wykres nie odpowiada.
+
+Skoro po tej zmianie żaden wykres nie ma już drugiej osi, maszyneria rysująca ją
+w `draw()` została **usunięta, nie wyłączona** — tak samo, jak wcześniej z pętlą
+odtwarzania. Zniknęły z nią `dwieOsie`, `DWOR_TLO`, oś `y2`, podpisy „lewa oś:
+mieszkanie · prawa: dwór" i reguła „własna oś → tło": własnych osi nie ma już nigdzie,
+więc dwór wszędzie, gdzie dzieli wykres z pokojami, jest kreskowaną linią.
+
+**Usterka w „całość".** Pasek zestawienia miał `spanGaps` na sztywne 3 godziny, a agregaty
+dobowe dzieli 24 — więc w tym widoku krzywa dworu nie rysowała się wcale, a razem z nią
+znikało wypełnienie. Zostawał sam pasek z jedną linią i legenda obiecująca kolory, których
+nie było. Warto zapamiętać wzorzec: **każda stała czasowa napisana pod widok godzinowy
+musi mieć wariant dobowy**, tak jak ma go `spanGaps` w `draw()` od dawna.
+
 ### Przy okazji
 
 - **Watchdog chodzi co 6 godzin**, nie raz na dobę. Próg alarmu to 6 godzin ciszy, więc
@@ -458,7 +488,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **97** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **94** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |

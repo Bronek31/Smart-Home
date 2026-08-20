@@ -693,26 +693,24 @@ test.describe('osie wykresów', () => {
     return { y2: !!ch.scales.y2, dworNaY2: ch.data.datasets.filter((d) => d.borderDash.length).every((d) => d.yAxisID === 'y2') };
   }, id);
 
-  /* Temperatura straciła drugą oś 21.08 — dwór ma tam własny panel, patrz „pasek
-     zestawienia" niżej. Wilgotność względna drugą oś zachowuje: tam dwór chodzi 30–90%
-     przy pokojach w paśmie kilkunastu punktów, a osobnego panelu nikt nie zamawiał. */
-  test('wilgotność względna daje dworowi własną oś', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const o = await osie(page, 'hum');
-    expect(o.y2, 'hum: brak prawej osi').toBe(true);
-    expect(o.dworNaY2, 'hum: seria dworu nie trafiła na prawą oś').toBe(true);
-    expect(bledy).toEqual([]);
-  });
+  /* 21.08 z całej strony zniknęła podwójna oś — najpierw z temperatury (własny panel dla
+     dworu), potem z wilgotności względnej. Ta druga nie dostała panelu, tylko wspólną
+     skalę, i to jest wynik pomiaru: na wspólnej osi pokoje zajmują tam **49% wysokości**,
+     czyli zostają czytelne, podczas gdy przy temperaturze wychodziło 19% i cztery linie
+     zlewały się w jedną. Osobnego paska wilgotność względna mieć nie powinna także
+     z drugiego powodu: porównywanie jej z dworem jest fizycznie mylące, bo skacze od
+     samej temperatury — od tego jest wilgotność bezwzględna.
 
-  test('temperatura nie ma już ani drugiej osi, ani serii dworu', async ({ page }) => {
+     Maszyneria drugiej osi została z draw() usunięta, a nie tylko wyłączona. Ten test
+     pilnuje, żeby nie wróciła bocznymi drzwiami. */
+  test('żaden wykres nie ma już drugiej osi', async ({ page }) => {
     const bledy = await otworzTydzien(page);
-    const o = await osie(page, 'temp');
-    expect(o.y2, 'temperatura wróciła do podwójnej osi').toBe(false);
-    const maDwor = await page.evaluate(() => {
-      const n = state.devices.find((d) => d.ext).name;
-      return state.charts.temp.data.datasets.some((d) => d.label === n);
-    });
-    expect(maDwor, 'dwór wciąż jedzie po wykresie pokoi').toBe(false);
+    for (const id of ['temp', 'hum', 'abs']) {
+      const o = await osie(page, id);
+      expect(o.y2, `${id}: wróciła druga oś`).toBe(false);
+    }
+    // razem z osią zniknął jej podpis w nagłówkach
+    expect(await page.locator('.trace h2 .osie').count(), 'został podpis po drugiej osi').toBe(0);
     expect(bledy).toEqual([]);
   });
 
@@ -724,42 +722,6 @@ test.describe('osie wykresów', () => {
     expect(bledy).toEqual([]);
   });
 
-  test('druga oś naprawdę rozciąga mieszkanie', async ({ page }) => {
-    // sedno tamtej zmiany: bez niej lewa oś obejmowała cały zakres dworu
-    const bledy = await otworzTydzien(page);
-    const z = await page.evaluate(() => {
-      const ch = state.charts.hum;
-      return { lewa: ch.scales.y.max - ch.scales.y.min, prawa: ch.scales.y2.max - ch.scales.y2.min };
-    });
-    expect(z.prawa).toBeGreaterThan(z.lewa * 2);
-    expect(bledy).toEqual([]);
-  });
-
-  test('prawa oś jest podpisana kolorem serii dworu', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const zgodne = await page.evaluate(() => {
-      const dwor = state.devices.find((d) => d.ext);
-      return state.charts.hum.options.scales.y2.ticks.color === dwor.color;
-    });
-    expect(zgodne).toBe(true);
-    await expect(page.locator('.trace h2 .osie').first()).toHaveText(/lewa oś: mieszkanie/);
-    expect(bledy).toEqual([]);
-  });
-});
-
-/* Pasek zestawienia pod wykresem temperatury.
-
-   Do 21.08 dwór jechał po drugiej osi tego samego wykresu, co pokoje. Podwójna oś jest
-   techniką odradzaną, bo punkt przecięcia dwóch linii na dwóch skalach nie znaczy nic —
-   zależy wyłącznie od tego, jak dobrano zakresy. Zmierzone na tygodniu: dwór 14,0–33,8 °C
-   przy pokojach w 22,8–26,7, więc jedna oś dla obu spłaszczała mieszkanie do kreski,
-   a dwie dawały fałszywe przecięcia. Teraz są dwa panele ze wspólną osią czasu.
-
-   Testy pilnują trzech rzeczy: że obie krzywe paska siedzą na JEDNEJ skali (inaczej cały
-   zabieg traci sens), że panele mają identyczny zakres poziomy (inaczej rozjeżdżają się
-   w pionie i porównywanie chwil przestaje być prawdziwe) i że bez czujnika zewnętrznego
-   strona nie zostaje z pustym paskiem ani bez podziałki czasu. */
-test.describe('pasek zestawienia z dworem', () => {
   test('obie krzywe siedzą na jednej skali, a pole między nimi jest barwione znakiem różnicy', async ({ page }) => {
     const bledy = await otworzTydzien(page);
     const p = await page.evaluate(() => {
@@ -822,6 +784,29 @@ test.describe('pasek zestawienia z dworem', () => {
     expect(bledy).toEqual([]);
   });
 
+  /* Widok „całość" idzie z agregatów dobowych, a te dzieli 24 godziny. Pasek miał
+     spanGaps ustawione na sztywne 3 godziny i przez to krzywa dworu nie rysowała się
+     tam wcale — razem z nią znikało wypełnienie, więc zostawał sam pasek z jedną linią
+     i legenda obiecująca kolory, których nie było. */
+  test('w widoku „całość” pasek rysuje obie krzywe, nie tylko mieszkanie', async ({ page }) => {
+    const bledy = await otworz(page, {}, { hash: '#zakres=all' });
+    await page.waitForFunction(() => state.hours === 0 && state.charts['temp-dwor']);
+    const p = await page.evaluate(() => {
+      const ch = state.charts['temp-dwor'];
+      const dl = (i) => ch.data.datasets[i].data.length;
+      const luka = (i) => ch.data.datasets[i].spanGaps;
+      const odstep = ch.data.datasets[0].data.slice(1)
+        .map((p, i) => p.x - ch.data.datasets[0].data[i].x);
+      return { dwor: dl(0), dom: dl(1), lukaDworu: luka(0), najwiekszyOdstep: Math.max(...odstep) };
+    });
+    expect(p.dwor, 'pasek bez punktów dworu').toBeGreaterThan(2);
+    expect(p.dom, 'pasek bez średniej mieszkania').toBeGreaterThan(2);
+    // sedno: tolerancja przerwy musi objąć odstęp między agregatami, inaczej nic się nie narysuje
+    expect(p.lukaDworu, 'przerwa większa niż tolerancja — krzywa się nie narysuje')
+      .toBeGreaterThanOrEqual(p.najwiekszyOdstep);
+    expect(bledy).toEqual([]);
+  });
+
   test('legenda tłumaczy kolory pola', async ({ page }) => {
     const bledy = await otworzTydzien(page);
     const t = await page.locator('#legenda-temp').innerText();
@@ -857,26 +842,16 @@ test.describe('dwór jako tło', () => {
     expect(bledy).toEqual([]);
   });
 
-  test('na własnej osi jest pasmem pod pokojami, nie linią', async ({ page }) => {
+  /* Reguła „własna oś → tło, wspólna oś → linia" ma już tylko jedną połowę, bo własnych
+     osi nie ma nigdzie. Wszędzie, gdzie dwór jeszcze jedzie po tym samym wykresie co
+     pokoje, jest kreskowaną linią — bo tam porównanie jest sensem wykresu. */
+  test('wszędzie, gdzie dzieli wykres z pokojami, jest kreskowaną linią', async ({ page }) => {
     const bledy = await otworzTydzien(page);
-    for (const w of ['hum']) {
+    for (const w of ['hum', 'abs']) {
       const d = await dwor(page, w);
-      expect(d.fill, `${w}: dwór bez wypełnienia`).toBe('start');
-      expect(d.dash, `${w}: dwór nadal kreskowany`).toBe(0);
-      const pokoj = await page.evaluate((k) => {
-        const n = state.devices.find((x) => x.ext).name;
-        return state.charts[k].data.datasets.find((x) => x.label !== n).order;
-      }, w);
-      expect(d.order, `${w}: dwór nie jest z tyłu`).toBeGreaterThan(pokoj);
+      expect(d.fill, `${w}: dwór wrócił do pasma`).toBe(false);
+      expect(d.dash, `${w}: dwór przestał być kreskowany`).toBeGreaterThan(0);
     }
-    expect(bledy).toEqual([]);
-  });
-
-  test('na wspólnej osi zostaje linią, bo tam porównanie ma sens', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const d = await dwor(page, 'abs');
-    expect(d.fill).toBe(false);
-    expect(d.dash).toBeGreaterThan(0);
     expect(bledy).toEqual([]);
   });
 
