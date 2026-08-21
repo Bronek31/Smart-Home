@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-21T11:44:24Z",
+  "updated": "2026-08-21T12:50:03Z",
   "months": [
     "2026-08"
   ],
@@ -9,7 +9,7 @@
     "**Kuchnia** — wilgotność powyżej 65% przez 100% doby, przewietrz albo osusz.",
     "**Salon** — wilgotność powyżej 65% przez 65% doby, przewietrz albo osusz.",
     "**Sypialnia** — wilgotność powyżej 65% przez 28% doby, przewietrz albo osusz.",
-    "**Łazienka** — wilgotność powyżej 65% przez 87% doby, przewietrz albo osusz."
+    "**Łazienka** — wilgotność powyżej 65% przez 92% doby, przewietrz albo osusz."
   ],
   "devices": {
     "bfe38c4af789b0c8fbxte4": {
