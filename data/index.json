@@ -1,14 +1,14 @@
 {
-  "updated": "2026-08-21T03:17:40Z",
+  "updated": "2026-08-21T04:05:30Z",
   "months": [
     "2026-08"
   ],
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
   "alerty": [
-    "**Kuchnia** — wilgotność powyżej 65% przez 62% doby, przewietrz albo osusz.",
-    "**Salon** — wilgotność powyżej 65% przez 42% doby, przewietrz albo osusz.",
-    "**Łazienka** — wilgotność powyżej 65% przez 50% doby, przewietrz albo osusz."
+    "**Kuchnia** — wilgotność powyżej 65% przez 67% doby, przewietrz albo osusz.",
+    "**Salon** — wilgotność powyżej 65% przez 44% doby, przewietrz albo osusz.",
+    "**Łazienka** — wilgotność powyżej 65% przez 52% doby, przewietrz albo osusz."
   ],
   "devices": {
     "bfe38c4af789b0c8fbxte4": {
