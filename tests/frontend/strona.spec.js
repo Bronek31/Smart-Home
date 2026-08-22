@@ -1271,3 +1271,297 @@ test.describe('pliki towarzyszące', () => {
     expect(sw).toContain('addEventListener');
   });
 });
+
+/* --- Przybliżanie osi czasu ---
+
+   Gesty testujemy prawdziwymi zdarzeniami dotyku przez CDP, a nie sztucznym wywołaniem
+   funkcji ze środka strony: przedmiotem testu jest właśnie to, czy palec dochodzi do
+   wykresu — a po drodze stoi CSS touch-action, faza przechwytywania i wtyczka `dotyk`,
+   która zdarzenia dotyku przed Chart.js ukrywa. Wywołanie skalujOkno() wprost przeszłoby
+   nawet wtedy, gdyby żaden z tych trzech elementów nie działał. */
+test.describe('przybliżanie osi czasu', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+
+  /** Wykres musi być w kadrze — CDP wysyła dotyk we współrzędne okna, nie dokumentu. */
+  async function pole(page, sel = '#temp') {
+    await page.locator(sel).scrollIntoViewIfNeeded();
+    await page.waitForTimeout(150);
+    const b = await page.locator(sel).boundingBox();
+    return { ...b, cx: b.x + b.width / 2, cy: b.y + b.height / 2 };
+  }
+  const stan = (page) => page.evaluate(() => {
+    const t = state.charts.temp, y = t.scales.y;
+    return {
+      // `typeof`, bo test ma padać na zachowaniu, a nie na braku samej zmiennej:
+      // inaczej wersja bez przybliżania wywracałaby się z ReferenceError i nie dałoby
+      // się odróżnić „nie ma funkcji" od „funkcja działa źle"
+      przybliżone: typeof okno !== 'undefined' && okno != null,
+      szerokoscH: (t.scales.x.max - t.scales.x.min) / 3600e3,
+      x: [t.scales.x.min, t.scales.x.max],
+      y: [y.min, y.max],
+      rozpietoscY: y.max - y.min,
+      // brak przycisku czytamy jak „schowany", żeby i ten test padał na zachowaniu
+      lupaUkryta: document.getElementById('pelny-zakres')?.hidden ?? true,
+    };
+  });
+  /** Rozsuwa albo zsuwa dwa palce w poziomie, wokół środka wykresu.
+   *  Palce muszą zostać NA wykresie: dotyk poza jego prostokątem trafia w inny element
+   *  i nasłuch wykresu go nie zobaczy — gest po cichu przestaje działać w połowie. */
+  async function szczypnij(page, p, odleglosci) {
+    const cdp = await page.context().newCDPSession(page);
+    const kres = p.width / 2 - 12;
+    for (const d of odleglosci) expect(d, 'palec wyszedł poza wykres').toBeLessThanOrEqual(kres);
+    const para = (d) => [{ x: p.cx - d, y: p.cy, id: 1 }, { x: p.cx + d, y: p.cy, id: 2 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: para(odleglosci[0]) });
+    for (const d of odleglosci.slice(1)) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: para(d) });
+      await page.waitForTimeout(30);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(150);
+  }
+  /** Ciągnie jednym palcem; `dx`/`dy` w pikselach od punktu startowego. */
+  async function pociagnij(page, p, kroki) {
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: p.cx, y: p.cy, id: 1 }] });
+    for (const [dx, dy] of kroki) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: p.cx + dx, y: p.cy + dy, id: 1 }] });
+      await page.waitForTimeout(30);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(150);
+  }
+
+  test('rozsunięcie dwóch palców zwęża okno', async ({ page }) => {
+    const bledy = await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    const przed = await stan(page);
+    expect(przed.przybliżone, 'na starcie nic nie jest przybliżone').toBe(false);
+
+    // dwa mocne rozsunięcia — okno schodzi z tygodnia do kilku godzin
+    const p = await pole(page);
+    await szczypnij(page, p, [20, 45, 80, 120, 160]);
+    await szczypnij(page, p, [20, 45, 80, 120, 160]);
+    const po = await stan(page);
+
+    expect(po.przybliżone).toBe(true);
+    expect(po.szerokoscH, 'okno ma się zwęzić co najmniej dziesięciokrotnie')
+      .toBeLessThan(przed.szerokoscH / 10);
+    expect(bledy).toEqual([]);
+  });
+
+  /* Po to jest całe przybliżanie: nurek wietrzenia rozciąga oś pionową na cały tydzień,
+     a w oknie bez nurka oś kurczy się do pasma, w którym pokoje naprawdę chodzą.
+     Fikstura z wietrzeniem daje dokładnie ten układ — dlatego test odjeżdża oknem na
+     prawy skraj, czyli poza epizod. */
+  test('oś pionowa liczy się z okna, nie z całego zakresu', async ({ page }) => {
+    await otworz(page, { dni: 7, wietrzenie: true }, { hash: '#zakres=7d' });
+    const caly = await stan(page);
+    const p = await pole(page);
+
+    await szczypnij(page, p, [20, 45, 80, 120, 160]);
+    await szczypnij(page, p, [20, 45, 80, 120, 160]);
+    for (let i = 0; i < 12; i++) await pociagnij(page, p, [[-60, 0], [-140, 0]]);
+    const wycinek = await stan(page);
+
+    // oś ma objąć to, co w oknie widać — i nic ponad to
+    const dane = await page.evaluate(() => {
+      const ch = state.charts.temp, x = ch.scales.x;
+      let lo = Infinity, hi = -Infinity;
+      for (const ds of ch.data.datasets) for (const p of ds.data) {
+        if (!p || p.y == null || p.x < x.min || p.x > x.max) continue;
+        lo = Math.min(lo, p.y); hi = Math.max(hi, p.y);
+      }
+      return { lo, hi };
+    });
+    expect(wycinek.y[0], 'oś ucina odczyt od dołu').toBeLessThanOrEqual(dane.lo);
+    expect(wycinek.y[1], 'oś ucina odczyt od góry').toBeGreaterThanOrEqual(dane.hi);
+    expect(wycinek.rozpietoscY, 'oś pionowa ma się skurczyć razem z oknem')
+      .toBeLessThan(caly.rozpietoscY);
+    expect(wycinek.y[0], 'dolna krawędź podjeżdża w górę, bo nurka nie ma już w oknie')
+      .toBeGreaterThan(caly.y[0]);
+  });
+
+  test('zsunięcie palców wraca do całego zakresu', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    const p = await pole(page);
+    const przed = await stan(page);
+    await szczypnij(page, p, [20, 50, 90, 130, 165]);
+    expect((await stan(page)).przybliżone).toBe(true);
+    await szczypnij(page, p, [165, 120, 80, 40, 12]);
+    const po = await stan(page);
+    expect(po.przybliżone, 'po zsunięciu widać znów całość').toBe(false);
+    expect(po.szerokoscH).toBeCloseTo(przed.szerokoscH, 3);
+  });
+
+  /* STRAŻNIK — przechodzi też przeciwko wersji bez przybliżania, bo tam okna nie ma
+     czym rozjechać. Pilnuje, żeby przybliżanie nie zaczęło rozjeżdżać paneli. */
+  test('wszystkie panele pokazują dokładnie ten sam wycinek czasu (strażnik)', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    await szczypnij(page, await pole(page), [20, 50, 95, 140]);
+    const osie = await page.evaluate(() => Object.fromEntries(
+      Object.entries(state.charts).map(([id, ch]) => [id, [ch.scales.x.min, ch.scales.x.max]])));
+    const wzorzec = JSON.stringify(osie.temp);
+    for (const [id, os] of Object.entries(osie)) {
+      expect(JSON.stringify(os), `${id} rozjechał się z wykresem temperatury`).toBe(wzorzec);
+    }
+  });
+
+  test('jeden palec w poziomie przesuwa okno, nie zmieniając jego szerokości', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    const p = await pole(page);
+    await szczypnij(page, p, [20, 50, 95, 140]);
+    const przed = await stan(page);
+
+    await pociagnij(page, p, [[-25, 0], [-60, 0], [-100, 0], [-130, 0]]);
+    const po = await stan(page);
+
+    expect(po.x[0], 'ciągnięcie w lewo przesuwa okno w przyszłość').toBeGreaterThan(przed.x[0]);
+    expect(po.szerokoscH, 'przesuwanie nie ma prawa zmieniać szerokości okna')
+      .toBeCloseTo(przed.szerokoscH, 3);
+  });
+
+  /* STRAŻNIK — wersja sprzed zmiany też przechodziła: nie miała czego przesuwać ani
+     czego anulować. Pilnuje rzeczy, którą łatwo zepsuć przy majstrowaniu przy gestach:
+     że palec w pionie dalej przewija stronę i nie zostaje przechwycony przez wykres. */
+  test('jeden palec w pionie zostaje przewijaniem strony (strażnik)', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    const p = await pole(page);
+    await szczypnij(page, p, [20, 50, 95, 140]);
+    const przed = await stan(page);
+    // zdarzenie ma dojść nieanulowane — inaczej przeglądarka nie przewinie strony
+    await page.evaluate(() => {
+      window.__anulowane = [];
+      document.addEventListener('touchmove', (e) => window.__anulowane.push(e.defaultPrevented));
+    });
+
+    await pociagnij(page, p, [[0, -25], [0, -60], [0, -100], [0, -140]]);
+
+    const po = await stan(page);
+    expect(po.x, 'ruch w pionie nie należy do wykresu').toEqual(przed.x);
+    const anulowane = await page.evaluate(() => window.__anulowane);
+    expect(anulowane.length).toBeGreaterThan(0);
+    expect(anulowane.some(Boolean), 'strona musi zostać wolna do przewijania').toBe(false);
+  });
+
+  test('dotknięcie pokazuje dymek, a przeciąganie nie', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    const p = await pole(page);
+    const dymek = () => page.evaluate(() => state.charts.temp.tooltip.getActiveElements().length > 0);
+
+    await pociagnij(page, p, [[-30, 0], [-80, 0], [-130, 0]]);
+    expect(await dymek(), 'przeciąganie ma przesuwać, nie wywoływać dymka').toBe(false);
+
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: p.cx, y: p.cy, id: 1 }] });
+    await page.waitForTimeout(50);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(200);
+    expect(await dymek(), 'dotknięcie ma pokazać odczyt').toBe(true);
+  });
+
+  test('przycisk „cały zakres" pokazuje się po przybliżeniu i wraca do całości', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    const lupa = page.locator('#pelny-zakres');
+    await expect(lupa).toBeHidden();
+
+    const przed = await stan(page);
+    await szczypnij(page, await pole(page), [20, 50, 95, 140]);
+    await expect(lupa).toBeVisible();
+
+    await lupa.click();
+    const po = await stan(page);
+    expect(po.przybliżone).toBe(false);
+    expect(po.x).toEqual(przed.x);
+    await expect(lupa).toBeHidden();
+  });
+
+  test('zmiana zakresu kasuje przybliżenie', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    await szczypnij(page, await pole(page), [20, 50, 95, 140]);
+    expect((await stan(page)).przybliżone).toBe(true);
+
+    await page.click('.range[data-hours="720"]');
+    await page.waitForTimeout(300);
+    const po = await stan(page);
+    expect(po.przybliżone, 'inny zakres to inne dane — okno traci sens').toBe(false);
+    await expect(page.locator('#pelny-zakres')).toBeHidden();
+  });
+
+  /* STRAŻNIK — bez przybliżania okno stoi w miejscu i granice trzymają się same.
+     Pilnuje obu ograniczeń: dolnego progu szerokości i krawędzi danych. */
+  test('przybliżenie nie wyjeżdża poza dane ani nie schodzi poniżej pół godziny (strażnik)', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    const p = await pole(page);
+    const pelne = await page.evaluate(() =>
+      typeof granicePelne === 'function' ? granicePelne()
+        : { min: state.charts.temp.scales.x.min, max: state.charts.temp.scales.x.max });
+
+    // dwadzieścia mocnych rozsunięć — dużo poniżej dolnego ograniczenia
+    for (let i = 0; i < 20; i++) await szczypnij(page, p, [20, 60, 140]);
+    const ciasne = await stan(page);
+    expect(ciasne.szerokoscH, 'najciaśniejsze okno to pół godziny').toBeGreaterThanOrEqual(0.49);
+
+    // i dwadzieścia ciągnięć w bok — okno ma stanąć na krawędzi danych, nie za nią
+    for (let i = 0; i < 20; i++) await pociagnij(page, p, [[-60, 0], [-140, 0]]);
+    const przy = await stan(page);
+    expect(przy.x[1]).toBeLessThanOrEqual(pelne.max + 1);
+    expect(przy.x[0]).toBeGreaterThanOrEqual(pelne.min - 1);
+  });
+
+  /* STRAŻNIK — na wersji bez przybliżania okno równa się całemu zakresowi, więc żaden
+     odcinek nie przecina krawędzi i sprawdzać nie ma czego. Pilnuje domknijKrawedzie(),
+     czyli tego jednego warunku, który postawiłeś wprost: nic nie wychodzi poza wykres. */
+  test('po przybliżeniu żadna linia nie wychodzi poza pole rysowania (strażnik)', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    await szczypnij(page, await pole(page), [20, 50, 95, 140, 165]);
+
+    /* Chart.js liczy oś pionową z samych punktów wpadających w okno. Linia, która
+       wchodzi w kadr z boku, ma na krawędzi wartość interpolowaną — i to ona bywa
+       poza zakresem. Sprawdzamy dokładnie ten przypadek, na wszystkich wykresach. */
+    const poza = await page.evaluate(() => {
+      const zle = [];
+      for (const [id, ch] of Object.entries(state.charts)) {
+        const x = ch.scales.x, y = ch.scales.y;
+        for (const ds of ch.data.datasets) {
+          const d = ds.data, luka = ds.spanGaps;
+          for (let i = 1; i < d.length; i++) {
+            const a = d[i - 1], b = d[i];
+            if (!a || !b || a.y == null || b.y == null) continue;
+            if (isFinite(luka) && b.x - a.x > luka) continue;
+            for (const kr of [x.min, x.max]) {
+              if (a.x < kr && b.x > kr) {
+                const v = a.y + (b.y - a.y) * (kr - a.x) / (b.x - a.x);
+                if (v < y.min - 1e-9 || v > y.max + 1e-9)
+                  zle.push(`${id}/${ds.label}: ${v.toFixed(2)} poza ${y.min}–${y.max}`);
+              }
+            }
+          }
+          for (const p of d) {
+            if (!p || p.y == null || p.x < x.min || p.x > x.max) continue;
+            if (p.y < y.min - 1e-9 || p.y > y.max + 1e-9)
+              zle.push(`${id}/${ds.label}: punkt ${p.y} poza ${y.min}–${y.max}`);
+          }
+        }
+      }
+      return zle;
+    });
+    expect(poza).toEqual([]);
+  });
+
+  test('kółko myszy przybliża, dwuklik wraca do całości', async ({ page }) => {
+    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
+    const p = await pole(page);
+    const przed = await stan(page);
+
+    await page.mouse.move(p.cx, p.cy);
+    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -120);
+    await page.waitForTimeout(200);
+    const po = await stan(page);
+    expect(po.szerokoscH, 'kółko nad wykresem ma przybliżać, a nie przewijać stronę')
+      .toBeLessThan(przed.szerokoscH / 2);
+
+    await page.locator('#temp').dblclick();
+    await page.waitForTimeout(200);
+    expect((await stan(page)).przybliżone).toBe(false);
+  });
+});

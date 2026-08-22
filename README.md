@@ -226,6 +226,67 @@ skoku 0,2 °C odsuwa linię o 0,1 — półtora raza dalej niż wnętrze serii. 
 danych brzegiem jest ostatni odczyt, czyli „teraz", i akurat przy wietrzeniu potrafi
 lecieć 0,5 °C w kwadrans.
 
+### Przybliżanie osi czasu
+
+Dwa panele załatwiły dwór kontra pokoje, ale nie załatwiły telefonu. Przy „7 dniach"
+na szybie 390 px pole wykresu ma 356 pikseli szerokości, a **96% odczytów mieści się
+w paśmie 2,3 °C, gdy oś musi objąć 4,9 °C** — bo dwa nurki wietrzenia z 19 i 20.08
+sięgają 22,5 °C. Każdy z tych nurków ma na ekranie dwa piksele szerokości i we dwa
+zabierają dolną połowę panelu. Codzienna różnica między pokojami, czyli 0,3–0,5 °C,
+dostaje przez to jakieś dwadzieścia pikseli.
+
+Statyczna skala tego nie naprawia — sprawdzone na tych samych danych i **odrzucone**:
+
+| pomysł | zysk | dlaczego odpadł |
+|---|---|---|
+| wyższy panel (238 → 300 px) | 1,3× | puste pole rośnie razem z panelem |
+| oś ucięta do 24,0° | 1,6× | nurki wychodziły poza wykres |
+| oś łamana (ogon ściśnięty przy krawędzi) | 1,4× | dużo maszynerii jak na tyle |
+
+Weszło **przybliżanie gestem**, bo Chart.js liczy oś pionową wyłącznie z punktów
+mieszczących się w oknie czasu — więc zwężenie okna samo z siebie rozciąga skalę pionową,
+i to o rząd wielkości mocniej niż cokolwiek statycznego. Zmierzone na tych samych siedmiu
+dniach:
+
+| okno | rozpiętość pokoi | gęstość skali | zysk |
+|---|---|---|---|
+| 7 dni — widok domyślny | 4,4 °C | 63 px/°C | 1,0× |
+| doba z wietrzeniem (20.08) | 4,2 °C | 66 px/°C | 1,0× |
+| doba 21.08 | 2,0 °C | 143 px/°C | **2,3×** |
+| doba 17.08 | 1,1 °C | 258 px/°C | **4,1×** |
+| 6 godzin 17.08 | 1,0 °C | 290 px/°C | **4,6×** |
+
+Doba z wietrzeniem nie zyskuje nic i tak ma być: tam nurek jest w oknie i to on
+wyznacza skalę — a jest tym, na co się patrzy. Domyślny widok zostaje **dokładnie taki,
+jaki był**; przybliżenie jest czymś, po co się sięga, a nie czymś, co się dzieje samo.
+
+Podział gestów tak dobrany, żeby strona nie straciła niczego, co już umiała:
+
+| gest | co robi |
+|---|---|
+| dwa palce | przybliża i oddala oś czasu |
+| jeden palec w poziomie | przesuwa okno w lewo i w prawo |
+| jeden palec w pionie | przewija stronę, tak jak dotąd |
+| dotknięcie | pokazuje odczyt w dymku |
+| kółko / przeciąganie / dwuklik | to samo myszą |
+
+Pion zostaje przeglądarce dzięki `touch-action: pan-y` na polu wykresu — poziom i
+wielodotyk dostaje wykres, pion obsługuje przeglądarka i przewijanie strony działa
+jak przedtem. Dymek przeniósł się z „każdego ruchu w poziomie" na „dotknięcie", bo
+poziom jest teraz zajęty przez przesuwanie; wtyczka `dotyk` ukrywa przed Chart.js
+wszystkie zdarzenia dotyku, a przy dotknięciu podaje mu jedno sztuczne `mousemove`.
+
+Przybliżenie jest **wspólne dla wszystkich czterech płócien** i trzyma się w czasie
+bezwzględnym, żeby panele stały równo co do piksela. Nie schodzi poniżej pół godziny
+ani nie wyjeżdża poza dane, a zmiana zakresu u góry je kasuje — inne dane to inne okno.
+Przycisk **⤢ cały zakres** pokazuje się dopiero wtedy, gdy jest z czego wracać.
+
+Przy okazji doszło domknięcie osi pionowej o **wartości interpolowane na krawędziach
+okna**. Chart.js liczy zakres z samych punktów w oknie, więc linia wchodząca w kadr
+z boku potrafiła uciec poza pole — jej odcinek zaczyna się poza oknem i na krawędzi ma
+wartość, której w rachunku nie było. Dotyczy to również kotwicy sprzed początku zakresu,
+więc działa i bez przybliżania.
+
 ### Krawędzie wykresu
 
 Czujniki raportują każdy w innej minucie godziny i te minuty dryfują, więc bez zabiegu

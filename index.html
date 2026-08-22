@@ -24,8 +24,8 @@
 .statusbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:1px;background:var(--edge);border:1px solid var(--edge);margin-top:var(--gap)}.statusbox{background:var(--panel);padding:.8rem .9rem}.statusbox .k{font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}.statusbox .v{margin-top:.2rem;font-family:"IBM Plex Mono",monospace;font-size:1rem}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.45rem;background:var(--ok);box-shadow:0 0 9px currentColor}.dot.warn{background:var(--warn);color:var(--warn)}.dot.bad{background:var(--bad);color:var(--bad)}
 .pens{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:1px;background:var(--edge);border:1px solid var(--edge);margin-top:1px}.pen{background:var(--panel);padding:.75rem .9rem .85rem;position:relative;overflow:hidden}.pen::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--c);box-shadow:0 0 12px 1px var(--c);opacity:.9}.pen b{display:flex;align-items:center;font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:.74rem;letter-spacing:.11em;text-transform:uppercase;color:var(--dim);margin:0 0 .35rem .5rem}.pen .read{display:flex;align-items:baseline;gap:.5rem;margin-left:.5rem;font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}.pen .t{font-size:1.6rem;font-weight:400;color:var(--c);line-height:1;text-shadow:0 0 18px color-mix(in srgb,var(--c) 45%,transparent)}.pen .h{font-size:.95rem;color:var(--text);opacity:.82}.pen .foot{display:flex;flex-wrap:wrap;align-items:baseline;gap:.15rem .55rem;margin:.4rem 0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.71rem;letter-spacing:.04em;color:var(--faint)}.pen .trend{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--dim)}
 .controls{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin-top:1.4rem;padding-bottom:.6rem;border-bottom:1px solid var(--edge);font-family:"IBM Plex Sans Condensed",sans-serif}.controls .lbl{font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-right:.45rem}.range{appearance:none;border:1px solid var(--edge);background:transparent;color:var(--dim);font:inherit;font-size:.83rem;letter-spacing:.03em;padding:.24rem .72rem;cursor:pointer;border-radius:0;transition:.15s}.range:hover{border-color:var(--grid-day);color:var(--text)}
-.chk{display:inline-flex;align-items:center;gap:.45rem;margin-left:.9rem;font-size:.83rem;color:var(--dim);cursor:pointer;user-select:none}.chk:hover{color:var(--text)}.chk input{appearance:none;-webkit-appearance:none;width:14px;height:14px;border:1px solid var(--grid-day);background:transparent;cursor:pointer;display:grid;place-content:center;margin:0}.chk input:checked{background:var(--text);border-color:var(--text)}.chk input:checked::after{content:"";width:8px;height:4px;border:2px solid var(--bg);border-top:0;border-right:0;transform:rotate(-45deg) translateY(-1px)}.range[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}.toggles{display:flex;flex-wrap:wrap;gap:.1rem;margin-left:auto}.toggle{appearance:none;border:0;background:transparent;font:inherit;font-size:.8rem;color:var(--dim);padding:.24rem .5rem;cursor:pointer;display:inline-flex;align-items:center;gap:.42rem}.toggle::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 9px var(--c)}.toggle[aria-pressed="false"]{opacity:.32}.toggle[aria-pressed="false"]::before{background:transparent;box-shadow:none;border:1.5px solid var(--c)}
-.trace{margin-top:1.7rem}.trace h2{margin:0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;align-items:baseline;gap:.55rem}.trace h2 small{font-weight:400;letter-spacing:.06em;color:var(--faint);text-transform:none}.plot{position:relative;height:238px;background:var(--panel);border:1px solid var(--edge)}@media(min-width:700px){.plot{height:300px}}
+.chk{display:inline-flex;align-items:center;gap:.45rem;margin-left:.9rem;font-size:.83rem;color:var(--dim);cursor:pointer;user-select:none}.chk:hover{color:var(--text)}.chk input{appearance:none;-webkit-appearance:none;width:14px;height:14px;border:1px solid var(--grid-day);background:transparent;cursor:pointer;display:grid;place-content:center;margin:0}.chk input:checked{background:var(--text);border-color:var(--text)}.chk input:checked::after{content:"";width:8px;height:4px;border:2px solid var(--bg);border-top:0;border-right:0;transform:rotate(-45deg) translateY(-1px)}.range[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}.range.lupa{border-color:var(--pen-2);color:var(--pen-2)}.range.lupa:hover{border-color:var(--pen-2);color:var(--text)}.toggles{display:flex;flex-wrap:wrap;gap:.1rem;margin-left:auto}.toggle{appearance:none;border:0;background:transparent;font:inherit;font-size:.8rem;color:var(--dim);padding:.24rem .5rem;cursor:pointer;display:inline-flex;align-items:center;gap:.42rem}.toggle::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 9px var(--c)}.toggle[aria-pressed="false"]{opacity:.32}.toggle[aria-pressed="false"]::before{background:transparent;box-shadow:none;border:1.5px solid var(--c)}
+.trace{margin-top:1.7rem}.trace h2{margin:0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;align-items:baseline;gap:.55rem}.trace h2 small{font-weight:400;letter-spacing:.06em;color:var(--faint);text-transform:none}.plot{position:relative;height:238px;background:var(--panel);border:1px solid var(--edge);touch-action:pan-y}@media(min-width:700px){.plot{height:300px}}
 /* przewijanie w pionie i szczypanie zostają przy przeglądarce, poziome przeciąganie jest nasze — bez tego podwójne stuknięcie w wykres przybliża stronę */
 .plot canvas{touch-action:pan-y pinch-zoom}
 /* Pasek zestawienia siedzi tuż pod wykresem pokoi i czyta się z nim jako jedna całość,
@@ -102,7 +102,7 @@
 <section id="app" hidden>
   <div class="statusbar" id="statusbar"></div>
   <div class="pens" id="pens"></div>
-  <div class="controls"><span class="lbl">Zakres wykresów</span><button class="range" data-hours="dzis">dziś</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><label class="chk" title="Ukrywa krótkie skoki, po których wartość wraca do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki. Trwałe zmiany, takie jak włączony grzejnik, zostają."><input type="checkbox" id="filtr" checked>Ukryj chwilowe skoki</label><div class="toggles" id="toggles"></div></div>
+  <div class="controls"><span class="lbl">Zakres wykresów</span><button class="range" data-hours="dzis">dziś</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><label class="chk" title="Ukrywa krótkie skoki, po których wartość wraca do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki. Trwałe zmiany, takie jak włączony grzejnik, zostają."><input type="checkbox" id="filtr" checked>Ukryj chwilowe skoki</label><button class="range lupa" id="pelny-zakres" hidden title="Wraca do całego wybranego zakresu">&#10530; cały zakres</button><div class="toggles" id="toggles"></div></div>
 
   <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small><small class="wietrz-licznik"></small></h2><div class="plot"><canvas id="temp"></canvas></div>
     <div class="plot plot-dwor" id="plot-dwor"><canvas id="temp-dwor"></canvas></div>
@@ -396,9 +396,9 @@ async function ensureRows(){state.rows=(await Promise.all(neededMonths().map(loa
    dowolnego okresu, a nie tylko dla tego jednego wybranego u góry. */
 const dobowe=h=>state.daily.length>0&&!h;
 const useDaily=()=>dobowe(state.hours);
-async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;const wszystkie=ids.map(id=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,ext:!!d.external,appliance:!!d.appliance,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery'),power:Object.keys(codes).find(c=>codes[c].kind==='power')}});state.appliances=wszystkie.filter(d=>d.appliance);state.devices=wszystkie.filter(d=>!d.appliance);{let i=0;state.devices.forEach(d=>{d.color=d.ext?BARWA_DWORU:PENS[i++%PENS.length]})}state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;state.hours=DZIS;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();wireReplay();['temp','hum','abs'].forEach(wireTouch);await render()}
+async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;const wszystkie=ids.map(id=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,ext:!!d.external,appliance:!!d.appliance,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery'),power:Object.keys(codes).find(c=>codes[c].kind==='power')}});state.appliances=wszystkie.filter(d=>d.appliance);state.devices=wszystkie.filter(d=>!d.appliance);{let i=0;state.devices.forEach(d=>{d.color=d.ext?BARWA_DWORU:PENS[i++%PENS.length]})}state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;state.hours=DZIS;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();wireReplay();['temp','temp-dwor','hum','abs'].forEach(wireTouch);wirePelnyZakres();await render()}
 // ktoś wkleił adres z innym widokiem albo cofnął się po historii
-addEventListener('hashchange',()=>{if(!state.devices.length)return;readHash();buildToggles();state.markRanges?.();document.getElementById('filtr').checked=state.filtr;render()});
+addEventListener('hashchange',()=>{if(!state.devices.length)return;readHash();zerujOkno();buildToggles();state.markRanges?.();document.getElementById('filtr').checked=state.filtr;render()});
 /* --- Widok zapisany w adresie ---
    #zakres=7d&bez=salon,kuchnia&filtr=0 — dzięki temu odświeżenie strony nie kasuje
    wyboru, widok da się dodać do zakładek i wysłać komuś gotowy. Czujniki po nazwie,
@@ -428,12 +428,16 @@ function writeHash(){
   // replaceState, a nie push: przycisk Wstecz ma wracać na poprzednią stronę, nie po widokach
   history.replaceState(null,'',location.pathname+location.search+'#'+p);
 }
+function wirePelnyZakres(){
+  const b=document.getElementById('pelny-zakres');
+  if(b)b.onclick=()=>{zerujOkno();pokazOkno()};
+}
 function buildToggles(){const box=document.getElementById('toggles');box.innerHTML='';state.devices.forEach(d=>{const b=document.createElement('button');b.className='toggle';b.style.setProperty('--c',d.color);b.setAttribute('aria-pressed',String(!state.off.has(d.id)));b.textContent=d.name;b.onclick=()=>{const on=b.getAttribute('aria-pressed')==='true';b.setAttribute('aria-pressed',String(!on));on?state.off.add(d.id):state.off.delete(d.id);writeHash();render()};box.appendChild(b)})}
 function wireRanges(){const btns=[...document.querySelectorAll('.range[data-hours]')];
   // boot() sam dobiera zakres do długości historii, więc podświetlenie idzie za stanem, a nie za kliknięciem
   const wartosc=b=>b.dataset.hours===DZIS?DZIS:+b.dataset.hours;
   const mark=()=>btns.forEach(b=>wartosc(b)===state.hours?b.setAttribute('aria-pressed','true'):b.removeAttribute('aria-pressed'));
-  btns.forEach(b=>b.onclick=()=>{state.hours=wartosc(b);mark();writeHash();render()});mark();
+  btns.forEach(b=>b.onclick=()=>{state.hours=wartosc(b);zerujOkno();mark();writeHash();render()});mark();
   const f=document.getElementById('filtr');f.checked=state.filtr;f.onchange=()=>{state.filtr=f.checked;writeHash();render()};
   // tabela ma własny zakres: przerysowuje wyłącznie siebie, bez ruszania wykresów
   const tab=[...document.querySelectorAll('[data-tab]')];
@@ -789,6 +793,8 @@ function renderPens(){const box=document.getElementById('pens');box.innerHTML=''
    kursorem, mousemove nie leci, dymek zostaje wiszący nad innym miejscem. */
 const TIP_HOLD=2600;   // ile dymek zostaje po oderwaniu palca, żeby dało się go przeczytać
 const SWIPE=10;        // px — po tylu wiadomo, czy palec idzie w pion, czy w poziom
+const TAP_PX=9;        // ruch poniżej tego progu to dotknięcie, nie przeciąganie
+const TAP_MS=500;      // i musi być krótkie — dłuższe przytrzymanie to już nie dotknięcie
 const gest={};         // stan bieżącego gestu, osobno dla każdego wykresu
 const tipShown=ch=>{try{return!!(ch.tooltip?.getActiveElements().length||ch.getActiveElements().length)}catch{return true}};
 function hideTip(id){
@@ -797,24 +803,173 @@ function hideTip(id){
   if(ch&&tipShown(ch))ch.canvas.dispatchEvent(new MouseEvent('mouseout'));
 }
 const hideTips=()=>Object.keys(state.charts).forEach(hideTip);
+/* Dotyk obsługujemy sami, więc Chart.js nie może go widzieć wcale: gdyby widział,
+   przeciąganie palcem w poziomie wywoływałoby dymek przy każdej klatce przesuwania.
+   Dymek pokazujemy mu z powrotem jednym sztucznym mousemove, gdy gest okaże się
+   dotknięciem. Myszy to nie dotyczy — tam najechanie kursorem dalej działa jak dotąd. */
 const dotyk={id:'dotyk',beforeEvent(chart,args){
-  if(gest[chart.canvas.id]?.scroll&&args.event.native?.type.startsWith('touch'))return false;   // gest przewijania — wykres go nie dotyka
+  if(args.event.native?.type.startsWith('touch'))return false;
 }};
+function pokazDymek(id,clientX,clientY){
+  const ch=state.charts[id];if(!ch)return;
+  clearTimeout(gest[id].timer);
+  ch.canvas.dispatchEvent(new MouseEvent('mousemove',{clientX,clientY,bubbles:true}));
+  gest[id].timer=setTimeout(()=>hideTip(id),TIP_HOLD);
+}
+/* --- Przybliżanie osi czasu ---
+
+   Widok „7 dni" na telefonie to jakieś 350 pikseli na tydzień i wszystkie cztery pokoje
+   w paśmie szerokim na dwa stopnie — zmierzone: 96% odczytów mieści się w 2,3 °C, a oś
+   musi objąć 4,9 °C, bo dwa nurki wietrzenia sięgają 22,5 °C. Statyczna skala tego nie
+   naprawi: próbowaliśmy jej przycięcia (nurki wychodziły poza pole) i osi łamanej
+   (zysk 1,4×). Przybliżenie daje 3–5×, bo Chart.js liczy oś pionową wyłącznie z tego,
+   co mieści się w oknie czasu — więc zwężenie okna samo z siebie rozciąga pionową skalę.
+
+   Podział gestów jest tak dobrany, żeby strona nie straciła niczego, co już umiała:
+     • dwa palce  — przybliżenie i oddalenie osi czasu,
+     • jeden palec w poziomie — przesuwanie okna w lewo i w prawo,
+     • jeden palec w pionie  — przewijanie strony, tak jak dotąd (CSS touch-action:pan-y),
+     • dotknięcie — odczyt w dymku; wcześniej robił to każdy ruch w poziomie.
+   Myszą: kółko przybliża, przeciąganie przesuwa, dwuklik wraca do całego zakresu. */
+const MIN_OKNO=30*60e3;    // najciaśniejsze okno: pół godziny, czyli ze trzy odczyty
+let okno=null;             // {min,max} albo null, gdy widać cały wybrany zakres
+const wZoomie=()=>okno!=null;
+/* Okno rysowania dla pojedynczego wykresu. Wspólne dla wszystkich czterech płócien,
+   żeby panele stały równo — dlatego przybliżenie trzyma się w czasie bezwzględnym,
+   a nie w granicach konkretnej serii. */
+function oknoRysowania(pelne){
+  if(!okno||!pelne)return pelne;
+  return{min:Math.max(okno.min,pelne.min),max:Math.min(okno.max,pelne.max)};
+}
+function granicePelne(){
+  const p=state.pelne;
+  return p&&isFinite(p.min)&&isFinite(p.max)&&p.max>p.min?p:null;
+}
+function ustawOkno(o){
+  const p=granicePelne();if(!p)return;
+  const maxSzer=p.max-p.min;
+  let szer=Math.min(Math.max(o.max-o.min,MIN_OKNO),maxSzer);
+  let a=(o.min+o.max)/2-szer/2,b=a+szer;
+  if(a<p.min){a=p.min;b=a+szer}
+  if(b>p.max){b=p.max;a=b-szer}
+  // pełna szerokość to nie jest przybliżenie — wtedy wracamy do stanu bez okna,
+  // żeby przycisk powrotu nie wisiał na wykresie, którego nikt nie ruszył
+  okno = (b-a>=maxSzer-1) ? null : {min:a,max:b};
+  pokazOkno();
+}
+function pokazOkno(){
+  for(const ch of Object.values(state.charts)){
+    const p=ch.$pelne;if(!p)continue;
+    const w=oknoRysowania(p);
+    ch.options.scales.x.min=w.min;ch.options.scales.x.max=w.max;
+    ch.update('none');
+  }
+  const b=document.getElementById('pelny-zakres');if(b)b.hidden=!wZoomie();
+}
+const zerujOkno=()=>{okno=null};
+function skalujOkno(mnoznik,ulamek){
+  const p=granicePelne();if(!p)return;
+  const w=okno||p, u=Math.min(Math.max(ulamek,0),1), kotwica=w.min+u*(w.max-w.min);
+  const szer=(w.max-w.min)*mnoznik;
+  ustawOkno({min:kotwica-u*szer,max:kotwica+(1-u)*szer});
+}
+function przesunOkno(ulamek){
+  const p=granicePelne();if(!p||!okno)return;
+  const dt=-ulamek*(okno.max-okno.min);
+  ustawOkno({min:okno.min+dt,max:okno.max+dt});
+}
+// Przesuwanie i przybliżanie liczy się w ułamkach szerokości POLA RYSOWANIA, nie płótna:
+// oś pionowa zajmuje 46 px z lewej i punkt pod palcem musi zostać pod palcem.
+const szerPola=(id)=>{const a=state.charts[id]?.chartArea;return a&&a.right>a.left?a.right-a.left:null};
+function ulamekX(id,clientX){
+  const ch=state.charts[id],a=ch?.chartArea;if(!a)return .5;
+  const r=ch.canvas.getBoundingClientRect();
+  return(clientX-r.left-a.left)/(a.right-a.left);
+}
 function wireTouch(id){
   const g=gest[id]={},box=document.getElementById(id).parentNode;
-  // faza przechwytywania: kierunek gestu musi być znany, zanim zdarzenie dojdzie do wykresu
-  box.addEventListener('touchstart',e=>{clearTimeout(g.timer);g.scroll=false;g.x=e.touches[0].clientX;g.y=e.touches[0].clientY},{passive:true,capture:true});
-  box.addEventListener('touchmove',e=>{
-    if(g.scroll)return;
-    const t=e.touches[0],dx=Math.abs(t.clientX-g.x),dy=Math.abs(t.clientY-g.y);
-    if(dy>SWIPE&&dy>dx){g.scroll=true;hideTip(id)}
+  const rozstaw=(t)=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const srodek=(t)=>(t[0].clientX+t[1].clientX)/2;
+  box.addEventListener('touchstart',e=>{
+    clearTimeout(g.timer);
+    if(e.touches.length===2){g.tryb='szczyp';g.r=rozstaw(e.touches);g.sx=srodek(e.touches);return}
+    if(e.touches.length!==1)return;
+    g.tryb='?';g.x=g.px=e.touches[0].clientX;g.y=e.touches[0].clientY;g.t0=Date.now();
   },{passive:true,capture:true});
-  // po przewijaniu dymka nie ma czego chować, po odczycie zostaje chwilę do przeczytania
-  const koniec=()=>{if(g.scroll)hideTip(id);else g.timer=setTimeout(()=>hideTip(id),TIP_HOLD)};
+  box.addEventListener('touchmove',e=>{
+    const w=szerPola(id);if(!w)return;
+    if(e.touches.length===2&&g.tryb==='szczyp'){
+      e.preventDefault();
+      const r=rozstaw(e.touches),sx=srodek(e.touches);
+      if(g.r>10&&r>10&&Math.abs(1-g.r/r)>0.004)
+        skalujOkno(g.r/r,ulamekX(id,g.sx));   // palce rozsuwane → okno się zwęża
+      if(Math.abs(sx-g.sx)>0.5)przesunOkno((sx-g.sx)/w);
+      g.r=r;g.sx=sx;return;
+    }
+    if(e.touches.length!==1)return;
+    const t=e.touches[0],dx=t.clientX-g.x,dy=Math.abs(t.clientY-g.y);
+    if(g.tryb==='?'){
+      // pion oddajemy przeglądarce, poziom bierze wykres — próg ten sam, co przy dymku
+      if(dy>SWIPE&&dy>Math.abs(dx)){g.tryb='przewijanie';hideTip(id)}
+      else if(Math.abs(dx)>SWIPE)g.tryb='przesuwanie';
+    }
+    if(g.tryb==='przesuwanie'){
+      e.preventDefault();
+      przesunOkno((t.clientX-g.px)/w);g.px=t.clientX;
+    }
+  },{passive:false,capture:true});
+  const koniec=(e)=>{
+    if(g.tryb==='?'&&Date.now()-g.t0<TAP_MS&&Math.abs(g.px-g.x)<TAP_PX){
+      const t=e.changedTouches&&e.changedTouches[0];
+      if(t)pokazDymek(id,t.clientX,t.clientY);
+    }else hideTip(id);
+    g.tryb=null;
+  };
   box.addEventListener('touchend',koniec,{passive:true});
-  box.addEventListener('touchcancel',koniec,{passive:true});
+  box.addEventListener('touchcancel',()=>{hideTip(id);g.tryb=null},{passive:true});
+  /* Mysz i gładzik. Kółko nad wykresem przybliża zamiast przewijać stronę — dlatego
+     preventDefault; poza wykresem strona przewija się normalnie. */
+  box.addEventListener('wheel',e=>{
+    const w=szerPola(id);if(!w)return;
+    e.preventDefault();
+    skalujOkno(e.deltaY>0?1.2:1/1.2,ulamekX(id,e.clientX));
+  },{passive:false});
+  box.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button===0){g.mysz=e.clientX;box.setPointerCapture(e.pointerId)}});
+  box.addEventListener('pointermove',e=>{
+    if(g.mysz==null)return;const w=szerPola(id);if(!w)return;
+    przesunOkno((e.clientX-g.mysz)/w);g.mysz=e.clientX;
+  });
+  const puść=()=>{g.mysz=null};
+  box.addEventListener('pointerup',puść);box.addEventListener('pointercancel',puść);
+  box.addEventListener('dblclick',()=>{zerujOkno();pokazOkno()});
 }
 addEventListener('scroll',hideTips,{passive:true});
+/* Oś pionowa liczy się z tego, co widać — to jest cały zysk z przybliżania. Chart.js
+   bierze pod uwagę same punkty z okna, więc linia wchodząca w kadr z boku potrafiła
+   uciec poza pole: jej odcinek zaczyna się poza oknem i na krawędzi ma wartość, której
+   w rachunku nie było. Domykamy więc zakres o wartości interpolowane na obu krawędziach
+   — po to, żeby żadna kreska nie wychodziła poza wykres. Dotyczy to także kotwicy sprzed
+   początku zakresu, więc działa i bez przybliżenia. */
+function domknijKrawedzie(sc){
+  const x=sc.chart.scales.x;
+  if(!x||!isFinite(x.min)||!isFinite(x.max)||!isFinite(sc.min)||!isFinite(sc.max))return;
+  let lo=sc.min,hi=sc.max;
+  for(const ds of sc.chart.data.datasets){
+    const d=ds.data;const luka=ds.spanGaps;
+    for(let i=1;i<d.length;i++){
+      const a=d[i-1],b=d[i];
+      if(!a||!b||a.y==null||b.y==null)continue;
+      if(isFinite(luka)&&b.x-a.x>luka)continue;      // przerwy Chart.js i tak nie rysuje
+      for(const kr of [x.min,x.max]){
+        if(a.x<kr&&b.x>kr){
+          const y=a.y+(b.y-a.y)*(kr-a.x)/(b.x-a.x);
+          if(y<lo)lo=y;if(y>hi)hi=y;
+        }
+      }
+    }
+  }
+  sc.min=lo;sc.max=hi;
+}
 /* Przy zakresie "dziś" tuż po północy seria ma jeden odczyt, a linia nie ma czego
    połączyć — wykres wyglądałby na pusty, choć dane są. Tak krótkie serie rysujemy
    więc kropkami. Powyżej progu kropki gasną, żeby nie zaśmiecać gęstego wykresu. */
@@ -914,9 +1069,12 @@ function zakresOsi(sets){
 function draw(canvasId,sets,unit,decimals,extra=[],os=null,bezX=false){
   // krok podziałki ustala się przy każdym przeliczeniu osi i stąd bierze go format podpisu
   let krokH=24;
+  // pełny zakres wykresu i wycinek, który widać po przybliżeniu; oba trzymamy przy
+  // wykresie, bo gest musi wiedzieć, dokąd wolno mu dojechać
+  const pelne=os||zakresOsi(sets),w=oknoRysowania(pelne);
   // agregaty dobowe to już średnie z całej doby — nie ma w nich schodka do wygładzania
   const glad=!useDaily();
-  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:glad&&!s.device.ext?wygladz(s.points):s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],order:1,pointRadius:c=>s.points.length<=SAMOTNE?2.6:(!s.device.ext&&c.dataIndex===c.dataset.data.length-1?2.6:0),pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',min:os?os.min:lewaKrawedz(sets),...(os?{max:os.max}:{}),afterBuildTicks:s=>{const mk=useDaily()?24:1;krokH=krokPodzialki(s.min,s.max,s.chart.width,mk);s.ticks=timeTicks(s.min,s.max,s.chart.width,mk)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{display:!bezX,color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),krokH)}},y:{afterFit:sc=>{sc.width=OS_Y},border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{precision:decimals,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.raw?.v??item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);}
+  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:glad&&!s.device.ext?wygladz(s.points):s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],order:1,pointRadius:c=>s.points.length<=SAMOTNE?2.6:(!s.device.ext&&c.dataIndex===c.dataset.data.length-1?2.6:0),pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',min:w?w.min:undefined,...(w?{max:w.max}:{}),afterBuildTicks:s=>{const mk=useDaily()?24:1;krokH=krokPodzialki(s.min,s.max,s.chart.width,mk);s.ticks=timeTicks(s.min,s.max,s.chart.width,mk)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{display:!bezX,color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),krokH)}},y:{afterFit:sc=>{sc.width=OS_Y},afterDataLimits:domknijKrawedzie,border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{precision:decimals,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.raw?.v??item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();const ch=state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);ch.$pelne=pelne;}
 /* Chart.js leci z CDN, więc jedna zablokowana domena albo jego awaria i wykresów
    nie ma. Bez tej klamry wyjątek z draw() przerywał render() w połowie i zabierał ze
    sobą obie tabele oraz stempel w nagłówku — czyli rzeczy, które z wykresami nie mają
@@ -953,6 +1111,7 @@ let krokZest=24;   // krok podziałki paska, tak jak krokH w draw()
 function rysujZestawienie(id,zewnSet,wewnSets,os){
   const srednia=sredniaMieszkania(zewnSet.points,wewnSets);
   if(srednia.length<2)return false;
+  const w=oknoRysowania(os);
   const przy=(t)=>wartoscW(srednia,t,MISS_GAP);
   // znacznik odtwarzania musi przechodzić i przez ten panel: stoi tuż pod wykresem pokoi
   // i czyta się z nim jako całość, więc kreska „jesteś tutaj" urwana na jego górnej
@@ -968,7 +1127,7 @@ function rysujZestawienie(id,zewnSet,wewnSets,os){
      pointRadius:0,pointHitRadius:0,tension:.18,fill:false,spanGaps:useDaily()?3*24*3600e3:3*3600e3}]},
    options:{responsive:true,maintainAspectRatio:false,animation:false,
     interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},
-    scales:{x:{type:'time',min:os.min,max:os.max,
+    scales:{x:{type:'time',min:w.min,max:w.max,
       // podziałkę czasu niesie wyłącznie ten panel — górny ją ukrywa, bo stykają się
       // krawędziami i jeden komplet podpisów wystarcza na oba
       afterBuildTicks:sc=>{const mk=useDaily()?24:1;krokZest=krokPodzialki(sc.min,sc.max,sc.chart.width,mk);sc.ticks=timeTicks(sc.min,sc.max,sc.chart.width,mk)},
@@ -976,7 +1135,7 @@ function rysujZestawienie(id,zewnSet,wewnSets,os){
       grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},
       ticks:{color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,
         callback:v=>fmtWhen(new Date(v),krokZest)}},
-      y:{afterFit:sc=>{sc.width=OS_Y},border:{color:C('--edge')},grid:{color:C('--grid')},
+      y:{afterFit:sc=>{sc.width=OS_Y},afterDataLimits:domknijKrawedzie,border:{color:C('--edge')},grid:{color:C('--grid')},
         ticks:{precision:0,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,0)}}},
     plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),
       borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,
@@ -987,7 +1146,8 @@ function rysujZestawienie(id,zewnSet,wewnSets,os){
           return w==null?` na zewnątrz ${fmtNum(item.parsed.y,1)} °C`
             :[` na zewnątrz  ${fmtNum(item.parsed.y,1)} °C`,` mieszkanie   ${fmtNum(w,1)} °C`,
               ` różnica      ${item.parsed.y>=w?'+':'−'}${fmtNum(Math.abs(item.parsed.y-w),1)} °C`]}}}}}};
-  state.charts[id]?.destroy();state.charts[id]=new Chart(document.getElementById(id),cfg);
+  state.charts[id]?.destroy();const ch=state.charts[id]=new Chart(document.getElementById(id),cfg);
+  ch.$pelne=os;
   return true;
 }
 /* Legenda paska mówi, co znaczy kolor pola — bez tego zestawienie jest ładne, ale nieme.
@@ -1012,15 +1172,21 @@ function rysujWykresy(T,H,A){
     // stykają się krawędziami i czytają jak jedna całość, więc jeden komplet wystarczy.
     const wewnT=T.filter(s=>!s.device.ext),zewnT=T.find(s=>s.device.ext);
     const osT=zakresOsi(T);
+    /* Wspólne granice przybliżania: suma zakresów wszystkich trzech wykresów. Gdyby
+       każdy miał własne, przesunięcie okna zatrzymywałoby się w innym miejscu na
+       każdym z nich i panele przestałyby stać równo. */
+    state.pelne=[osT,zakresOsi(H),zakresOsi(A)].filter(Boolean).reduce((a,b)=>
+      a?{min:Math.min(a.min,b.min),max:Math.max(a.max,b.max)}:b,null);
     const pasek=!!zewnT&&wewnT.length>0&&osT!=null&&rysujZestawienie('temp-dwor',zewnT,wewnT,osT);
     draw('temp',wewnT.length?wewnT:T,'°C',1,[pasma],osT,pasek);
     document.getElementById('plot-dwor').hidden=!pasek;
     // Pasma rysujemy na tych dwóch wykresach, z których wykrywanie naprawdę korzysta.
     // Wilgotność względna ich nie dostaje: skacze od samej temperatury, więc pasmo nad
     // nią obiecywałoby związek, którego tam nie ma.
-    draw('hum',H,'%',0,[]);
-    draw('abs',A,'g/m³',1,[pasma]);
+    draw('hum',H,'%',0,[],zakresOsi(H));
+    draw('abs',A,'g/m³',1,[pasma],zakresOsi(A));
     legendaZestawienia(pasek);
+    const lupa=document.getElementById('pelny-zakres');if(lupa)lupa.hidden=!wZoomie();
   }
   catch(blad){console.error(blad);brakWykresow(`Wykresy się nie narysowały: ${blad.message}. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.`)}
 }

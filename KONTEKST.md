@@ -345,6 +345,48 @@ wtyczek z `draw()` i świadomie odrzucić te, których nie chce** — tu odrzuco
   dobę — a Tuya trzyma tylko 7 dni logów.
 - **`sw.js` podbity na `smart-home-v2`**, bo zmieniła się zawartość szkieletu.
 
+### Czytelność „7 dni" na telefonie — trzy odrzucone pomysły i jeden przyjęty
+
+Zgłoszenie brzmiało: na komputerze wykres wygląda dobrze, na telefonie widok „7 dni”
+jest przez skalę nieczytelny. Pomiar: pole wykresu ma na szybie 390 px szerokość
+356 pikseli, 96% odczytów mieści się w paśmie **2,3 °C**, a oś musi objąć **4,9 °C** —
+bo dwa nurki wietrzenia sięgają 22,5 °C. Dwa nurki szerokie na dwa piksele zabierają
+dolną połowę panelu.
+
+Trzy statyczne podejścia poszły do niego jako wyrenderowane zrzuty na jego danych i
+wszystkie trzy odpadły: wyższy panel (zysk 1,3× — puste pole rośnie razem z panelem),
+oś ucięta do 24,0° (1,6× — ale nurki wychodziły poza wykres, co odrzucił wprost) i oś
+łamana ze ściśniętym ogonem (1,4× — dużo maszynerii jak na tyle).
+
+Rozwiązanie podsunął on sam: „może niech zostanie tak jak jest, ale jak się przybliża
+palcami, to się przybliża oś X”. Pomysł był dobry w połowie — sam zoom osi czasu rozciąga
+linie w poziomie i nic nie daje w pionie. Druga połowa to fakt, że **Chart.js liczy oś
+pionową wyłącznie z punktów mieszczących się w oknie czasu**, więc zwężenie okna samo
+z siebie rozciąga skalę pionową. Zmierzone: doba 21.08 → 2,3×, doba 17.08 → 4,1×,
+sześć godzin → 4,6×. Rząd wielkości więcej niż cokolwiek statycznego, przy zerowej
+zmianie widoku domyślnego.
+
+Trzy rzeczy, które przy tym trzeba było ustawić:
+
+- **Pion należy do przeglądarki.** `touch-action: pan-y` na polu wykresu: poziom i
+  wielodotyk dostaje wykres, pion obsługuje przeglądarka. Bez tego przewijanie strony
+  palcem po wykresie przestałoby działać — czyli zamiana jednego problemu na gorszy.
+- **Dymek musiał się przenieść** z „każdego ruchu w poziomie" na „dotknięcie", bo poziom
+  zajęło przesuwanie. Wtyczka `dotyk` ukrywa teraz przed Chart.js *wszystkie* zdarzenia
+  dotyku, a przy dotknięciu podaje mu jedno sztuczne `mousemove`.
+- **Domknięcie osi pionowej na krawędziach okna.** Linia wchodząca w kadr z boku ma na
+  krawędzi wartość interpolowaną, której w rachunku Chart.js nie ma — i uciekała poza
+  pole. To jest ten jeden warunek, który postawił wprost: nic nie może wychodzić poza
+  wykres. Naprawia przy okazji kotwicę sprzed początku zakresu.
+
+Gesty testujemy prawdziwymi zdarzeniami dotyku przez CDP, nie wywołaniem funkcji ze
+środka strony — przedmiotem testu jest właśnie to, czy palec dochodzi do wykresu przez
+`touch-action`, fazę przechwytywania i wtyczkę `dotyk`. Z dwunastu testów **osiem
+odrzuca wersję sprzed zmiany na zachowaniu**, cztery to strażnicy i tak są podpisane.
+Pierwsze podejście odrzucało starą wersję głównie `ReferenceError`-em na brakującej
+zmiennej `okno` — to nie jest odrzucenie na zachowaniu, więc odczyt stanu w teście
+został znieczulony na brak symbolu i przycisku.
+
 ### Świadomie **nie** zrobione teraz
 
 **Granica `purge_before` a stan włącznika.** `collapse_power` zostawia wyłącznie zmiany
@@ -498,7 +540,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **95** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **107** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
