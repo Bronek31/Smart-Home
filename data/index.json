@@ -1,12 +1,12 @@
 {
-  "updated": "2026-08-22T19:37:34Z",
+  "updated": "2026-08-22T20:40:29Z",
   "months": [
     "2026-08"
   ],
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
   "alerty": [
-    "**Łazienka** — wilgotność powyżej 65% przez 74% doby, przewietrz albo osusz."
+    "**Łazienka** — wilgotność powyżej 65% przez 70% doby, przewietrz albo osusz."
   ],
   "devices": {
     "bfe38c4af789b0c8fbxte4": {
