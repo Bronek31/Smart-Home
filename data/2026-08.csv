@@ -4243,3 +4243,17 @@ ts,device_id,code,value
 2026-08-25T22:28:28Z,bf7e2a70935af7de78mjqt,battery_state,high
 2026-08-25T22:28:28Z,bf7e2a70935af7de78mjqt,va_humidity,53
 2026-08-25T22:28:28Z,bf7e2a70935af7de78mjqt,va_temperature,23.5
+2026-08-25T23:00:00Z,zewnatrz,va_humidity,86
+2026-08-25T23:00:00Z,zewnatrz,va_temperature,14.5
+2026-08-25T23:02:46Z,bf43cf664d6644420axva3,battery_state,middle
+2026-08-25T23:02:46Z,bf43cf664d6644420axva3,va_humidity,57
+2026-08-25T23:02:46Z,bf43cf664d6644420axva3,va_temperature,22.4
+2026-08-25T23:04:05Z,bfd6f4f87fea9d866dvpve,battery_state,high
+2026-08-25T23:04:05Z,bfd6f4f87fea9d866dvpve,va_humidity,61
+2026-08-25T23:04:05Z,bfd6f4f87fea9d866dvpve,va_temperature,22.8
+2026-08-25T23:23:50Z,bf5741c97c96fa85b1d7do,va_temperature,23.1
+2026-08-25T23:23:51Z,bf5741c97c96fa85b1d7do,battery_state,high
+2026-08-25T23:23:51Z,bf5741c97c96fa85b1d7do,va_humidity,58
+2026-08-25T23:28:02Z,bf7e2a70935af7de78mjqt,va_temperature,23.6
+2026-08-25T23:28:03Z,bf7e2a70935af7de78mjqt,battery_state,middle
+2026-08-25T23:28:03Z,bf7e2a70935af7de78mjqt,va_humidity,53
