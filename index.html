@@ -651,9 +651,31 @@ function wietrzenia(pokoj,dwor){
         // punktem odniesienia, strażnik puściłby dalej cały ogon artefaktu
         podejrzany[k]={baza:podejrzany[k]?.baza??v0[k],doKiedy:x1+WIETRZ.odbicieMax};
       }
+      /* Czy luka, przez którą właśnie podzieliliśmy ruch, w ogóle istniała. `naDworze`
+         jest średnią z początku i końca kroku, a wieczorem dwór schodzi po 2,3 °C/godz. —
+         szybciej, niż pokój jest w stanie się ruszyć. Średnia robi wtedy z dwóch chwil
+         jedną liczbę odsuniętą od pokoju o tyle, ile w żadnej z nich nie było, a pokój
+         schodzący własnym bezwładem po nagrzanych ścianach (0,4 °C/godz.) dzieli się
+         przez tę zmyśloną lukę. Zmierzone na fiksturze upalnego dnia przy oknach
+         ZAMKNIĘTYCH, krok 15:30→16:30: na końcach różnica -0,2 i -2,0 °C, średnia -1,35,
+         λ = 0,46 przy progu 0,20 — wietrzenie zrobione z niczego. Przy oknie upału
+         przesuniętym o godzinę ten sam mechanizm w wersji jeszcze gorszej: +0,1 i -1,8,
+         bo dwór przeszedł w trakcie kroku na drugą stronę pokoju.
+
+         Stąd dwa warunki na prawdziwą lukę, oba na surowych odczytach z dworu zamiast na
+         średniej: na starcie kroku musi być co domykać (λ jest zdefiniowana właśnie
+         względem tej różnicy), a do jego końca dwór nie może przejść na drugą stronę —
+         wtedy nie ma jednej strony, do której pokój miałby dążyć. Mianownik zostaje
+         średnią, żeby nie ruszać wartości λ, na których dobrany jest próg 0,20.
+
+         Strażnik odbicia wyżej celowo zostaje przy uśrednionej luce: zbędne podejrzenie
+         tylko wstrzymuje wykrywanie, czyli myli się w bezpieczną stronę. Tutaj chodzi
+         o wyzwalanie, więc obowiązuje ostrzejsza miara. */
+      const lukaOd=r0-v0[k],lukaDo=r1-v1[k];
+      const pozorna=Math.abs(lukaOd)<WIETRZ.luka[k]||lukaOd*lukaDo<=0;
       // wyzwala tylko temperatura — wilgotność bezwzględna została zmierzona jako
       // niezdatna do tego (patrz komentarz nad WIETRZ); jej rola kończy się na strażniku
-      if(k==='temp'&&f>0&&Math.abs(ruch)>=WIETRZ.ruch[k])tempa.push(-Math.log(1-Math.min(f,0.9))/h);
+      if(k==='temp'&&f>0&&!pozorna&&Math.abs(ruch)>=WIETRZ.ruch[k])tempa.push(-Math.log(1-Math.min(f,0.9))/h);
     }
     // strażnik gaśnie, gdy minie czas albo gdy pokój wróci przez poziom sprzed zaburzenia
     for(const k of Object.keys(podejrzany)){
