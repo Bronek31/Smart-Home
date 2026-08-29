@@ -167,19 +167,37 @@ function zbuduj(opcje = {}) {
      Gdyby okno stało na sztywnym przesunięciu od „teraz", to przy uruchomieniu testu
      o niewłaściwej porze doby dwór bywałby cieplejszy od pokoju i wietrzenia nie
      wykryłby żaden algorytm; nocny przebieg z harmonogramu wywracałby się losowo.
-     Szukamy więc pierwszej godziny, od której przez cały epizod dwór jest chłodniejszy
-     od pokoju o tyle, żeby wymiana powietrza miała co robić — ale nie o tyle, żeby
-     pokój zjechał o kilkanaście stopni. */
+     Szukamy więc godziny, od której przez cały epizod dwór jest po właściwej stronie
+     pokoju o tyle, żeby wymiana powietrza miała co robić — ale nie o tyle, żeby pokój
+     zjechał o kilkanaście stopni.
+
+     Z kilku pasujących okien bierzemy to najpóźniejsze w dobie, i to jest sedno tej
+     funkcji, a nie sam warunek na różnicę. Wcześniejsza wersja brała pierwsze napotkane,
+     czyli takie, na jakie trafiła siatka — a siatka stoi względem „teraz", więc okno
+     wędrowało po dobie razem z godziną uruchomienia testu. 29.08 kosztowało to czerwone
+     CI: fałszywe wietrzenie w upalny dzień powstawało wyłącznie przy oknach startujących
+     o 8, 9 i 10, więc przez tydzień łapały je tylko przebiegi między 8:30 a 11:30 UTC,
+     a pozostałe pięć szóstych doby chodziło na zielono po tym samym, zepsutym kodzie.
+     Najpóźniejsze okno jest przy okazji najtrudniejsze: im później się zaczyna, tym
+     wyżej dwór zdąży podciągnąć pokój i tym więcej ciepła zostaje w nim na wieczorne
+     minięcie się krzywych — czyli dokładnie na moment, w którym detektor się mylił. */
   const oknoORoznicy = (baza, godzin, [min, max], cieplejszy) => {
-    for (let t0 = start; t0 <= teraz - 7 * GODZ; t0 += GODZ) {
-      let pasuje = true;
-      for (let i = 0; i <= godzin && pasuje; i++) {
+    const pasuje = (t0) => {
+      for (let i = 0; i <= godzin; i++) {
         const roznica = cieplejszy ? dwor.get(t0 + i * GODZ) - baza : baza - dwor.get(t0 + i * GODZ);
-        pasuje = roznica >= min && roznica <= max;
+        if (!(roznica >= min && roznica <= max)) return false;
       }
-      if (pasuje) return t0;
+      return true;
+    };
+    let wybrane = null;
+    for (let t0 = start; t0 <= teraz - 7 * GODZ; t0 += GODZ) {
+      // ostra nierówność: przy równej godzinie zostaje ta wcześniejsza data, żeby po
+      // epizodzie zostało w zakresie kilka dób na powrót pokoju do własnego rytmu
+      if (pasuje(t0) && (wybrane == null || new Date(t0).getUTCHours() > new Date(wybrane).getUTCHours())) {
+        wybrane = t0;
+      }
     }
-    return null;
+    return wybrane;
   };
   const chlodneOkno = (baza, godzin) => oknoORoznicy(baza, godzin, WIETRZ_ROZNICA, false);
 

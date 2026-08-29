@@ -542,6 +542,24 @@ test.describe('podpowiedzi i diagnostyka', () => {
      niż przy większości prawdziwych wietrzeń. Dlatego wyzwala już tylko temperatura. */
   test('upalne popołudnie przy zamkniętych oknach to nie jest wietrzenie', async ({ page }) => {
     const bledy = await otworzTydzien(page, { upalDzien: true });
+    /* Cała trudność tego dnia siedzi w wieczornym minięciu się krzywych: dwór schodzi
+       przez temperaturę pokoju i przez chwilę różnica między nimi jest zerowa. Właśnie
+       tam 29.08 powstawało fałszywe wietrzenie — z ruchu pokoju podzielonego przez lukę,
+       której nie było (patrz `pozorna` w index.html). Fikstura musi ten moment zawierać,
+       inaczej test przechodzi, nie sprawdzając tego, po co powstał. */
+    const zblizenie = await page.evaluate(() => {
+      const zew = kanalyPokoju(state.devices.find((x) => x.ext), odKiedy(168));
+      const k = kanalyPokoju(state.devices.find((x) => x.id === 'salon'), odKiedy(168));
+      return {
+        najblizej: Math.min(...k.temp.map((p) => {
+          const r = wartoscW(zew.temp, p.x, WIETRZ.odniesienie);
+          return r == null ? Infinity : Math.abs(r - p.y);
+        })),
+        prog: WIETRZ.luka.temp,
+      };
+    });
+    expect(zblizenie.najblizej, 'dwór nie mija pokoju, test nie sprawdza tego, co miał')
+      .toBeLessThan(zblizenie.prog);
     expect(await ileWietrzen(page, 'salon')).toBe(0);
     expect(bledy).toEqual([]);
   });
