@@ -1,5 +1,5 @@
 {
-  "updated": "2026-08-29T13:11:12Z",
+  "updated": "2026-08-29T17:09:52Z",
   "months": [
     "2026-08"
   ],
@@ -7,7 +7,7 @@
   "weather": "pogoda.json",
   "alerty": [
     "**Kuchnia** — wilgotność powyżej 65% przez 37% doby, przewietrz albo osusz.",
-    "**Łazienka** — wilgotność powyżej 65% przez 35% doby, przewietrz albo osusz."
+    "**Łazienka** — wilgotność powyżej 65% przez 48% doby, przewietrz albo osusz."
   ],
   "devices": {
     "bfe38c4af789b0c8fbxte4": {
