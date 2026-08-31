@@ -1,11 +1,13 @@
 {
-  "updated": "2026-08-31T05:39:29Z",
+  "updated": "2026-08-31T13:55:31Z",
   "months": [
     "2026-08"
   ],
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
-  "alerty": [],
+  "alerty": [
+    "**Łazienka** — wilgotność powyżej 65% przez 26% doby, przewietrz albo osusz."
+  ],
   "devices": {
     "bfe38c4af789b0c8fbxte4": {
       "name": "FERSK VIND 2",
