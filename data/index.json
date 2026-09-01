@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-01T05:13:19Z",
+  "updated": "2026-09-01T10:09:50Z",
   "months": [
     "2026-08",
     "2026-09"
@@ -7,8 +7,8 @@
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
   "alerty": [
-    "**Salon** — wilgotność powyżej 65% przez 42% doby, przewietrz albo osusz.",
-    "**Łazienka** — wilgotność powyżej 65% przez 70% doby, przewietrz albo osusz."
+    "**Salon** — wilgotność powyżej 65% przez 40% doby, przewietrz albo osusz.",
+    "**Łazienka** — wilgotność powyżej 65% przez 57% doby, przewietrz albo osusz."
   ],
   "devices": {
     "bfe38c4af789b0c8fbxte4": {
