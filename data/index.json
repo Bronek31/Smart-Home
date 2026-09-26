@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-26T19:37:57Z",
+  "updated": "2026-09-26T19:53:56Z",
   "months": [
     "2026-08",
     "2026-09"
@@ -9,7 +9,7 @@
   "alerty": [
     "**Kuchnia** — wilgotność powyżej 65% przez 100% doby, przewietrz albo osusz.",
     "**Salon** — wilgotność powyżej 65% przez 100% doby, przewietrz albo osusz.",
-    "**Sypialnia** — wilgotność powyżej 65% przez 61% doby, przewietrz albo osusz.",
+    "**Sypialnia** — wilgotność powyżej 65% przez 57% doby, przewietrz albo osusz.",
     "**Łazienka** — wilgotność powyżej 65% przez 100% doby, przewietrz albo osusz."
   ],
   "devices": {
