@@ -1,16 +1,12 @@
 {
-  "updated": "2026-09-27T18:26:58Z",
+  "updated": "2026-09-27T18:51:00Z",
   "months": [
     "2026-08",
     "2026-09"
   ],
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
-  "alerty": [
-    "**Kuchnia** — wilgotność powyżej 65% przez 100% doby, przewietrz albo osusz.",
-    "**Salon** — wilgotność powyżej 65% przez 100% doby, przewietrz albo osusz.",
-    "**Łazienka** — wilgotność powyżej 65% przez 99% doby, przewietrz albo osusz."
-  ],
+  "alerty": [],
   "devices": {
     "bfe38c4af789b0c8fbxte4": {
       "name": "FERSK VIND 2",
