@@ -37,15 +37,22 @@ async function podepnijChart(page, { cdnDziala = true } = {}) {
     r.fulfill({ contentType: 'application/javascript', body: ADAPTER }));
 }
 
+const Z_ODTWARZANIEM = { odtwarzanie: true };
+
 /** Wspólny start: podstawione dane, podpięty Chart, strona gotowa.
  *
  * Czekamy na stempel w nagłówku, a nie na pojawienie się #app. boot() odsłania #app
  * jeszcze przed render(), więc oglądanie samej widoczności łapało stronę w połowie
  * rysowania — i testy potrafiły odczytać wartości sprzed pierwszego renderu. Stempel
  * ustawia się na samym końcu render(), a przy braku danych zmienia się na „brak danych",
- * więc jedno oczekiwanie obsługuje obie ścieżki. */
-async function otworz(page, opcje = {}, { hash = '', cdnDziala = true } = {}) {
+ * więc jedno oczekiwanie obsługuje obie ścieżki.
+ *
+ * Odtwarzanie historii na rzucie jest na stronie wyłączone, ale jego kod zostaje —
+ * testy, które go dotyczą, włączają je flagą, żeby przywrócenie było jedną linią,
+ * a nie odkopywaniem kodu, który przez ten czas nikt nie uruchamiał. */
+async function otworz(page, opcje = {}, { hash = '', cdnDziala = true, odtwarzanie = false } = {}) {
   const bledy = pilnujBledow(page);
+  if (odtwarzanie) await page.addInitScript(() => { window.odtwarzanieWlaczone = true; });
   await podepnijChart(page, { cdnDziala });
   await podstaw(page, opcje);
   await page.goto(`/index.html${hash}`);
@@ -255,8 +262,19 @@ test.describe('adres i przełączniki', () => {
 });
 
 test.describe('rzut mieszkania i odtwarzanie', () => {
-  test('suwak cofa rzut w czasie, „teraz" wraca', async ({ page }) => {
+  test('odtwarzanie jest schowane, a rzut dalej pokazuje stan bieżący w kolorach', async ({ page }) => {
     const bledy = await otworz(page);
+    await expect(page.locator('#floor .rm-temp')).toHaveCount(4);
+    await expect(page.locator('#replay')).toBeHidden();
+    await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
+    // skala barw liczy się dalej z tygodniowego okna — bez niej pokoje byłyby jednym kolorem
+    const kolory = await page.$$eval('#floor .rm-temp', (n) => n.map((x) => x.getAttribute('fill')));
+    expect(new Set(kolory).size, 'pokoje straciły rozróżnienie barw').toBeGreaterThan(1);
+    expect(bledy).toEqual([]);
+  });
+
+  test('suwak cofa rzut w czasie, „teraz" wraca', async ({ page }) => {
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
     await page.$eval('#suwak', (s) => { s.value = Math.floor(s.max / 2); s.dispatchEvent(new Event('input')); });
     await page.waitForTimeout(300);
@@ -269,7 +287,7 @@ test.describe('rzut mieszkania i odtwarzanie', () => {
   });
 
   test('okno odtwarzania nie zależy od zakresu wykresów', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     const klatki = () => page.$eval('#suwak', (s) => s.max);
     const przed = await klatki();
     for (const z of ['dzis', '720', '0']) {
@@ -285,7 +303,7 @@ test.describe('rzut mieszkania i odtwarzanie', () => {
 
   test('jedno kliknięcie to jeden przebieg, bez zapętlenia', async ({ page }) => {
     test.setTimeout(90000);
-    const bledy = await otworz(page);
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     const pozycja = () => page.$eval('#suwak', (s) => +s.value);
 
     await page.click('#play');
@@ -311,7 +329,7 @@ test.describe('rzut mieszkania i odtwarzanie', () => {
   });
 
   test('pauza zatrzymuje tam, gdzie akurat jest', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     await page.click('#play');
     await page.waitForTimeout(600);
     await page.click('#play');
@@ -323,7 +341,7 @@ test.describe('rzut mieszkania i odtwarzanie', () => {
   });
 
   test('tryb odchyłki zmienia kolory, nie zmieniając liczb', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     const stan = () => page.$$eval('#floor .rm-temp', (n) =>
       n.map((x) => ({ tekst: x.textContent, kolor: x.getAttribute('fill') })));
     const przed = await stan();
@@ -1123,7 +1141,7 @@ test.describe('podziałka osi pionowej', () => {
 /* Łuk doby ma odpowiadać na „która to była pora dnia" bez czytania stempla. */
 test.describe('łuk doby', () => {
   test('rysuje łuk z horyzontem, wschodem i zachodem', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     const svg = page.locator('#doba');
     await expect(svg).toBeVisible();
     const tresc = await svg.innerHTML();
@@ -1134,7 +1152,7 @@ test.describe('łuk doby', () => {
   });
 
   test('znacznik chodzi po łuku, nad horyzontem za dnia i pod nim w nocy', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     // Klatki wybieramy po godzinie zegarowej, nie po ułamku suwaka. Krok animacji
     // wypada tu na godzinę, więc próbkowanie co 1/10 okna trafiało w kółko w te same
     // dwie pory doby i wyglądało, jakby znacznik stał w miejscu.
@@ -1175,7 +1193,7 @@ test.describe('łuk doby', () => {
   });
 
   test('działa tak samo przy oknie dobowym', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     await page.click('[data-okno="24"]');
     await page.waitForTimeout(300);
     await expect(page.locator('#doba')).toBeVisible();
@@ -1184,7 +1202,7 @@ test.describe('łuk doby', () => {
   });
 
   test('wschód wypada przed zachodem i oba są o sensownej porze', async ({ page }) => {
-    const bledy = await otworz(page);
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     const d = await page.evaluate(() => {
       const x = dobaDane(Date.now(), 50.2649, 19.0238);
       const godz = (ms) => (ms - x.t0) / 3600e3;
@@ -1201,7 +1219,7 @@ test.describe('łuk doby', () => {
     // W południe w przesilenie słońce stoi dokładnie 90° − szerokość ± nachylenie osi
     // (23,44°). To sprawdza cały łańcuch naraz: deklinację, równanie czasu i kąt
     // godzinny. Gdyby którykolwiek człon wzoru się rozjechał, ta tożsamość pęka.
-    const bledy = await otworz(page);
+    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
     const w = await page.evaluate(() => {
       const LAT = 50.2649, LON = 19.0238;
       const maks = (r, m, d) => Math.max(...Array.from({ length: 288 },
@@ -1214,7 +1232,7 @@ test.describe('łuk doby', () => {
   });
 
   test('bez współrzędnych łuk się nie pokazuje, a strona żyje dalej', async ({ page }) => {
-    const bledy = await otworz(page, { bezMiejsca: true });
+    const bledy = await otworz(page, { bezMiejsca: true }, Z_ODTWARZANIEM);
     await expect(page.locator('#doba')).toBeHidden();
     await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
     await expect(page.locator('#suwak')).toBeVisible();
@@ -1234,7 +1252,7 @@ test.describe('odporność', () => {
   });
 
   test('suwak działa też bez wykresów', async ({ page }) => {
-    const bledy = await otworz(page, {}, { cdnDziala: false });
+    const bledy = await otworz(page, {}, { ...Z_ODTWARZANIEM, cdnDziala: false });
     await page.$eval('#suwak', (s) => { s.value = 5; s.dispatchEvent(new Event('input')); });
     await page.waitForTimeout(300);
     await expect(page.locator('#plan-tytul')).not.toContainText('aktualny stan');

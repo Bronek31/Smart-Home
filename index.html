@@ -1226,7 +1226,14 @@ function brakWykresow(tekst){
 
    Klatki idą stałym krokiem, nie po znacznikach odczytów. Czujniki raportują z lekko
    różnym rytmem, więc klatka na znacznik dawałaby przebieg raz szybszy, raz wolniejszy,
-   bez związku z upływem czasu — a właśnie o pokazanie upływu czasu tu chodzi. */
+   bez związku z upływem czasu — a właśnie o pokazanie upływu czasu tu chodzi.
+
+   Od 27.09.2026 zdjęte z widoku na życzenie użytkownika. Wyłączone jednym przełącznikiem
+   zamiast zakomentowania: kod zostaje i dalej chodzi pod testami (te włączają go przez
+   window.odtwarzanieWlaczone), więc nie zbutwieje po cichu. Rzut pokazuje stan bieżący,
+   w tych samych barwach co dotąd — skala nadal liczy się z tygodniowego okna.
+   Przywrócenie: prawa strona na true. */
+const ODTWARZANIE=window.odtwarzanieWlaczone===true;
 const KLATKI_CEL=150;             // ile mniej więcej klatek ma liczyć przebieg
 const KROKI_MIN=[5,10,15,30,60,120,180,360,720,1440];   // krok drobniejszy niż raport ma sens, bo interpolujemy
 const KLATKA_MS=40;               // 25 klatek na sekundę, czyli przebieg w jakieś sześć sekund
@@ -1507,7 +1514,7 @@ function resetReplay(){
   state.klatka=null;
   state.os=osCzasu();
   const box=document.getElementById('replay'),suwak=document.getElementById('suwak');
-  box.hidden=!state.os;                        // za mało historii, żeby było co odtwarzać
+  box.hidden=!ODTWARZANIE||!state.os;          // wyłączone albo za mało historii, żeby było co odtwarzać
   document.getElementById('teraz').hidden=true;
   // skala kolorów idzie za oknem odtwarzania, żeby rzut na żywo i przebieg mówiły
   // tym samym językiem — ten sam odcień znaczy w obu tę samą temperaturę

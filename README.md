@@ -105,6 +105,11 @@ strony północnej, bo okno od południa wpuszcza wtedy ciepło, którego progno
 temperatury nie pokazuje. Obok są `dop` i `bier` — nazwy pokoi w dopełniaczu
 i bierniku, bo podpowiedzi wklejają je wprost w zdanie.
 
+> **Odtwarzanie historii i łuk doby są od 27.09.2026 schowane** (`ODTWARZANIE` w `index.html`).
+> Kod zostaje i chodzi pod testami, które włączają go flagą `window.odtwarzanieWlaczone`;
+> przywrócenie to zmiana jednej linii. Rzut pokazuje stan bieżący, a jego skala barw
+> liczy się dalej z tygodniowego okna. Opis poniżej dotyczy wersji włączonej.
+
 Nad suwakiem odtwarzania biegnie **łuk doby** — rzeczywista droga słońca nad
 horyzontem tego dnia, na który patrzy klatka. Znacznik siedzi na krzywej: nad kreską
 słońce, pod kreską księżyc, a przy końcach podpisane godziny wschodu i zachodu. Sam
@@ -348,7 +353,7 @@ przełącznik; inaczej wybór „dziś" po cichu obcinałby połowę strony do k
 | Wykresy | **Zakres wykresów** u góry | to jego zadanie |
 | Tabela zakresów | **Zakres tabeli** nad tabelą | własny, bo skrajne wartości ogląda się dla innego okresu niż przebieg |
 | Kafle pokoi | teraz, zmiana z 24 h, trend z 4 h | stały |
-| Rzut i odtwarzanie | tydzień albo doba | własny przełącznik pod rzutem |
+| Rzut (skala barw) | ostatni tydzień | stały, dopóki odtwarzanie jest schowane |
 | Rytm doby | ostatnie 30 dób | stały, liczba dób w nagłówku |
 | Łączność z bramką | 24 h | stały, napisany w podpisie tabeli |
 | Ostatnie zdarzenia | 24 h | stały |
