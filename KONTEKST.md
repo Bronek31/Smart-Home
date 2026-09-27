@@ -87,6 +87,12 @@ co z tym robiła strona:
 | kafel trendu | przez godzinę „28° za 0,5–4 h", także gdy łazienka już stygła, potem „18° za 2 h" przy stałych 20,8 °C — w oknie regresji wciąż siedziała farelka | powyżej `TREND_MAX` = 0,7 °C/godz. milczy. Zmierzone na 44 dobach (regresja 4 h): ściany i słońce ≤ 0,5, letnie wietrzenia 0,86–1,81, farelka 2,24 |
 | skala barw rzutu | skrajne odczyty → 19,2–27,0 °C, cztery pokoje w 19,9–21,0 w jednym odcieniu | 5. i 95. percentyl średnich godzinowych; średnia godzinowa, bo przy zmianie czujnik raportuje co 2 min i pół godziny farelki ważyłoby w surowych odczytach tyle, co pół doby spokoju |
 
+**Cena, przyjęta świadomie:** w dniach z farelką oś temperatury obejmuje jej szczyt
+(27.09: 19–27 °C) i pokoje dostają mniej wysokości. Obcięcie osi odpada — „nic nie może
+wychodzić poza wykres" to warunek postawiony wprost 22.08 — a chowanie prawdziwego
+grzania było właśnie tym, co tu naprawiamy. Zostają przybliżanie palcami i wyłączenie
+łazienki przełącznikiem nad wykresami.
+
 Pierwsza wersja komentarza przy `TREND_MAX` twierdziła „naturalny ruch nie przekroczył
 1 °C/godz." — pomiar pokazał 1,81 przy letnim wietrzeniu. Znowu: **najpierw zmierz,
 potem wpisz liczbę do komentarza.**
