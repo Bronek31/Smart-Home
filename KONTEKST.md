@@ -100,7 +100,8 @@ potem wpisz liczbę do komentarza.**
 ### Sezon grzewczy
 
 - **Próg pleśni zamiast 65%.** PN-EN ISO 13788: `θsi = θe + fRsi·(θi − θe)`, kłopot przy
-  80% na powierzchni; fRsi = 0,70 z normy, do zmierzenia czujnikiem w narożniku. Obie
+  80% na powierzchni; fRsi = 0,70 z normy (mierzyć nie będziemy — czujniki zostają na
+  miejscach). Obie
   strony (kolektor i strona) mają te same stałe, pilnuje test. Na prawdziwych danych:
   alarm 23–26.09 (próg 65–72%), cisza 27.09 po południu — stary próg krzyczał w każdy
   z tych dni przez całą dobę. Zgłoszenie #7 (założone jeszcze według 65%) watchdog
@@ -634,8 +635,9 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 ## Co czeka
 
-- **Po stronie właściciela** (`TODO.md`): zewnętrzny zegar kolektora, data wygaśnięcia
-  triala Tuya, opcjonalnie pomiar fRsi.
+- **Po stronie właściciela** — zrobione 27.09: zegar z cron-job.org stoi, data triala
+  sprawdzona. Cyklicznie: odnowienie tokenu i przedłużenie triala (`TODO.md`). Pomiaru
+  fRsi nie będzie — właściciel nie przestawia czujników, zostaje 0,70 z normy.
 - **Listopad:** przyłożyć `TREND_MAX` i `CIEPLO_W_DOMU` do danych z kaloryferami.
 - **Maj 2027:** model cieplny pokój ↔ dwór.
 - Ochrona gałęzi — opisana wyżej, wymaga decyzji o deploy key albo pozostania przy

@@ -5,19 +5,15 @@ watchdog — propozycja funkcji obok zgłoszenia „Kolektor stoi" tylko przykry
 
 ## Po stronie właściciela
 
-Rzeczy, których nie da się zrobić z repozytorium.
+Zrobione 27.09: zewnętrzny zegar kolektora (cron-job.org, co godzinę o :19) i sprawdzona
+data wygaśnięcia triala Tuya. Zostają dwie rzeczy cykliczne, obie w kalendarzu właściciela:
 
-1. **Zewnętrzny zegar dla kolektora.** GitHub od 27.08 odpala harmonogram co 3–5 godz.
-   zamiast co godzinę. Przebiegi są zielone i odczyty nie giną (każdy bierze 7 dni
-   wstecz), ale strona jest nieświeża, a watchdog potrafi zgłosić fałszywe „Kolektor
-   stoi" (tak było 27 i 28.08). Instrukcja krok po kroku: README, „Kolektor co godzinę".
-2. **Data wygaśnięcia triala Tuya.** Pierwszy wygasł po miesiącu (12.09), nie po pół
-   roku. Sprawdzić na iot.tuya.com, do kiedy działa przedłużenie, i wpisać w kalendarz
-   z tygodniem zapasu — zatwierdzenie wniosku trwa 1–2 dni robocze.
-3. **(Opcjonalnie) zmierzyć fRsi.** Próg pleśni stoi na liczbie z normy (0,70). Jeden
-   czujnik przez dobę w najzimniejszym narożniku ściany zewnętrznej, najlepiej w mroźny
-   dzień: `fRsi = (θnarożnik − θdwór) / (θpokój − θdwór)`. Wynik wpisać w `FRSI`
-   w `fetch.py` i `index.html` (test pilnuje, żeby się zgadzały).
+- **token GitHuba dla cron-job.org** ma datę ważności — przed nią wygenerować nowy
+  i podmienić nagłówek `Authorization` (README, „Kolektor co godzinę");
+- **trial IoT Core u Tuya** — wniosek o przedłużenie z tygodniem zapasu.
+
+Gdyby któreś przepadło: pierwsze objawi się powrotem do odczytów co 3–5 godz.,
+drugie zgłoszeniem „Kolektor stoi" z kodem `28841002`.
 
 ## Do sprawdzenia po kilku tygodniach grzania
 
@@ -46,6 +42,7 @@ dobrane są na danych bez ogrzewania — w listopadzie przyłożyć je do nowych
 | Rozbudowa wokół klimatyzatora | Włącznik ma trzy wiersze, a pasma jego pracy odeszły razem z wykrywaniem wietrzenia. Wrócić, gdy urządzenie znów zacznie chodzić |
 | Sterowanie urządzeniami ze strony | Tuya ma API do komend, ale strona jest statyczna i nie ma gdzie schować sekretu. Token w przeglądarce albo `workflow_dispatch` z frontendu to klucz do konta Tuya w publicznym kodzie |
 | Wykrywanie wietrzenia i wszystko, co na nim stoi | Usunięte 27.09. Przy raportach co godzinę nie da się go dostroić; 7 epizodów w 44 dobach, zero od 8.09. Z nim odpadły „skutek wietrzenia" i plik z godzinami otwarcia okien |
+| Pomiar fRsi czujnikiem w narożniku ściany | Właściciel nie przestawia czujników (27.09). Próg pleśni zostaje na wartości z normy, 0,70 |
 | Powiadomienia push | Brak serwera. Rolę powiadomień pełnią zgłoszenia zakładane przez watchdoga — GitHub wysyła o nich maila |
 
 ## Zrobione

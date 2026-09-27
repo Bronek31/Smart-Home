@@ -410,7 +410,8 @@ która chodziła 30–100% i ściskała pokoje w pasek.
 
 `FRSI = 0,70` to liczba z normy, nie z pomiaru. Da się ją zmierzyć: jeden czujnik na
 dobę w najzimniejszym narożniku ściany zewnętrznej, drugi w środku pokoju, i odczyt
-z dworu — `fRsi = (θnarożnik − θdwór) / (θpokój − θdwór)`.
+z dworu — `fRsi = (θnarożnik − θdwór) / (θpokój − θdwór)`. Na razie tego nie robimy:
+czujniki zostają na swoich miejscach, więc obowiązuje wartość z normy.
 
 ### Wykrywanie wietrzenia — usunięte
 
@@ -467,6 +468,8 @@ a dwa przebiegi naraz nic nie psują (`zapisz.sh`).
    `403` = token bez uprawnienia Actions.
 
 Token ma datę ważności — przed nią trzeba wygenerować nowy i podmienić nagłówek.
+
+**Stan:** postawiony 27.09.2026 na cron-job.org, co godzinę o :19.
 
 ## Gdy coś nie działa
 
