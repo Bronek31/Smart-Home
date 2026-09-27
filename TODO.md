@@ -5,7 +5,7 @@ watchdog — propozycja funkcji obok zgłoszenia „Kolektor stoi" tylko przykry
 
 ## Po stronie właściciela
 
-Zrobione 27.09: zewnętrzny zegar kolektora (cron-job.org, co godzinę o :19) i sprawdzona
+Zrobione 27.09: zewnętrzny zegar kolektora (cron-job.org, co 30 min o :00 i :30) i sprawdzona
 data wygaśnięcia triala Tuya. Zostają dwie rzeczy cykliczne, obie w kalendarzu właściciela:
 
 - **token GitHuba dla cron-job.org** ma datę ważności — przed nią wygenerować nowy
