@@ -15,6 +15,15 @@ data wygaśnięcia triala Tuya. Zostają dwie rzeczy cykliczne, obie w kalendarz
 Gdyby któreś przepadło: pierwsze objawi się powrotem do odczytów co 3–5 godz.,
 drugie zgłoszeniem „Kolektor stoi" z kodem `28841002`.
 
+## Do zrobienia
+
+- **Strona sama dociąga świeże dane.** Dziś pobiera je tylko przy otwarciu. Zainstalowana
+  na telefonie działa w trybie `standalone`, czyli bez przycisku odświeżania, a telefon
+  trzyma ją w tle godzinami — po powrocie widać stan z chwili ostatniego otwarcia, choć
+  kolektor ma już nowsze odczyty. Dociągać przy powrocie do karty (`visibilitychange`)
+  i co kilka minut, gdy jest otwarta; pamięć podręczną miesięcy (`monthCache`) czyścić
+  przynajmniej dla bieżącego miesiąca.
+
 ## Do sprawdzenia po kilku tygodniach grzania
 
 Kaloryfery ruszają 1.10, a farelka w łazience będzie chodzić codziennie. Dwa progi
