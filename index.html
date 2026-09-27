@@ -106,8 +106,24 @@
 .statusbar{order:-5}.pens{order:-4}#wx-panel{order:-3;margin-top:1.2rem}#ev-panel{order:-2;margin-top:1.2rem}
 .bottom-layout>.panel{margin-top:2.5rem}
 /* piąty kafel — dwór — na całą szerokość, zamiast samotnej komórki obok pustej */
-.pens>.pen:last-child:nth-child(odd){grid-column:1/-1}}
+.pens>.pen:last-child:nth-child(odd){grid-column:1/-1}
+}
 .diagnostyka{margin-top:2.1rem}
+.plot-komfort{height:300px}
+.komfort-lista{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem 1.4rem;margin-top:.8rem;font:400 .8rem "IBM Plex Sans Condensed",sans-serif}
+.komfort-lista .kp{display:grid;grid-template-columns:1fr auto;gap:.25rem .5rem;align-items:baseline;min-width:0}
+.komfort-lista b{font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.komfort-lista b i{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--c);margin-right:.45rem}
+.komfort-lista em{font-style:normal;font-family:"IBM Plex Mono",monospace;color:var(--text)}
+.komfort-lista .tor{grid-column:1/-1;height:6px;background:var(--grid);position:relative}.komfort-lista .tor span{position:absolute;inset:0 auto 0 0;background:rgba(95,206,158,.75)}
+.komfort-lista small{grid-column:1/-1;color:var(--faint);font-size:.74rem}
+.noce-podsumowanie{font-size:.86rem;line-height:1.5;color:var(--text);margin-bottom:.6rem}.noce-podsumowanie span{color:var(--dim)}
+.noce{display:grid;grid-template-columns:auto 1fr auto;gap:3px .7rem;align-items:center;font:400 .74rem "IBM Plex Mono",monospace;color:var(--faint)}
+.noce .tor{position:relative;height:14px;background:var(--panel);border:1px solid var(--edge)}
+.noce .zalecane{position:absolute;top:0;bottom:0;background:rgba(95,206,158,.16);border-left:1px dashed rgba(95,206,158,.5);border-right:1px dashed rgba(95,206,158,.5)}
+.noce .zakres{position:absolute;top:4px;bottom:4px;background:var(--c);opacity:.45}
+.noce .srednia{position:absolute;top:1px;width:10px;height:10px;margin-left:-5px;border-radius:50%;background:var(--c)}
+.noce .wartosc{color:var(--text);white-space:nowrap}.noce .wartosc small{color:var(--faint);margin-left:.4rem}
+.noce .os{position:relative;height:1.1em;color:var(--faint);font-size:.68rem}.noce .os span{position:absolute;transform:translateX(-50%)}
 .diagnostyka>summary{cursor:pointer;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding:.3rem 0}
 .diagnostyka>summary:hover{color:var(--dim)}
 .diagnostyka .summary{margin-top:.6rem}
@@ -127,6 +143,16 @@
     <div class="pasma-legenda" id="legenda-hum" hidden></div></div>
   <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
     <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, ta nie. Im niżej linia dworu pod liniami pokoi, tym mocniej otwarte okno osuszy mieszkanie — zimą różnica jest zwykle duża, więc wystarczy kilka minut szeroko otwartego okna.</p></div>
+
+  <div class="trace" id="komfort" hidden><h2>Strefa komfortu <small>&deg;C &times; %</small><small id="komfort-info"></small></h2>
+    <div class="plot plot-komfort"><canvas id="komfort-wykres"></canvas></div>
+    <div class="komfort-lista" id="komfort-lista"></div>
+    <p class="hint">Każdy punkt to godzina w jednym pokoju — temperatura w poziomie, wilgotność w pionie. Zielone pole to strefa komfortu: 20–24 °C i 40–60% wilgotności. Liczba przy pokoju mówi, jaką część czasu spędził w polu, a dopisek — w którą stronę uciekał najczęściej. Zakres ten sam co wykresów wyżej.</p></div>
+
+  <div class="trace" id="noce" hidden><h2>Noce w sypialni <small>23:00–7:00</small><small id="noce-info"></small></h2>
+    <div class="noce-podsumowanie" id="noce-podsumowanie"></div>
+    <div class="noce" id="noce-lista"></div>
+    <p class="hint">Średnia temperatura każdej nocy (kropka) i rozpiętość od najchłodniejszej do najcieplejszej godziny (pasek). Zielone pasmo to 16–19 °C — tyle zwykle zaleca się do snu. Po prawej średnia wilgotność.</p></div>
 
   <div class="trace" id="rytm" hidden><h2>Rytm doby <small>&deg;C</small><small id="rytm-info"></small></h2>
     <div class="rytm-wybor" id="rytm-wybor"></div>
@@ -430,7 +456,7 @@ const monthKey=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.get
 // Przy "całości" wykres bierze się z agregatów, więc surowe wiersze są potrzebne tylko
 // bieżącym odczytom i diagnostyce ostatniej doby. Dwa miesiące zamiast jednego, bo
 // pierwszego dnia miesiąca sam bieżący plik ma dopiero kilka godzin historii.
-function neededMonths(){const all=state.months,newest=all.at(-1);if(!all.length)return[];if(!state.daily.length)return all;if(!state.hours)return all.slice(-2);const from=monthKey(Math.min(zakresOd(),Date.now()-24*3600e3)),need=all.filter(m=>m>=from);return need.includes(newest)?need:need.concat(newest)}
+function neededMonths(){const all=state.months,newest=all.at(-1);if(!all.length)return[];if(!state.daily.length)return all;if(!state.hours)return all.slice(-2);const from=monthKey(Math.min(zakresOd(),Date.now()-RYTM_DNI*86400e3)),need=all.filter(m=>m>=from);return need.includes(newest)?need:need.concat(newest)}
 async function ensureRows(){state.rows=(await Promise.all(neededMonths().map(loadMonth))).flat().sort((a,b)=>a.t-b.t)}
 /* Zakres jako parametr, nie jako globalna prawda. Wykresy i tabela zakresów mają
    od teraz własne przełączniki, więc każda z tych funkcji musi umieć policzyć się dla
@@ -1119,6 +1145,7 @@ function rysujWykresy(T,H,A){
     if(lp){lp.hidden=!progH;lp.innerHTML=progH?`<span><i class="kreska"></i>próg pleśni dla średniej temperatury mieszkania — powyżej niego najzimniejszy narożnik ściany zewnętrznej ma ponad ${WILG_POWIERZCHNI}% wilgotności</span>`:''}
     draw('abs',A,'g/m³',1,[],zakresOsi(A));
     legendaZestawienia(pasek);
+    rysujKomfort();
     const lupa=document.getElementById('pelny-zakres');if(lupa)lupa.hidden=!wZoomie();
   }
   catch(blad){console.error(blad);brakWykresow(`Wykresy się nie narysowały: ${blad.message}. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.`)}
@@ -1774,6 +1801,162 @@ function skalaMapy(min,max){
   if(max-min<SKALA_ROZPIETOSC){const brak=(SKALA_ROZPIETOSC-(max-min))/2;return{min:min-brak,max:max+brak}}
   return{min,max};
 }
+/* --- Strefa komfortu ---
+   Zamiast dwóch wykresów do czytania naraz jedno pytanie: jaką część czasu pokój był
+   i ciepły, i suchy we właściwej mierze. Pole 20–24 °C i 40–60% to typowa strefa
+   komfortu dla mieszkań zimą (PN-EN 16798-1 dla temperatury, 40–60% to zakres, poza
+   którym zaczyna się albo sucho w gardle, albo pleśń i roztocza).
+
+   Punkt to średnia godzinowa, nie surowy odczyt: przy zmianie czujnik raportuje co dwie
+   minuty, a spokojnie raz na godzinę, więc w surowych odczytach pół godziny farelki
+   ważyłoby tyle, co pół doby spokoju. W widoku „całość" punkt to doba. */
+const STREFA={tmin:20,tmax:24,hmin:40,hmax:60};
+const STREFA_KOLOR='rgba(95,206,158,.13)',STREFA_RAMKA='rgba(95,206,158,.55)';
+function punktyKomfortu(d,h=state.hours){
+  if(dobowe(h)){
+    const dob=k=>new Map(state.daily.filter(r=>r.id===d.id&&r.code===d[k]&&isFinite(r.avg)).map(r=>[r.date,r]));
+    const T=dob('temp'),H=dob('hum'),out=[];
+    for(const[date,t]of T){const w=H.get(date);if(w)out.push({x:t.avg,y:w.avg,t:t.t})}
+    return out.sort((a,b)=>a.t-b.t);
+  }
+  const od=odKiedy(h),kub=new Map();
+  for(const[kind,i]of[['temp',0],['hum',1]]){
+    for(const r of state.indeks?.[`${d.id}|${d[kind]}`]||[]){
+      if(r.t<od)continue;
+      const k=Math.floor(r.t/3600e3),b=kub.get(k)||[0,0,0,0];
+      b[i*2]+=r.v;b[i*2+1]++;kub.set(k,b);
+    }
+  }
+  const out=[];
+  for(const[k,b]of kub)if(b[1]&&b[3])out.push({x:b[0]/b[1],y:b[2]/b[3],t:k*3600e3});
+  return out.sort((a,b)=>a.t-b.t);
+}
+/* Jaką część punktów pokój spędził w polu i w którą stronę uciekał najczęściej. Punkt
+   może być naraz za ciepły i za wilgotny — liczy się wtedy do obu kierunków. */
+function ocenKomfort(pkt){
+  if(!pkt.length)return null;
+  const poza={zimno:0,cieplo:0,sucho:0,wilgotno:0};let w=0;
+  for(const p of pkt){
+    const tt=p.x<STREFA.tmin?'zimno':p.x>STREFA.tmax?'cieplo':null;
+    const hh=p.y<STREFA.hmin?'sucho':p.y>STREFA.hmax?'wilgotno':null;
+    if(!tt&&!hh){w++;continue}
+    if(tt)poza[tt]++;if(hh)poza[hh]++;
+  }
+  const glownie=Object.entries(poza).sort((a,b)=>b[1]-a[1])[0];
+  return{udzial:w/pkt.length,poza,glownie:glownie[1]?glownie[0]:null,n:pkt.length};
+}
+const KIERUNEK={zimno:'za zimno',cieplo:'za ciepło',sucho:'za sucho',wilgotno:'za wilgotno'};
+function renderKomfort(){
+  const sekcja=document.getElementById('komfort');
+  const pokoje=state.devices.filter(d=>!d.ext&&d.temp&&d.hum&&!state.off.has(d.id))
+    .map(d=>({d,pkt:punktyKomfortu(d)})).map(x=>({...x,ocena:ocenKomfort(x.pkt)})).filter(x=>x.ocena);
+  state.komfort=pokoje;
+  sekcja.hidden=!pokoje.length;
+  if(!pokoje.length)return;
+  const jed=useDaily()?'dób':'godzin';
+  document.getElementById('komfort-info').textContent=` · ${rangeLabel().split(' · ')[0]}`;
+  document.getElementById('komfort-lista').innerHTML=pokoje.map(({d,ocena:o})=>{
+    const proc=Math.round(o.udzial*100);
+    const dopisek=o.glownie?`poza polem głównie ${KIERUNEK[o.glownie]}`:'cały czas w polu';
+    return`<div class="kp" data-pokoj="${esc(d.id)}"><b style="--c:${d.color}"><i></i>${esc(d.name)}</b><em>${proc}%</em><span class="tor" title="${proc}% ${jed} w strefie komfortu"><span style="width:${proc}%"></span></span><small>${dopisek}</small></div>`;
+  }).join('');
+}
+/* Pole strefy komfortu pod punktami. Rysowane przed zbiorami danych, żeby punkty
+   leżały na nim, a nie pod nim. */
+const strefa={id:'strefa',beforeDatasetsDraw(chart){
+  const{ctx,chartArea:a,scales:{x,y}}=chart;
+  const l=Math.max(a.left,x.getPixelForValue(STREFA.tmin)),r=Math.min(a.right,x.getPixelForValue(STREFA.tmax));
+  const t=Math.max(a.top,y.getPixelForValue(STREFA.hmax)),b=Math.min(a.bottom,y.getPixelForValue(STREFA.hmin));
+  if(r<=l||b<=t)return;
+  ctx.save();ctx.fillStyle=STREFA_KOLOR;ctx.fillRect(l,t,r-l,b-t);
+  ctx.strokeStyle=STREFA_RAMKA;ctx.setLineDash([4,3]);ctx.lineWidth=1;ctx.strokeRect(l+.5,t+.5,r-l-1,b-t-1);
+  ctx.setLineDash([]);ctx.fillStyle=STREFA_RAMKA;ctx.font='600 10px "IBM Plex Sans Condensed",sans-serif';
+  ctx.textBaseline='top';ctx.fillText('KOMFORT',l+5,t+4);ctx.restore();
+}};
+/* Wtyczki z draw(): pustka zostaje (pusty zakres ma mówić, że jest pusty); dotyk
+   i znacznik odpadają świadomie — oś pozioma to tu temperatura, nie czas, więc nie ma
+   czego przybliżać ani gdzie postawić kreski odtwarzania. Dymek pokazuje dotknięcie
+   (click), a nie ruch palca — inaczej przewijanie strony wywoływałoby go co chwilę. */
+function rysujKomfort(){
+  const pokoje=state.komfort||[];
+  const el=document.getElementById('komfort-wykres');
+  // poza state.charts: tam siedzą wykresy z osią czasu, które przybliżanie przesuwa razem
+  state.wykresKomfortu?.destroy();state.wykresKomfortu=null;
+  if(!pokoje.length||!el)return;
+  const wsz=pokoje.flatMap(p=>p.pkt);
+  const krance=(k,lo,hi)=>({min:Math.floor(Math.min(lo,...wsz.map(p=>p[k]))-.5),max:Math.ceil(Math.max(hi,...wsz.map(p=>p[k]))+.5)});
+  const ox=krance('x',STREFA.tmin-1,STREFA.tmax+1),oy=krance('y',STREFA.hmin-5,STREFA.hmax+5);
+  const kiedy=new Intl.DateTimeFormat('pl-PL',useDaily()?{day:'2-digit',month:'2-digit'}:{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  const osCfg=(tytul,dec)=>({border:{color:C('--edge')},grid:{color:C('--grid')},title:{display:true,text:tytul,color:C('--faint'),font:{family:'IBM Plex Sans Condensed',size:11}},ticks:{color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,dec)}});
+  state.wykresKomfortu=new Chart(el,{type:'scatter',plugins:[pustka,strefa],
+    data:{datasets:pokoje.map(({d,pkt})=>({label:d.name,data:pkt,backgroundColor:rgba(hexRgb(d.color),.38),borderColor:d.color,
+      // ostatni punkt — „teraz" — większy i pełny, żeby było widać, gdzie pokój stoi w tej chwili
+      pointRadius:c=>c.dataIndex===pkt.length-1?5:2.2,pointBorderWidth:c=>c.dataIndex===pkt.length-1?1.5:0,
+      pointBackgroundColor:c=>c.dataIndex===pkt.length-1?d.color:rgba(hexRgb(d.color),.38),pointHitRadius:6}))},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,events:['mousemove','mouseout','click'],
+      layout:{padding:{right:12,top:6}},
+      scales:{x:{type:'linear',min:ox.min,max:ox.max,...osCfg('°C',0)},y:{min:oy.min,max:oy.max,...osCfg('%',0)}},
+      plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,
+        titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},
+        callbacks:{title:it=>kiedy.format(new Date(it[0].raw.t)),label:it=>` ${it.dataset.label}  ${fmtNum(it.raw.x,1)} °C  ${fmtNum(it.raw.y,0)} %`}}}}});
+}
+const hexRgb=h=>{const n=parseInt(h.slice(1),16);return[n>>16&255,n>>8&255,n&255]};
+
+/* --- Noce w sypialni ---
+   Średnia i rozpiętość temperatury każdej nocy, zestawione z tym, co zwykle zaleca się
+   do snu (16–19 °C). Od 1.10 grzeją kaloryfery, więc to jest liczba, na którą da się
+   wpłynąć: przykręcony wieczorem zawór widać rano w pasku. Godzinowe średnie z tego
+   samego powodu co w strefie komfortu; noc bez co najmniej sześciu godzin z odczytem
+   pomijamy, bo jej średnia mówiłaby o kawałku nocy, nie o nocy. */
+const SEN={pokoj:'Sypialnia',od:23,do:7,tmin:16,tmax:19,nocy:14,minGodzin:6};
+function sypialnia(){
+  const rm=PLAN.rooms.find(r=>r.name===SEN.pokoj);
+  return state.devices.find(d=>!d.ext&&(d.id===rm?.dev||d.name===SEN.pokoj))||null;
+}
+function nocePokoju(d){
+  if(!d?.temp)return[];
+  const noce=[],dzis=new Date();dzis.setHours(0,0,0,0);
+  for(let i=SEN.nocy;i>=1;i--){
+    const start=new Date(dzis);start.setDate(start.getDate()-i);start.setHours(SEN.od,0,0,0);
+    const koniec=new Date(start);koniec.setDate(koniec.getDate()+1);koniec.setHours(SEN.do,0,0,0);
+    if(koniec.getTime()>Date.now())continue;          // noc jeszcze trwa
+    const godz=kind=>{const m=new Map();
+      for(const r of state.indeks?.[`${d.id}|${d[kind]}`]||[]){
+        if(r.t<start.getTime()||r.t>=koniec.getTime())continue;
+        const k=Math.floor(r.t/3600e3),b=m.get(k)||[0,0];b[0]+=r.v;b[1]++;m.set(k,b);
+      }
+      return[...m.values()].map(([s,n])=>s/n)};
+    const T=godz('temp'),H=d.hum?godz('hum'):[];
+    if(T.length<SEN.minGodzin)continue;
+    const sr=a=>a.reduce((x,y)=>x+y,0)/a.length;
+    noce.push({start:start.getTime(),koniec:koniec.getTime(),sr:sr(T),min:Math.min(...T),max:Math.max(...T),wilg:H.length?sr(H):null});
+  }
+  return noce;
+}
+function renderNoce(){
+  const sekcja=document.getElementById('noce'),d=sypialnia(),noce=nocePokoju(d);
+  state.noce=noce;
+  sekcja.hidden=!noce.length;
+  if(!noce.length)return;
+  const lo=Math.floor(Math.min(SEN.tmin-1,...noce.map(n=>n.min))),hi=Math.ceil(Math.max(SEN.tmax+1,...noce.map(n=>n.max)));
+  const proc=v=>`${((v-lo)/(hi-lo)*100).toFixed(2)}%`;
+  const data=t=>{const a=new Date(t),b=new Date(t+86400e3);return`${a.getDate()}/${b.getDate()}.${pad(b.getMonth()+1)}`};
+  const odZalecen=v=>v>SEN.tmax?`o ${fmtNum(v-SEN.tmax,1)}° cieplej niż zalecane do snu`:v<SEN.tmin?`o ${fmtNum(SEN.tmin-v,1)}° chłodniej niż zalecane do snu`:'w zalecanym zakresie do snu';
+  const ost=noce.at(-1),wZakresie=noce.filter(n=>n.sr>=SEN.tmin&&n.sr<=SEN.tmax).length;
+  document.getElementById('noce-info').textContent=` · ${d.name.toLowerCase()} · ${noce.length===1?'1 noc':`${noce.length} ${noce.length%10>=2&&noce.length%10<=4&&(noce.length%100<10||noce.length%100>=20)?'noce':'nocy'}`}`;
+  document.getElementById('noce-podsumowanie').innerHTML=
+    `Ostatnia noc: średnio <b>${fmtNum(ost.sr,1)} °C</b> (${fmtNum(ost.min,1)}–${fmtNum(ost.max,1)})${ost.wilg!=null?`, ${fmtNum(ost.wilg,0)}%`:''} — ${odZalecen(ost.sr)}.`
+    +` <span>W zalecanym zakresie ${wZakresie} z ${noce.length}.</span>`;
+  // lewy kraniec tylko wtedy, gdy nie wchodzi na podpis 16° — na telefonie to kilka pikseli
+  const os=[...(SEN.tmin-lo>=2?[lo]:[]),SEN.tmin,SEN.tmax,hi].filter((v,i,a)=>a.indexOf(v)===i);
+  document.getElementById('noce-lista').innerHTML=
+    `<span></span><div class="os">${os.map(v=>`<span style="left:${proc(v)}">${v}°</span>`).join('')}</div><span></span>`
+    +noce.map(n=>`<span>${data(n.start)}</span><div class="tor" style="--c:${d.color}" title="${data(n.start)} · średnio ${fmtNum(n.sr,1)} °C, od ${fmtNum(n.min,1)} do ${fmtNum(n.max,1)}">`
+      +`<span class="zalecane" style="left:${proc(SEN.tmin)};width:calc(${proc(SEN.tmax)} - ${proc(SEN.tmin)})"></span>`
+      +`<span class="zakres" style="left:${proc(n.min)};width:max(2px,calc(${proc(n.max)} - ${proc(n.min)}))"></span>`
+      +`<span class="srednia" style="left:${proc(n.sr)}"></span></div>`
+      +`<span class="wartosc">${fmtNum(n.sr,1)}°${n.wilg!=null?`<small>${fmtNum(n.wilg,0)}%</small>`:''}</span>`).join('');
+}
 function renderRytm(){
   const sekcja=document.getElementById('rytm');
   const wewn=state.devices.filter(d=>!d.ext&&d.temp);
@@ -1854,7 +2037,7 @@ function renderHealth(){if(state.health.some(r=>r.status!=='ok'))document.getEle
 // widokach rysujemy z surowych wierszy, więc i podpis musi iść z surowych.
 function rangeLabel(h=state.hours){const base={[DZIS]:'dzisiaj od północy',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[h]+(dobowe(h)?' · dobowe min/śr/max':''),oldest=wewnOd(0,h)||state.since||state.rows[0]?.t,from=odKiedy(h);if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
 async function render(){await ensureRows();state.indeks=indeksSerii();computeHealth();renderStatus();renderPens();resetReplay();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();
-  ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary();renderHealth();renderRytm();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
+  ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary();renderHealth();renderRytm();renderKomfort();renderNoce();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
   rysujWykresy(T,H,A)}
 boot();
 // Instalacja na ekranie głównym i tryb offline. Rejestracja po load, żeby nie

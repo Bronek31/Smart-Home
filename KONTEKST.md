@@ -122,6 +122,27 @@ bez ruszania DOM-u — na komputerze układ bez zmian, pilnuje tego strażnik. T
 wariant kompaktowy (min–max w jednej kolumnie), diagnostyka łączności jest w `<details>`
 i rozwija się sama przy kłopocie.
 
+### Strefa komfortu i noce w sypialni
+
+Dwie nowe sekcje na życzenie, po tym, jak właściciel odrzucił prognozę pleśni („alerty
+wystarczą") i poprosił o rzeczy „ładne i użyteczne". Wybrane spośród kilku, bo działają
+na danych, które już są, i dają się sprawdzić własnym doświadczeniem:
+
+- **Strefa komfortu** — wrzesień: Salon 80% czasu w polu, pozostałe 58–65%, poza polem
+  głównie za wilgotno. Wykres trzymany poza `state.charts` (tam są wykresy z osią czasu,
+  które przybliżanie przesuwa razem — strażnik testu to wyłapał).
+- **Noce w sypialni** — wrzesień: średnio 22,6 °C nocą, 0 z 14 nocy w zalecanych 16–19 °C.
+  Od 1.10 to liczba, na którą da się wpłynąć zaworem.
+
+**Odrzucone po pomiarze: dziennik łazienki (prysznic, farelka).** Właściciel bierze
+prysznic prawie codziennie, a przez 44 doby czujnik w łazience wyraźnie zobaczył
+prysznic raz — czujniki raportują przy zmianie temperatury o 0,5 °C albo co godzinę,
+więc sama para ich nie budzi.
+
+Przy okazji `neededMonths()` ładuje zawsze ostatnie `RYTM_DNI` dób, nie tylko zakres
+wykresów — na początku miesiąca w zakresie „dziś" rytm doby i noce widziały wcześniej
+tylko bieżący miesiąc.
+
 ### Odtwarzanie historii — schowane, nie usunięte
 
 Na życzenie. Przełącznik `ODTWARZANIE`, a testy włączają kod flagą
@@ -628,7 +649,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **80** (`python -m unittest discover -s tests`) |
-| Testy strony | **110** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **117** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` z cron-job.org co 30 min o :00 i :30, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 30 zapytań Tuya na przebieg · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |

@@ -56,6 +56,10 @@ dobrane są na danych bez ogrzewania — w listopadzie przyłożyć je do nowych
 
 ## Zrobione
 
+- **Strefa komfortu i noce w sypialni** (27.09) — wykres temperatura × wilgotność
+  z polem 20–24 °C / 40–60% i procentem czasu w polu dla każdego pokoju; ostatnie 14 nocy
+  w sypialni na tle zalecanych do snu 16–19 °C. We wrześniu żadna noc nie zeszła poniżej
+  20 °C.
 - **Przegląd z 27.09** — szczegóły i pomiary w `KONTEKST.md`:
   - wykrywanie wietrzenia i pasma klimatyzatora usunięte;
   - farelka przestała być „chwilowym skokiem" (filtr startuje ze spokojnego poziomu),

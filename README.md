@@ -387,6 +387,20 @@ dla chłodu, a najsuchsze powietrze przychodzi nad ranem.
 Progi (`WIETRZ_ZYSK`, `WIETRZ_CIEPLO`, `SLONCE_MOCNE`) siedzą w `index.html` obok
 tych funkcji.
 
+### Strefa komfortu i noce w sypialni
+
+**Strefa komfortu** to wykres temperatura × wilgotność: punkt to godzina w jednym pokoju
+(w widoku „całość" — doba), a zielone pole to 20–24 °C i 40–60% (`STREFA`). Pod wykresem
+każdy pokój ma jedną liczbę — jaką część czasu spędził w polu — i dopisek, w którą stronę
+uciekał najczęściej. Zakres ten sam co wykresów. Punkt to średnia godzinowa, bo przy
+zmianie czujnik raportuje co dwie minuty i surowe odczyty przeważyłyby impulsy.
+
+**Noce w sypialni** — ostatnie 14 nocy, 23:00–7:00: średnia (kropka), rozpiętość od
+najchłodniejszej do najcieplejszej godziny (pasek) i średnia wilgotność, na tle pasma
+16–19 °C, które zwykle zaleca się do snu (`SEN`). Noc z mniej niż sześcioma godzinami
+odczytów jest pomijana, noc, która jeszcze trwa — też. Obie sekcje liczą liczby bez
+Chart.js, więc przy awarii CDN znika tylko sam wykres komfortu.
+
 ### Próg pleśni
 
 Alarm o wilgoci (kafel zdarzeń i zgłoszenie watchdoga) nie ma stałego progu. Pleśń

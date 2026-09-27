@@ -416,6 +416,129 @@ test.describe('rytm doby', () => {
   });
 });
 
+/* Strefa komfortu: jedna liczba na pokój zamiast czytania dwóch wykresów naraz. Liczby
+   sprawdzamy dwojako — na danych podanych wprost (reguła) i na fiksturze przeliczonej
+   w teście niezależnie od kodu strony (czy strona liczy z tego, co trzeba). */
+test.describe('strefa komfortu', () => {
+  test('liczy udział czasu w polu i kierunek ucieczki', async ({ page }) => {
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => ({
+      mieszana: ocenKomfort([{ x: 21, y: 50 }, { x: 21, y: 65 }, { x: 25, y: 66 }, { x: 19, y: 62 }]),
+      w_polu: ocenKomfort([{ x: 20, y: 40 }, { x: 24, y: 60 }]),
+      pusto: ocenKomfort([]),
+    }));
+    expect(w.mieszana.udzial).toBe(0.25);
+    expect(w.mieszana.poza).toEqual({ zimno: 1, cieplo: 1, sucho: 0, wilgotno: 3 });
+    expect(w.mieszana.glownie).toBe('wilgotno');
+    expect(w.w_polu.udzial, 'krawędzie pola należą do pola').toBe(1);
+    expect(w.w_polu.glownie).toBeNull();
+    expect(w.pusto).toBeNull();
+    expect(bledy).toEqual([]);
+  });
+
+  test('punkt to godzina, a procent zgadza się z niezależnym przeliczeniem', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const w = await page.evaluate(() => {
+      const d = state.devices.find((x) => x.id === 'salon'), od = odKiedy(168), kub = new Map();
+      for (const r of state.rows) {
+        if (r.id !== 'salon' || r.t < od || !isFinite(r.v)) continue;
+        const k = Math.floor(r.t / 3600e3), b = kub.get(k) || { t: [], h: [] };
+        (r.code === d.temp ? b.t : r.code === d.hum ? b.h : []).push(r.v); kub.set(k, b);
+      }
+      const sr = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+      const pkt = [...kub.values()].filter((b) => b.t.length && b.h.length).map((b) => [sr(b.t), sr(b.h)]);
+      const wPolu = pkt.filter(([t, h]) => t >= 20 && t <= 24 && h >= 40 && h <= 60).length;
+      const strona = state.komfort.find((x) => x.d.id === 'salon');
+      return { n: pkt.length, oczekiwany: Math.round(100 * wPolu / pkt.length), stronaN: strona.pkt.length,
+        napis: document.querySelector('#komfort-lista [data-pokoj="salon"] em').textContent };
+    });
+    expect(w.n, 'fikstura bez danych, test nic nie sprawdza').toBeGreaterThan(100);
+    expect(w.stronaN).toBe(w.n);
+    expect(w.napis).toBe(`${w.oczekiwany}%`);
+    await expect(page.locator('#komfort-lista .kp')).toHaveCount(4);
+    expect(bledy).toEqual([]);
+  });
+
+  test('wykres ma pole komfortu i po zbiorze na pokój; ukryty pokój znika', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const w = await page.evaluate(() => ({
+      zbiory: state.wykresKomfortu.data.datasets.map((d) => d.label),
+      pole: state.wykresKomfortu.config.plugins.some((p) => p.id === 'strefa'),
+      osX: state.wykresKomfortu.options.scales.x.type,
+    }));
+    expect(w.zbiory).toHaveLength(4);
+    expect(w.pole).toBe(true);
+    expect(w.osX).toBe('linear');
+    await page.locator('#toggles .toggle', { hasText: 'Kuchnia' }).click();
+    await page.waitForTimeout(500);
+    await expect(page.locator('#komfort-lista .kp')).toHaveCount(3);
+    expect(bledy).toEqual([]);
+  });
+
+  test('w widoku „całość" punkt to doba', async ({ page }) => {
+    const bledy = await otworz(page);
+    await page.click('.range[data-hours="0"]');
+    await page.waitForTimeout(600);
+    const w = await page.evaluate(() => {
+      const s = state.komfort.find((x) => x.d.id === 'salon');
+      const doby = new Set(state.daily.filter((r) => r.id === 'salon').map((r) => r.date));
+      return { pkt: s.pkt.length, doby: doby.size };
+    });
+    expect(w.pkt).toBe(w.doby);
+    expect(bledy).toEqual([]);
+  });
+});
+
+/* Noce w sypialni: 23:00–7:00 czasu lokalnego, średnia z godzinowych średnich. Serię
+   podajemy wprost: noc chłodna, dzień ciepły — średnia nocy nie może złapać ani jednej
+   godziny dnia, a noc, która jeszcze trwa, nie może wejść na listę. */
+test.describe('noce w sypialni', () => {
+  test('noc to 23:00–7:00 i liczy się tylko ona', async ({ page }) => {
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => {
+      const d = sypialnia(), klucz = `${d.id}|${d.temp}`, zapas = state.indeks[klucz];
+      const seria = [], teraz = Date.now();
+      for (let t = teraz - 5 * 86400e3; t <= teraz; t += 20 * 60e3) {
+        const g = new Date(t).getHours();
+        seria.push({ t, v: g >= 23 || g < 7 ? 18 : 25 });
+      }
+      state.indeks[klucz] = seria;
+      const noce = nocePokoju(d);
+      state.indeks[klucz] = zapas;
+      return { noce, teraz };
+    });
+    expect(w.noce.length).toBeGreaterThanOrEqual(3);
+    for (const n of w.noce) {
+      expect(n.sr).toBe(18);
+      expect(n.max, 'do nocy wpadła godzina dnia').toBe(18);
+      expect(n.koniec).toBeLessThanOrEqual(w.teraz);
+      expect(new Date(n.start).getHours()).toBe(23);
+      expect(new Date(n.koniec).getHours()).toBe(7);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('sekcja pokazuje noce z fikstury i porównuje ostatnią z zaleceniem', async ({ page }) => {
+    const bledy = await otworz(page);
+    await expect(page.locator('#noce')).toBeVisible();
+    await expect(page.locator('#noce-podsumowanie')).toContainText('Ostatnia noc');
+    // pokoje w fiksturze stoją na ok. 25 °C, czyli wyraźnie powyżej 16–19
+    await expect(page.locator('#noce-podsumowanie')).toContainText('cieplej niż zalecane do snu');
+    const w = await page.evaluate(() => state.noce.map((n) => [n.min, n.sr, n.max]));
+    expect(w.length).toBeGreaterThanOrEqual(3);
+    for (const [min, sr, max] of w) { expect(sr).toBeGreaterThanOrEqual(min); expect(sr).toBeLessThanOrEqual(max); }
+    await expect(page.locator('#noce-lista .tor')).toHaveCount(w.length);
+    expect(bledy).toEqual([]);
+  });
+
+  test('obie sekcje żyją bez biblioteki wykresów', async ({ page }) => {
+    const bledy = await otworz(page, {}, { cdnDziala: false });
+    await expect(page.locator('#komfort-lista .kp')).toHaveCount(4);
+    await expect(page.locator('#noce-lista .tor').first()).toBeVisible();
+    expect(bledy).toEqual([]);
+  });
+});
+
 test.describe('podpowiedzi i diagnostyka', () => {
   test('kafel milczy przy spokojnym pokoju', async ({ page }) => {
     await otworz(page);
