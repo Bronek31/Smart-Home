@@ -9,6 +9,13 @@
       "powod": "farelka tuż pod czujnikiem — mierzył strumień gorącego powietrza, nie łazienkę (20,5 → 26,9 °C w pół godziny)"
     },
     {
+      "czujnik": "bf7e2a70935af7de78mjqt",
+      "nazwa": "Sypialnia",
+      "od": "2026-09-27T19:00:00Z",
+      "do": "2026-09-27T19:45:00Z",
+      "powod": "przestawianie czujnika — ciepło dłoni (21,7 → 25,6 °C w siedem minut)"
+    },
+    {
       "czujnik": "bfd6f4f87fea9d866dvpve",
       "nazwa": "Łazienka",
       "od": "2026-09-27T20:25:00Z",
