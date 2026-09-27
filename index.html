@@ -1465,6 +1465,12 @@ const SLONCE_MOCNE=120;     // W/m² — od tyle południowa strona zaczyna dok�
    w obie strony. Poniżej stopnia wymiana powietrza nie zrobi z mieszkaniem nic, co
    dałoby się poczuć; powyżej robi, i to jest wtedy główny powód, żeby otworzyć okno. */
 const WIETRZ_CIEPLO=1.0;    // °C różnicy z mieszkaniem, od której temperatura zaczyna się liczyć
+/* Od tylu stopni w mieszkaniu chłód z dworu jest zyskiem, a słońce od południa kłopotem.
+   Latem pokoje stały na 24–26 °C i otwarte okno było przede wszystkim chłodzeniem.
+   Jesienią i zimą (19–22 °C, od 1.10 z kaloryferami) to samo okno wychładza ściany,
+   za które płaci się ogrzewaniem — wtedy wietrzy się krótko i szeroko, dla wilgoci
+   i świeżego powietrza, a słońce wpadające od południa to darmowe ciepło. */
+const CIEPLO_W_DOMU=24;
 function prognozaGodzinowa(){
   const h=state.weather?.hourly;
   if(!h?.time?.length)return[];
@@ -1495,7 +1501,7 @@ function oknoWietrzenia(home,dom){
     tmin:temps.length?Math.min(...temps):null,tmax:temps.length?Math.max(...temps):null,
     // słońce sprawdzamy w godzinie szczytu, nie w całym paśmie: rada „zacznij od
     // północy" dotyczy chwili, w której naprawdę otworzysz okno
-    slonce:zysk[best].slonce>=SLONCE_MOCNE};
+    slonce:zysk[best].slonce>=SLONCE_MOCNE&&dom!=null&&dom>=CIEPLO_W_DOMU};
 }
 /* „dziś" / „jutro" / skrót dnia tygodnia. Osobno od godziny, bo to samo określenie
    wchodzi w zdanie na trzy sposoby i po polsku każdy brzmi inaczej: „jutro 02:00"
@@ -1511,7 +1517,8 @@ const gdyO=t=>`${dzienPL(t)} o ${oGodzinie(t)}`;
 const gdyZakres=(a,b)=>dzienPL(a)===dzienPL(b)?`${gdy(a)} – ${oGodzinie(b)}`:`${gdy(a)} – ${gdy(b)}`;
 /* Prognoza temperatury nie widzi słońca, które wpada oknem. W bezchmurne popołudnie
    okno od południa dokłada ciepła niezależnie od tego, ile jest stopni w cieniu —
-   dlatego wtedy wysyłamy najpierw na stronę północną. */
+   dlatego w ciepłym mieszkaniu wysyłamy najpierw na stronę północną. W chłodnym ta rada
+   byłaby odwrotna od potrzeby, więc oknoWietrzenia() jej wtedy nie zamawia. */
 function stronaStartowa(slonce){
   if(!slonce)return'';
   const pokoje=(s,forma)=>PLAN.rooms.filter(r=>r.okno===s&&r.dev).map(r=>esc(r[forma]||r.name.toLowerCase()));
@@ -1570,6 +1577,8 @@ function airingTip(now,home,dom){
   const dW=out-home;                                            // + dokłada pary, − osusza
   const dT=(dom!=null&&dwor!=null&&isFinite(dwor))?dwor-dom:null; // + dogrzewa, − chłodzi
   const chlodzi=dT!=null&&dT<=-WIETRZ_CIEPLO,grzeje=dT!=null&&dT>=WIETRZ_CIEPLO;
+  // chłód z dworu przy chłodnym mieszkaniu to koszt, nie zaleta — patrz CIEPLO_W_DOMU
+  const wychladza=chlodzi&&dom<CIEPLO_W_DOMU;
   const osusza=dW<=-WIETRZ_ZYSK,parno=dW>=WIETRZ_ZYSK;
   // Kafel czyta się jednym rzutem oka, więc dwa zdania: liczby i wniosek. Wszystko,
   // co da się wyczytać z nagłówka, z treści wylatuje.
@@ -1578,6 +1587,12 @@ function airingTip(now,home,dom){
   const stopnie=dT!=null?`Na dworze ${fmtNum(dwor,1)} °C przy ${fmtNum(dom,1)} w mieszkaniu.`:'';
   const oIle=v=>fmtNum(Math.abs(v),1);
   const zdania=(...cz)=>cz.filter(Boolean).join(' ');   // bez czujników w mieszkaniu `stopnie` jest puste
+  if(wychladza&&osusza)return{c:'--ok',title:'Przewietrz krótko i szeroko',
+    text:`Na dworze chłodniej o ${oIle(dT)} °C i sucho — ${paraKrotko} pary wodnej. Okno otwarte na oścież przez 5–10 minut wymieni powietrze, zanim wystygną ściany; uchylone na godziny wychładza, a prawie nie osusza.${jakWietrzyc()}`};
+  if(wychladza&&parno)return{c:'--warn',title:'Wietrzenie dołoży wilgoci',
+    text:`${para} Na świeże powietrze — krótko, na osuszenie — nie teraz.`};
+  if(wychladza)return{c:'--dim',title:'Wietrzenie bez większego wpływu',
+    text:`Pary wodnej po obu stronach podobnie (${paraKrotko}). Na świeże powietrze — krótko i szeroko, żeby nie wychłodzić ścian.`};
   if(chlodzi&&osusza)return{c:'--ok',title:'Najlepszy moment na wietrzenie',
     text:`Na dworze chłodniej o ${oIle(dT)} °C i sucho — ${paraKrotko} pary wodnej. Otwarte okno naraz schłodzi i osuszy.${jakWietrzyc()}`};
   if(chlodzi&&parno)return{c:'--warn',title:'Schłodzi, ale dołoży wilgoci',

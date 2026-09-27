@@ -469,7 +469,9 @@ test.describe('podpowiedzi i diagnostyka', () => {
      otwarte okno ścinało mieszkaniu 2 °C — a także „dobry moment na wietrzenie" w upalne
      popołudnie, gdy powietrze z dworu było wprawdzie suchsze, ale o pięć stopni cieplejsze.
      Tabelka niżej przejeżdża wszystkie osiem kombinacji; dwa wiersze oznaczone jako
-     `dawniej` to dokładnie te dwa przypadki, w których stara wersja odpowiadała inaczej. */
+     `dawniej` to dokładnie te dwa przypadki, w których stara wersja odpowiadała inaczej.
+     Trzy ostatnie to sezon grzewczy: przy chłodnym mieszkaniu okno już nie „schładza",
+     tylko wychładza, i rada ma mówić, jak wietrzyć, żeby płacić za to jak najmniej. */
   const werdykt = (page, dwor, dom, dW) => page.evaluate(
     ([t, d, roznica]) => {
       const out = absHum(t, 60);
@@ -488,6 +490,10 @@ test.describe('podpowiedzi i diagnostyka', () => {
       [25, 25, -1.5, 'Dobry moment na wietrzenie'],
       [25, 25, +1.5, 'Wietrzenie dołoży wilgoci'],
       [25, 25, 0, 'Wietrzenie bez większego wpływu'],
+      // sezon grzewczy: chłód z dworu przestaje być zaletą (dawniej: „schłodzi i osuszy")
+      [5, 21, -3, 'Przewietrz krótko i szeroko'],
+      [5, 21, +1.5, 'Wietrzenie dołoży wilgoci'],
+      [5, 21, 0, 'Wietrzenie bez większego wpływu'],
     ];
     for (const [dwor, dom, dW, oczekiwany] of przypadki) {
       expect(await werdykt(page, dwor, dom, dW),
@@ -504,6 +510,29 @@ test.describe('podpowiedzi i diagnostyka', () => {
     });
     expect(tip.title).toBe('Wietrzenie bez większego wpływu');
     expect(tip.text.startsWith(' ')).toBe(false);
+    expect(bledy).toEqual([]);
+  });
+
+  /* Słońce od południa to kłopot tylko w ciepłym mieszkaniu. 27.09 przy 20 °C w środku
+     i 13–21 °C na dworze rada kazała „sypialnię otwierać krótko", choć jesienią to
+     słońce jest darmowym ciepłem. */
+  test('rada o słońcu od południa tylko w ciepłym mieszkaniu', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const w = await page.evaluate(() => {
+      const zapas = state.weather.hourly;
+      const n = 12, t0 = Date.now();
+      state.weather.hourly = {
+        time: Array.from({ length: n }, (_, i) => new Date(t0 + i * 3600e3).toISOString()),
+        temperature_2m: Array(n).fill(18), relative_humidity_2m: Array(n).fill(40),
+        shortwave_radiation: Array(n).fill(500),
+      };
+      const dom = absHum(22, 60);
+      const chlodno = oknoWietrzenia(dom, 21), cieplo = oknoWietrzenia(dom, 26);
+      state.weather.hourly = zapas;
+      return { chlodno: chlodno.slonce, cieplo: cieplo.slonce };
+    });
+    expect(w.chlodno, 'jesienią słońce od południa to zysk, nie kłopot').toBe(false);
+    expect(w.cieplo).toBe(true);
     expect(bledy).toEqual([]);
   });
 
