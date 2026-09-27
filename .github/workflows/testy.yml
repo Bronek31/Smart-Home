@@ -40,9 +40,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10          # zwykle 8 s
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip
@@ -67,9 +67,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20          # zwykle 80 s, z pobieraniem Chromium kilka minut
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: npm
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5          # zwykle 5 s
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Pilnuj, czym ta strona jest
         # Cały sens tego projektu polega na tym, że index.html działa prosto z repozytorium.
         # Gdyby ktoś kiedyś dołożył krok budowania albo lokalny import, Pages wystawi

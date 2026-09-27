@@ -3,7 +3,10 @@ name: Zbieranie odczytów
 on:
   schedule:
     # Raz na godzinę, poza pełną godziną — GitHub może opóźniać scheduled runs.
-    # Opóźnienie nie jest problemem, bo fetch.py pobiera pełne okno 7 dni.
+    # Opóźnienie nie gubi danych, bo fetch.py pobiera pełne okno 7 dni, ale od końca
+    # sierpnia 2026 wynosi 3–5 godz. i strona jest przez to nieświeża. Właściwym zegarem
+    # jest zewnętrzny cron wołający workflow_dispatch (README, „Kolektor co godzinę");
+    # ten harmonogram zostaje jako zapas.
     - cron: '19 * * * *'
   push:
     branches: [main]
@@ -34,9 +37,9 @@ jobs:
     # 7 dni, po której logi Tuya przepadają. Zwykły przebieg to 2–3 minuty.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
           cache: pip

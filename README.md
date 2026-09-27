@@ -30,9 +30,9 @@ Czujniki raportują **przy zmianie temperatury o 0,5 °C** albo **raz na godzin�
 cokolwiek wypadnie pierwsze. Odstępy 60-minutowe to norma, nie awaria.
 
 Poza czujnikami klimatu kolektor zbiera też **włączniki urządzeń** — z klimatyzatora
-w salonie bierze wyłącznie to, kiedy chodził. Bez tego jego osuszanie liczyłoby się
-jako wietrzenie, bo w powietrzu wygląda tak samo jak otwarte okno. Które urządzenie
-stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
+w salonie bierze wyłącznie to, kiedy chodził. Strona tego dziś nie pokazuje: pasma
+pracy służyły wykrywaniu wietrzenia i odeszły razem z nim (27.09.2026). Wiersze
+zostają w CSV, gdyby urządzenie wróciło do łask.
 
 ---
 
@@ -47,7 +47,7 @@ stoi w którym pokoju, mówi `SPRZET_POKOJ` w `index.html`.
 | `KONTEKST.md` | notatka przekazania: dlaczego jest tak, jak jest, i na co uważać przy dalszej pracy |
 | `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
-| `.github/workflows/zbieraj.yml` | harmonogram zbierania, co godzinę o :19 |
+| `.github/workflows/zbieraj.yml` | zbieranie; zapasowy harmonogram co godzinę o :19, właściwym zegarem jest zewnętrzny cron (patrz „Kolektor co godzinę") |
 | `.github/workflows/watchdog.yml` | co 6 godzin sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
 | `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
 | `.github/workflows/testy.yml` | testy przy każdej zmianie kodu i raz na dobę na żywych danych |
@@ -92,7 +92,8 @@ Wszystkie w sekcji `env` w `.github/workflows/zbieraj.yml`:
 
 Proporcje pokoi na rzucie mieszkania siedzą w stałej `PLAN` w `index.html` —
 to `x, y, w, h` w siatce 400×500. Progi alarmów (`HEARTBEAT`, `STALE_WARN`),
-wykrywania wietrzenia (`WIETRZ`) i filtra chwilowych skoków (`SPIKE`) są tuż obok.
+progu pleśni (`FRSI`, `WILG_POWIERZCHNI`) i filtra chwilowych skoków (`SPIKE`) są tuż obok.
+Próg pleśni też ma bliźniaka w `fetch.py` i też pilnuje go test zgodności.
 `SPIKE` ma bliźniaka po stronie kolektora (`SPIKE_JUMP`, `SPIKE_RISE`, `SPIKE_MAX`
 w `fetch.py`) i obie kopie muszą się zgadzać — inaczej agregaty dobowe pokazują co
 innego niż wykres. Pilnuje tego osobny test.
@@ -303,14 +304,14 @@ wygląda jak martwy czujnik, nie jak czujnik, który jeszcze się nie odezwał.
 Lewą krawędź wyrównuje **kotwica**: do rysowania dokładany jest jeden prawdziwy odczyt
 sprzed granicy zakresu, a odcinek do niego przycina oś ustawiona na najwcześniejszy
 odczyt z zakresu. Nic nie jest dorysowywane — linia po prostu wchodzi w kadr z lewej.
-Do tabeli zakresów ani do wykrywania wietrzeń kotwica nie wchodzi; pilnują tego testy.
+Do tabeli zakresów kotwica nie wchodzi; pilnuje tego test.
 
 Prawej krawędzi tak wyrównać się nie da, bo przyszłych odczytów nie ma. Tam ostatni
 odczyt każdego pokoju dostaje **kropkę** — koniec linii jest wtedy znakiem, a nie
 urwaniem, i zgadza się z tym, co kafel mówi słowami („ostatni raport 52 min temu”).
 
-Rusza wyłącznie rysowana linia. Kafle, tabela zakresów, rzut mieszkania i wykrywanie
-wietrzeń liczą z surowych odczytów, a dymek na wykresie pokazuje ten odczyt, który
+Rusza wyłącznie rysowana linia. Kafle, tabela zakresów i rzut mieszkania
+liczą z surowych odczytów, a dymek na wykresie pokazuje ten odczyt, który
 naprawdę przyszedł z czujnika. Dwór zostaje surowy: z Open-Meteo przychodzi już gładki,
 a uśrednienie jego stromej krzywej odsuwało linię o 1,17 °C. Agregaty dobowe w widoku
 „całość" też nie są wygładzane — to już są średnie.
@@ -369,6 +370,14 @@ zależy od pory roku: zimą i w suchy dzień pracuje wilgotność, w letni wiecz
 temperatura. Werdykt nazywa ten skutek, który naprawdę wystąpi — „schłodzi", „osuszy",
 „osuszy, ale dogrzeje" — zamiast wypowiadać się o jednej osi i milczeć o drugiej.
 
+Chłód z dworu jest zaletą tylko w ciepłym mieszkaniu (`CIEPLO_W_DOMU`, 24 °C). Poniżej —
+jesienią i w sezonie grzewczym — to samo okno wychładza ściany, za które się płaci,
+więc werdykt brzmi „Przewietrz krótko i szeroko": okno na oścież przez 5–10 minut
+wymienia powietrze, zanim ściany zdążą wystygnąć, a uchylone na godziny wychładza
+i prawie nie osusza. Z tego samego powodu rada „sypialnię od południa otwieraj krótko,
+bo słońce" pojawia się tylko w ciepłym mieszkaniu — w chłodnym to słońce jest darmowym
+ciepłem.
+
 **O której dziś będzie najsuchsze powietrze** — z prognozy godzinowej Open-Meteo,
 różnica wilgotności policzona na dobę naprzód. Godziny cieplejsze od mieszkania
 odpadają: to okno ma osuszyć, nie dogrzać. Ramka mówi wprost, że chodzi o suchość,
@@ -378,58 +387,86 @@ dla chłodu, a najsuchsze powietrze przychodzi nad ranem.
 Progi (`WIETRZ_ZYSK`, `WIETRZ_CIEPLO`, `SLONCE_MOCNE`) siedzą w `index.html` obok
 tych funkcji.
 
-### Jak rozpoznajemy, że okno **było** otwarte
+### Próg pleśni
 
-To osobna sprawa od rady „czy wietrzyć teraz" i liczy się z samych odczytów.
-Przy wymianie powietrza pokój dąży do wartości z dworu wykładniczo:
-`d(x)/dt = λ·(x_dwór − x_pokój)`. Wykrywamy więc **λ — ułamek dostępnej różnicy
-domykany w ciągu godziny** — a nie bezwzględny skok. Bezwzględny próg nie działa,
-bo znaczy co innego w każdą pogodę: dokładnie na tym poległa pierwsza wersja, która
-wymagała 0,7 g/m³ wilgotności bezwzględnej w oknie dwóch godzin. Zmierzone na pięciu
-dobach: największy ruch dwugodzinny w mieszkaniu to **0,50 g/m³** (w Salonie 0,33),
-czyli próg stał wyżej niż fizycznie osiągalne maksimum i przez cały czas zbierania
-nie wykrył **ani jednego** wietrzenia.
+Alarm o wilgoci (kafel zdarzeń i zgłoszenie watchdoga) nie ma stałego progu. Pleśń
+nie rośnie w powietrzu pokoju, tylko na najzimniejszym kawałku ściany zewnętrznej —
+w narożniku, za szafą, przy nadprożu — a ten jest tym zimniejszy, im zimniej na
+dworze. Rachunek z PN-EN ISO 13788: temperatura powierzchni
+`θsi = θe + fRsi·(θi − θe)`, a kłopot zaczyna się, gdy wilgotność przy niej trwale
+przekracza 80%. Z tego wychodzi wilgotność powietrza w pokoju, od której robi się
+niebezpiecznie — dla pokoju o 20 °C:
 
-Wyzwala **wyłącznie temperatura**, i to jest wynik pomiaru. Pierwsza wersja pozwalała
-wyzwalać także wilgotności bezwzględnej i 20.08 narysowała wietrzenie od 13 do 16
-w czterech pokojach naraz — przy oknach zamkniętych od 8 do 18. Zmierzone na tej dobie:
+| Na dworze | 15 °C | 11 °C | 5 °C | 0 °C | −5 °C | −10 °C |
+|---|---|---|---|---|---|---|
+| Próg w pokoju | 73% | 68% | 60% | 55% | 50% | 45% |
 
-| kanał | przy oknach ZAMKNIĘTYCH | przy oknach OTWARTYCH |
-|---|---|---|
-| wilgotność bezwzględna | λ **do 2,45/godz.** — parę produkuje kuchnia, prysznic i domownicy, a na dworze w upał jest jej dużo | milczy: różnica z dworem spada poniżej progu, kanał nie ma czego mierzyć |
-| temperatura | λ **do 0,18/godz.** — tyle dowożą ściany i słońce | pewne kroki od 0,25/godz. w górę |
+Dawny stały próg 65% był więc trafny przypadkiem we wrześniu, a w styczniu milczałby
+przy 55%, gdy narożniki już pleśnieją. Alarm odzywa się, gdy pokój przez ponad ćwierć
+doby stoi powyżej progu ze swojej chwili; każdy odczyt porównywany jest z temperaturą
+pokoju i dworu z tej samej chwili. Na wykresie wilgotności względnej próg rysuje się
+kreskowaną linią dla średniej temperatury mieszkania — w miejscu dawnej linii dworu,
+która chodziła 30–100% i ściskała pokoje w pasek.
 
-Wilgotność myli się więc w obie strony naraz: kłamie, gdy okna są zamknięte, i milczy,
-gdy są otwarte. Temperatura myli się przewidywalnie i da się to odciąć progiem. Kanał
-wilgotności zostaje wyłącznie jako strażnik odbicia — tam jego czułość na parę
-z gotowania jest zaletą, bo garnek ma być odsiany razem z ręką na czujniku.
+`FRSI = 0,70` to liczba z normy, nie z pomiaru. Da się ją zmierzyć: jeden czujnik na
+dobę w najzimniejszym narożniku ściany zewnętrznej, drugi w środku pokoju, i odczyt
+z dworu — `fRsi = (θnarożnik − θdwór) / (θpokój − θdwór)`.
 
-Trzy zabezpieczenia, wszystkie w stałej `WIETRZ` w `index.html`:
+### Wykrywanie wietrzenia — usunięte
 
-| | |
-|---|---|
-| `luka` | poniżej takiej różnicy z dworem kanał milczy — „w stronę dworu" przestaje cokolwiek znaczyć, a dzielenie małego ruchu przez małą różnicę produkuje wielkie λ z samego szumu |
-| `ruch` | ruch mniejszy niż dwa kroki kwantyzacji czujnika (0,1 °C i 1%) to szum, choćby ułamek wychodził duży |
-| `odbicie` | **strażnik odbicia**: gdy pokój przed chwilą *oddalił się* od dworu szybciej, niż potrafi sam z siebie, to powrót po takim zaburzeniu nie jest wymianą powietrza. Bez tego czujnik wzięty do ręki wygląda dokładnie jak otwarte okno — i właśnie tak wyglądał 19.08.2026 |
-
-Pasma rysują się nad **temperaturą i wilgotnością bezwzględną** — czyli nad tymi
-dwoma wykresami, z których wykrywanie korzysta. Wilgotność względna ich nie dostaje
-celowo: skacze od samej temperatury, więc pasmo nad nią obiecywałoby związek, którego
-tam nie ma.
-
-Czego to nadal nie wykryje: wietrzenia słabszego niż **20% różnicy temperatur na
-godzinę**, ani żadnego, gdy na dworze jest niemal tyle samo stopni co w mieszkaniu.
-Przy raportach co godzinę takiego epizodu nie da się odróżnić od ścian i słońca, więc
-próg jest tam, gdzie jest, świadomie — sprawdzone przeciwko dwóm dobom, o których
-wiadomo, kiedy okna były otwarte, a kiedy zamknięte.
+Do 27.09.2026 strona rysowała pasma „wykrytego wietrzenia". Przy raportach co godzinę
+i czujnikach z krokiem 0,1 °C nie dało się go dostroić: latem wymagało trzech przeróbek,
+przez 44 doby znalazło 7 epizodów, a od 8.09 nie znalazło żadnego. Kod jest w historii
+gita (usunął go commit `06f4a52`; ostatnia wersja z detektorem to jego rodzic), opis tego, jak działało
+i dlaczego tak, w `KONTEKST.md`.
 
 Kafel pokoju dopisuje też, **dokąd temperatura zmierza**: regresja liniowa z ostatnich
 czterech godzin wyciągnięta naprzód. Gdy z przedłużenia wychodzi przekroczenie progu
 komfortu, pokazuje godzinę (`↗ 28° ok. 17:00`) zamiast samego tempa — to ta informacja,
 po którą się sięga. Poniżej `TREND_MIN` kafel milczy, bo nachylenia mniejszego niż
 0,25 °C/godz. nie da się przy godzinnych raportach odróżnić od szumu czujnika.
+Powyżej `TREND_MAX` (0,7 °C/godz.) też milczy: tak szybko pokój sam z siebie nie jedzie
+(ściany i słońce to najwyżej 0,5), to impuls — farelka, prysznic, otwarte okno —
+i przedłużony linią prostą obiecywałby „28° za godzinę" w łazience, która za godzinę
+wróci do 21 °C.
+
+### Farelka w łazience
+
+Farelka to prawdziwe grzanie, nie usterka czujnika, więc strona ją pokazuje. Filtr
+chwilowych skoków odsiewa wyłącznie nagłe wyskoki **ze spokojnego poziomu** (czujnik
+w dłoni); do 27.09 wycinał też środek grzania farelką i zostawiał na wykresie garb
+o złej godzinie. Skala barw rzutu bierze percentyle godzinowych średnich, więc pół
+godziny farelki jej nie rozciąga, a kafel trendu przy takim impulsie milczy.
 
 ---
+
+## Kolektor co godzinę
+
+GitHub nie gwarantuje harmonogramu: przebiegi `schedule` bywają opóźniane i gubione
+przy obciążeniu. Do 26.08.2026 zapis szedł co 55 minut, od 27.08 — bez żadnej zmiany
+w kodzie — co 3,5–4,5 godziny; watchdog z harmonogramem co 6 godz. startował
+z opóźnieniem 2,5–5,5 godz. Właściwym zegarem jest więc zewnętrzny cron, który co
+godzinę woła `workflow_dispatch`. Harmonogram w `zbieraj.yml` zostaje jako zapas,
+a dwa przebiegi naraz nic nie psują (`zapisz.sh`).
+
+1. **Token.** GitHub → Settings → Developer settings → Personal access tokens →
+   Fine-grained tokens → Generate new token. Repository access: *Only select
+   repositories* → `Smart-Home`. Permissions → Repository → **Actions: Read and write**.
+   Nic więcej. Taki token pozwala uruchamiać i przeglądać przebiegi tego jednego
+   repozytorium; nie daje dostępu do kodu ani sekretów.
+2. **cron-job.org** (darmowe konto) → Create cronjob:
+   - URL: `https://api.github.com/repos/Bronek31/Smart-Home/actions/workflows/zbieraj.yml/dispatches`
+   - harmonogram: co godzinę, minuta 19
+   - Advanced → Request method: `POST`
+   - nagłówki: `Authorization: Bearer <token>`, `Accept: application/vnd.github+json`,
+     `X-GitHub-Api-Version: 2022-11-28`
+   - Request body: `{"ref":"main"}`
+3. **Sprawdzenie.** „Test run" w cron-job.org ma oddać status `204`, a w zakładce
+   Actions pojawia się przebieg *Zbieranie odczytów* z wyzwalaczem `workflow_dispatch`.
+   `401` = zły token, `404` = literówka w adresie albo token bez dostępu do repozytorium,
+   `403` = token bez uprawnienia Actions.
+
+Token ma datę ważności — przed nią trzeba wygenerować nowy i podmienić nagłówek.
 
 ## Gdy coś nie działa
 
@@ -440,13 +477,14 @@ po którą się sięga. Poniżej `TREND_MIN` kafel milczy, bo nachylenia mniejsz
 | „Zbieranie odczytów" na czerwono z „Push odrzucony" | Dwa przebiegi kolektora weszły sobie w drogę. `zapisz.sh` liczy wtedy odczyty jeszcze raz na drzewie zwycięzcy i próbuje trzy razy; czerwień znaczy, że nie udało się ani razu. Odczyty nie giną — następny przebieg i tak bierze okno 7 dni |
 | Zgłoszenie „brak nowej pogody od… , Open-Meteo nie odpowiada" | Dwór milczy dłużej niż zwykle. Czujniki i wykresy mieszkania działają dalej; rada o wietrzeniu i łuk doby czekają na świeżą prognozę |
 | Na stronie zniknął dwór, choć czujniki działają | Przebieg nie dostał odpowiedzi z Open-Meteo. Historia leży dalej w CSV, a `keep_known` w `fetch.py` trzyma urządzenie w manifeście, dopóki ma odczyty — linia wróci przy najbliższym udanym przebiegu. Jeśli mimo to zniknęła, w logu przebiegu szukaj „Pogoda: pominięta" |
-| Pulpit: „Kolektor nie zapisał nic od…" | Problem po stronie Actions albo Tuya, nie czujników |
-| Błąd `28841002` w logu | Wygasł trial IoT Core. Wniosek o przedłużenie na iot.tuya.com, 1-2 dni robocze |
+| Pulpit: „Kolektor nie zapisał nic od…" | Problem po stronie Actions albo Tuya, nie czujników. Czujniki oceniane są do chwili ostatniej zbiórki, więc przy spóźnionym kolektorze nie świecą się na pomarańczowo |
+| Dane przychodzą co 3–5 godz. zamiast co godzinę, przebiegi zielone | GitHub opóźnia harmonogram (od końca sierpnia 2026 to norma). Odczyty nie giną — każdy przebieg bierze 7 dni wstecz — ale strona jest nieświeża, a watchdog potrafi zgłosić fałszywe „Kolektor stoi". Lekarstwo: zewnętrzny zegar, patrz „Kolektor co godzinę" |
+| Błąd `28841002` w logu | Wygasł trial IoT Core. Wniosek o przedłużenie na iot.tuya.com, 1-2 dni robocze. Pierwszy trial wygasł **po miesiącu** (12.09.2026) — datę kolejnego sprawdzać na iot.tuya.com |
 | Błąd `1004` | Access Secret przepisany z ucięciem znaku |
 | Błąd `1114` albo `2007` | Zły region w `TUYA_REGION` |
 | Pusta lista przy `--discover` | Konto Smart Life podpięte do innego data center |
 | Bateria: `niski` | Wymień ogniwo. Słabnąca bateria gubi raporty, zanim czujnik zniknie zupełnie |
-| Zgłoszenie „Czujniki wymagają uwagi" | Watchdog wyłapał słabą baterię, milczący czujnik albo wilgotność trzymającą się za wysoko od doby. Treść odświeża się co kilka godzin, zgłoszenie zamknie się samo |
+| Zgłoszenie „Czujniki wymagają uwagi" | Watchdog wyłapał słabą baterię, milczący czujnik albo wilgotność powyżej progu pleśni przez ponad ćwierć doby. Treść odświeża się co kilka godzin, zgłoszenie zamknie się samo |
 | Przebiegi w ogóle nie ruszają | GitHub wyłącza harmonogramy po 60 dniach bezczynności. Jedno ręczne uruchomienie je wskrzesza |
 
 ---
@@ -520,4 +558,6 @@ odczytów — a wtedy dashboard przestanie się aktualizować.
 
 Zero. Publiczne repozytorium ma darmowe minuty Actions i darmowe Pages.
 Open-Meteo nie wymaga klucza API (licencja CC BY 4.0 — stąd podpis w stopce). Jedyne ograniczenie to darmowy trial
-IoT Core u Tuya, który trzeba co pół roku przedłużać jednym kliknięciem.
+IoT Core u Tuya, który trzeba przedłużać wnioskiem na iot.tuya.com — pierwszy
+wygasł po miesiącu, a zatwierdzenie trwa 1–2 dni robocze. Zewnętrzny zegar
+(cron-job.org) też jest darmowy.

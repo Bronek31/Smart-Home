@@ -5,7 +5,8 @@ wiedzieć, zanim ruszy się ten projekt dalej. `README.md` opisuje, **jak to dzi
 ten plik mówi, **dlaczego tak** i **na co uważać**. Pomysły na przyszłość siedzą
 w `TODO.md`.
 
-Stan na 19.08.2026, po przeglądzie wykrywania wietrzenia. Wszystkie workflowy zielone.
+Stan na 27.09.2026, po przeglądzie wrześniowym: wykrywanie wietrzenia usunięte, strona
+przygotowana na sezon grzewczy. Sekcje z sierpnia zostają niżej jako historia decyzji.
 
 ---
 
@@ -35,6 +36,89 @@ prywatnej osoby. Bez bypassu kolektor przestałby zapisywać dane (jego commity 
 checków" odrzuca commit bez checków). Alternatywa to deploy key z bypassem „Deploy keys"
 — rozważona, nie wdrożona. Do tego czasu jedyną bramką jest hook lokalny plus zaglądanie
 do Actions.
+
+---
+
+## Przegląd z 27.09 — wietrzenie odchodzi, przychodzi zima
+
+Właściciel poprosił o przegląd wrześniowych pomysłów i całej strony, potem zdecydował:
+wykrywanie wietrzenia odpuścić, odtwarzanie historii schować, resztę zrobić według
+najlepszej oceny i wypuścić na main. Po drodze przyszły dwie twarde informacje: rano
+w łazience chodzi **farelka** (zimą codziennie, „jak idę się myć"), a **kaloryfery
+ruszają 1.10**. Obie zmieniły kilka decyzji.
+
+### Kolektor: winny jest harmonogram GitHuba
+
+Do 26.08 mediana odstępu między zapisami wynosiła 55 min, od 27.08 — 3,5–4,5 godz.,
+bez żadnej zmiany w kodzie. Przebiegi nie padają, tylko nie są tworzone na czas:
+watchdog z cronem co 6 godz. startował z opóźnieniem 2,5–5,5 godz. Zgłoszenia #2 i #3
+„Kolektor stoi" (27 i 28.08) były fałszywe z tego powodu; #6 (13.09) było prawdziwe —
+wygasł trial Tuya, **po miesiącu**, a nie po pół roku, jak mówiło README.
+
+Naprawa wymaga ręki właściciela (token + cron-job.org wołający `workflow_dispatch`),
+instrukcja w README. Rozważone i odrzucone: łańcuch przebiegów, które same się
+wywołują z `sleep` (godzina biegnącego runnera na każdy zapis — nadużycie Actions),
+i Routine Claude'a (24 sesje dziennie na jedno wywołanie API).
+
+**Czujniki liczone do chwili zbiórki.** Przy każdym opóźnieniu strona mówiła
+„0/4 OK · 4 uwaga" obok zdarzenia „to nie wina czujników". Wiek raportu mierzy się
+teraz do `updated` z manifestu, więc oba rodzaje zdarzeń mogą stać obok siebie
+i żadne nie przeczy drugiemu.
+
+### Wykrywanie wietrzenia — usunięte
+
+7 epizodów w 44 dobach, zero od 8.09 — a w tym czasie wilgotność urosła z 50–55%
+do 60–71%, a pokoje ostygły z 22 do 19,5 °C. Od 8.09 w żadnym pokoju z oknem
+temperatura nie spadła o więcej niż 0,7 °C w dwie godziny. Właściciel nie pamiętał,
+czy wietrzył — czyli nie było nawet etykiety, żeby rozstrzygnąć, czy detektor ślepnie
+jesienią. Decyzja: **usunąć, nie wyłączyć** (odwrotnie niż odtwarzanie, które ma wrócić).
+Razem z nim poszły pasma klimatyzatora, kolumna w tabeli, licznik i legenda, 9 testów.
+Fikstury `wietrzenie` i `rekaNaCzujniku` zostają — korzystają z nich testy przybliżania
+i filtra. Rada „czy wietrzyć teraz" zostaje, bo liczy się z prognozy, nie z detektora.
+
+### Farelka, czyli trzy miejsca, które myliły impuls z trendem
+
+Odczyty łazienki z 27.09: 20,5 → 26,9 °C w pół godziny, powrót do 21 w dwie. Zmierzone,
+co z tym robiła strona:
+
+| miejsce | co robiło | co robi teraz |
+|---|---|---|
+| filtr skoków | `SPIKE.rise` przesuwał bazę w górę razem z rampą; w połowie wzrostu baza stała na 21,7 °C, ogon do niej „wracał" w 90 min, więc wycięte zostało 17 odczytów z samego środka — na wykresie garb o złej godzinie | skok musi startować **ze spokojnego poziomu** (w oknie `rise` przed bazą nic nie odbiega od niej o `back`); ręka na czujniku z 19.08 łapie się dalej. Agregaty przeliczone: zmieniły się dwa wiersze, oba prawdziwe zdarzenia (farelka i prysznic z 24.08) |
+| kafel trendu | przez godzinę „28° za 0,5–4 h", także gdy łazienka już stygła, potem „18° za 2 h" przy stałych 20,8 °C — w oknie regresji wciąż siedziała farelka | powyżej `TREND_MAX` = 0,7 °C/godz. milczy. Zmierzone na 44 dobach (regresja 4 h): ściany i słońce ≤ 0,5, letnie wietrzenia 0,86–1,81, farelka 2,24 |
+| skala barw rzutu | skrajne odczyty → 19,2–27,0 °C, cztery pokoje w 19,9–21,0 w jednym odcieniu | 5. i 95. percentyl średnich godzinowych; średnia godzinowa, bo przy zmianie czujnik raportuje co 2 min i pół godziny farelki ważyłoby w surowych odczytach tyle, co pół doby spokoju |
+
+Pierwsza wersja komentarza przy `TREND_MAX` twierdziła „naturalny ruch nie przekroczył
+1 °C/godz." — pomiar pokazał 1,81 przy letnim wietrzeniu. Znowu: **najpierw zmierz,
+potem wpisz liczbę do komentarza.**
+
+### Sezon grzewczy
+
+- **Próg pleśni zamiast 65%.** PN-EN ISO 13788: `θsi = θe + fRsi·(θi − θe)`, kłopot przy
+  80% na powierzchni; fRsi = 0,70 z normy, do zmierzenia czujnikiem w narożniku. Obie
+  strony (kolektor i strona) mają te same stałe, pilnuje test. Na prawdziwych danych:
+  alarm 23–26.09 (próg 65–72%), cisza 27.09 po południu — stary próg krzyczał w każdy
+  z tych dni przez całą dobę. Zgłoszenie #7 (założone jeszcze według 65%) watchdog
+  zamknie sam, gdy przez dobę żaden pokój nie przekroczy nowego progu.
+- **Wykres wilgotności względnej bez dworu,** z kreskowaną linią progu dla średniej
+  temperatury mieszkania. Kolor linii spoza palety pokoi — pierwszy pomysł (`--bad`)
+  był identyczny z kolorem Salonu.
+- **Rady wietrzenia:** poniżej `CIEPLO_W_DOMU` (24 °C) chłód z dworu jest kosztem, nie
+  zaletą — werdykt „Przewietrz krótko i szeroko". Rada „sypialnię od południa otwieraj
+  krótko, bo słońce" tylko w ciepłym mieszkaniu.
+
+### Telefon
+
+Pierwszy ekran to były cztery wiersze diagnostyki, pogoda z radą leżała ~4500 px niżej,
+tabela zakresów przewijała się w bok bez wskazówki. Kolejność na wąskim ekranie
+przestawia CSS (`display:contents` na obudowach układu dwukolumnowego i `order`),
+bez ruszania DOM-u — na komputerze układ bez zmian, pilnuje tego strażnik. Tabela ma
+wariant kompaktowy (min–max w jednej kolumnie), diagnostyka łączności jest w `<details>`
+i rozwija się sama przy kłopocie.
+
+### Odtwarzanie historii — schowane, nie usunięte
+
+Na życzenie. Przełącznik `ODTWARZANIE`, a testy włączają kod flagą
+`window.odtwarzanieWlaczone`, żeby nie zbutwiał — powrót to zmiana jednej linii.
 
 ---
 
@@ -506,10 +590,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
   pełne okno 7 dni i dopisuje wszystko, czego nie ma w pliku — usunięte wracają w ciągu
   godziny. Zmiana **wartości** przy zachowanym znaczniku jest trwała, bo `merge()`
   kluczuje po `(ts, device_id, code)`.
-- **`policzWietrzenia(od)` zwraca `{wietrz, klima, nazwy}`**, a nie mapę po
-  identyfikatorze. Pomyliłem się na tym i zaraportowałem nieprawdziwe „zero wietrzeń";
-  poprawny odczyt to `policzWietrzenia(od).wietrz[d.id]`. Testy strony korzystają z tego
-  wprost, zamiast czytać ostatnią kolumnę tabeli — tabela ma własny przełącznik zakresu.
+- *(Nieaktualne od 27.09 — wykrywanie wietrzenia usunięte.)* `policzWietrzenia(od)` zwracało `{wietrz, klima, nazwy}`, a nie mapę po identyfikatorze.
 - **Piąty raz ten sam wzorzec: próg kontra liczba na jego krawędzi.** Test „wygładzenie
   nie odsuwa linii dalej niż o krok czujnika" wychodził dokładnie na 0,100 przy progu
   `< 0,1` i przechodził albo nie zależnie od pory doby, o której poszedł. Zmierzone:
@@ -539,15 +620,17 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **75** (`python -m unittest discover -s tests`) |
-| Testy strony | **107** (`cd tests/frontend && npx playwright test`) |
-| Workflowy | `zbieraj` co godzinę o :19 · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie |
+| Testy kolektora | **80** (`python -m unittest discover -s tests`) |
+| Testy strony | **110** (`cd tests/frontend && npx playwright test`) |
+| Workflowy | `zbieraj` co godzinę o :19 (zapas — właściwy zegar ma być zewnętrzny) · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
 
 ## Co czeka
 
-- **Przypomnienie na wrzesień** (Routine `trig_01SWg8Vf2tK6uTJ9afZzTQba`, 1.09 o 6:00 UTC)
-  o dwóch pozycjach z `TODO.md`: „Skutek wietrzenia" i „Model cieplny pokój ↔ dwór".
+- **Po stronie właściciela** (`TODO.md`): zewnętrzny zegar kolektora, data wygaśnięcia
+  triala Tuya, opcjonalnie pomiar fRsi.
+- **Listopad:** przyłożyć `TREND_MAX` i `CIEPLO_W_DOMU` do danych z kaloryferami.
+- **Maj 2027:** model cieplny pokój ↔ dwór.
 - Ochrona gałęzi — opisana wyżej, wymaga decyzji o deploy key albo pozostania przy
   hooku lokalnym.
