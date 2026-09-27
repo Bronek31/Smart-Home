@@ -414,9 +414,11 @@ progu i ponad nim. Sama wilgotność tego nie mówi, bo próg zależy od tempera
 pokoju i dworu.
 
 **Cała historia** to kalendarz jak na GitHubie: kratka na dobę, kolumna na tydzień
-od poniedziałku, z agregatów dobowych — więc sięga do początku zbierania. Do wyboru
-mieszkanie (średnia pokoi), każdy pokój i dwór, temperatura albo wilgotność; przy
-wilgotności skala jest odwrócona, niebieski znaczy mokro.
+od poniedziałku, z agregatów dobowych — więc sięga do początku zbierania. Domyślnie
+**wszystkie** pokoje i dwór jako bloki jeden pod drugim, w tych samych kolumnach
+tygodni, więc ta sama doba stoi w jednej pionowej linii; pokoje dzielą skalę, dwór ma
+własną. Do wyboru też mieszkanie (średnia pokoi) i każde miejsce osobno, temperatura
+albo wilgotność; przy wilgotności skala jest odwrócona, niebieski znaczy mokro.
 
 ### Próg pleśni
 

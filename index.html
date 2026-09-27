@@ -112,7 +112,7 @@
 .rzut-tryby{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.6rem}
 .kal-przewijak{overflow-x:auto;padding-bottom:.3rem}
 .kal{display:grid;gap:2px;width:max-content;font:400 .6rem "IBM Plex Mono",monospace;color:var(--faint)}
-.kal .k{width:13px;height:13px;background:#0d141a}.kal .d{line-height:13px;padding-right:.35rem;text-align:right}.kal .m{white-space:nowrap;line-height:1.4}
+.kal .k{width:13px;height:13px;background:#0d141a}.kal .n{font:500 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim);padding:.55rem 0 .15rem;position:sticky;left:0}.kal .d{line-height:13px;padding-right:.35rem;text-align:right}.kal .m{white-space:nowrap;line-height:1.4}
 .plot-komfort{height:300px}
 .komfort-lista{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.7rem 1.4rem;margin-top:.8rem;font:400 .8rem "IBM Plex Sans Condensed",sans-serif}
 .komfort-lista .kp{display:grid;grid-template-columns:1fr auto;gap:.25rem .5rem;align-items:baseline;min-width:0}
@@ -224,7 +224,7 @@ const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długoś�
 const OKNO_DOBA=24,OKNO_TYDZIEN=168;   // wartości przycisków okna odtwarzania, w godzinach
 const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],updated:null,
   // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
-  klatka:null,os:null,timer:null,gra:false,indeks:{},skala:null,oknoOdtw:OKNO_TYDZIEN,normy:null,trybBarwy:'temp',trybRzutu:'temp',kalCo:'dom',kalMiara:'temp',rytmDev:null,rytmSkala:'wspolna',tabHours:168,dobaCache:null};const monthCache=new Map();
+  klatka:null,os:null,timer:null,gra:false,indeks:{},skala:null,oknoOdtw:OKNO_TYDZIEN,normy:null,trybBarwy:'temp',trybRzutu:'temp',kalCo:'wszystkie',kalMiara:'temp',rytmDev:null,rytmSkala:'wspolna',tabHours:168,dobaCache:null};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
 const HEARTBEAT=60*60000;      // czujniki raportują same z siebie co ~1 godz., nawet gdy nic się nie zmienia
 const COLLECT=60*60000;        // kolektor w GitHub Actions chodzi raz na godzinę
@@ -2022,42 +2022,67 @@ function dobyKalendarza(co,miara){
   }
   return[...doby].map(([date,b])=>({date,v:b.suma/b.n,min:b.min,max:b.max,jeden:zrodla.length===1})).sort((a,b)=>a.date<b.date?-1:1);
 }
-function renderKalendarz(){
-  const sekcja=document.getElementById('kalendarz');
-  const zewn=state.devices.find(d=>d.ext&&d.temp);
-  const opcje=[['dom','Mieszkanie'],...state.devices.filter(d=>!d.ext&&d.temp).map(d=>[d.id,d.name]),...(zewn?[['zewn',zewn.name]]:[])];
-  if(!opcje.some(([k])=>k===state.kalCo))state.kalCo='dom';
-  const miara=state.kalMiara,doby=dobyKalendarza(state.kalCo,miara);
-  sekcja.hidden=!doby.length;
-  if(!doby.length)return;
-  const jedn=miara==='temp'?'°C':'%',dec=miara==='temp'?1:0;
-  let min=Math.min(...doby.map(x=>x.v)),max=Math.max(...doby.map(x=>x.v));
+/* Kolory kalendarza: jedna skala na grupę bloków. Wilgotność odwrócona: niebieski
+   znaczy mokro, bo tak się to czyta. */
+function skalaKalendarza(wartosci,miara){
+  let min=Math.min(...wartosci),max=Math.max(...wartosci);
   const rozp=miara==='temp'?SKALA_ROZPIETOSC:3;
   if(max-min<rozp){const b=(rozp-(max-min))/2;min-=b;max+=b}
-  // wilgotność odwrócona: niebieski znaczy mokro, bo tak się to czyta
-  const kolor=v=>{const k=(v-min)/(max-min);return rgba(barwaK(miara==='hum'?1-k:k),.9)};
+  return{min,max,kolor:v=>{const k=(v-min)/(max-min);return rgba(barwaK(miara==='hum'?1-k:k),.9)}};
+}
+function legendaKalendarza(nazwa,sk,miara){
+  const jedn=miara==='temp'?'°C':'%',dec=miara==='temp'?1:0;
+  const przejscie=miara==='hum'?RAMPA.slice().reverse().map(([p,c])=>`${rgba(c,.9)} ${Math.round((1-p)*100)}%`).join(','):gradientRampy(.9);
+  return`<span>${nazwa?`${esc(nazwa)} `:''}<em>${fmtNum(sk.min,dec)} ${jedn}</em><i style="background:linear-gradient(90deg,${przejscie})"></i><em>${fmtNum(sk.max,dec)} ${jedn}</em></span>`;
+}
+/* „Wszystkie" to bloki jeden pod drugim w jednej siatce: te same kolumny tygodni,
+   więc ta sama doba stoi w każdym bloku w tej samej pionowej linii i da się porównać
+   pokoje wzrokiem. Pokoje dzielą skalę; dwór ma własną, bo jego 8–26 °C spłaszczyłoby
+   pokoje stojące w 19–26 do jednego koloru. */
+function renderKalendarz(){
+  const sekcja=document.getElementById('kalendarz');
+  const zewn=state.devices.find(d=>d.ext&&d.temp),wewn=state.devices.filter(d=>!d.ext&&d.temp);
+  const opcje=[['wszystkie','Wszystkie'],['dom','Mieszkanie'],...wewn.map(d=>[d.id,d.name]),...(zewn?[['zewn',zewn.name]]:[])];
+  if(!opcje.some(([k])=>k===state.kalCo))state.kalCo='wszystkie';
+  const miara=state.kalMiara,jedn=miara==='temp'?'°C':'%',dec=miara==='temp'?1:0;
+  const bloki=(state.kalCo==='wszystkie'
+    ? [...wewn.map(d=>({nazwa:d.name,klucz:d.id,dwor:false})),...(zewn?[{nazwa:zewn.name,klucz:'zewn',dwor:true}]:[])]
+    : [{nazwa:null,klucz:state.kalCo,dwor:state.kalCo==='zewn'}])
+    .map(b=>({...b,doby:dobyKalendarza(b.klucz,miara)})).filter(b=>b.doby.length);
+  sekcja.hidden=!bloki.length;
+  if(!bloki.length)return;
+  const pokojowe=bloki.filter(b=>!b.dwor).flatMap(b=>b.doby.map(x=>x.v)),dworu=bloki.filter(b=>b.dwor).flatMap(b=>b.doby.map(x=>x.v));
+  const skP=pokojowe.length?skalaKalendarza(pokojowe,miara):null,skD=dworu.length?skalaKalendarza(dworu,miara):null;
   const dzien=s=>{const[r,m,d]=s.split('-').map(Number);return new Date(r,m-1,d)};
   const tydzien=dt=>(dt.getDay()+6)%7;      // poniedziałek = 0
-  const start=dzien(doby[0].date);start.setDate(start.getDate()-tydzien(start));
+  const wszystkieDaty=bloki.flatMap(b=>b.doby.map(x=>x.date)).sort();
+  const start=dzien(wszystkieDaty[0]);start.setDate(start.getDate()-tydzien(start));
   const kol=dt=>Math.round((dt-start)/(7*86400e3));
-  const tyg=kol(dzien(doby.at(-1).date))+1;
+  const tyg=kol(dzien(wszystkieDaty.at(-1)))+1;
+  const wielu=bloki.length>1,naBlok=wielu?8:7;
   const kal=document.getElementById('kal');
   kal.style.gridTemplateColumns=`auto repeat(${tyg},13px)`;
-  kal.style.gridTemplateRows=`auto repeat(7,13px)`;
+  kal.style.gridTemplateRows='auto '+bloki.map(()=>`${wielu?'auto ':''}repeat(7,13px)`).join(' ');
   const el=[];
   // podpisy miesięcy nad tygodniem, w którym wypada pierwszy dzień miesiąca (albo początek danych)
   let ostatni=-1;
-  for(const x of doby){const dt=dzien(x.date);if(dt.getMonth()!==ostatni&&(dt.getDate()<=7||ostatni===-1)){ostatni=dt.getMonth();el.push(`<span class="m" style="grid-row:1;grid-column:${kol(dt)+2}">${MIES[ostatni]}</span>`)}}
-  DNI_TYG.forEach((n,i)=>{if(i%2===0)el.push(`<span class="d" style="grid-row:${i+2};grid-column:1">${n}</span>`)});
-  for(const x of doby){
-    const dt=dzien(x.date);
-    const opis=`${pad(dt.getDate())}.${pad(dt.getMonth()+1)} (${DNI_TYG[tydzien(dt)]}) · ${fmtNum(x.v,dec)} ${jedn}`+(x.jeden?` · od ${fmtNum(x.min,dec)} do ${fmtNum(x.max,dec)}`:'');
-    el.push(`<span class="k" data-data="${x.date}" style="grid-row:${tydzien(dt)+2};grid-column:${kol(dt)+2};background:${kolor(x.v)}" title="${opis}"></span>`);
-  }
+  for(const data of[...new Set(wszystkieDaty)]){const dt=dzien(data);if(dt.getMonth()!==ostatni&&(dt.getDate()<=7||ostatni===-1)){ostatni=dt.getMonth();el.push(`<span class="m" style="grid-row:1;grid-column:${kol(dt)+2}">${MIES[ostatni]}</span>`)}}
+  bloki.forEach((b,i)=>{
+    const baza=2+i*naBlok+(wielu?1:0),sk=b.dwor?skD:skP;
+    if(wielu)el.push(`<span class="n" style="grid-row:${baza-1};grid-column:1/-1">${esc(b.nazwa)}</span>`);
+    DNI_TYG.forEach((n,j)=>{if(j%2===0)el.push(`<span class="d" style="grid-row:${baza+j};grid-column:1">${n}</span>`)});
+    for(const x of b.doby){
+      const dt=dzien(x.date);
+      const opis=`${b.nazwa?`${esc(b.nazwa)} · `:''}${pad(dt.getDate())}.${pad(dt.getMonth()+1)} (${DNI_TYG[tydzien(dt)]}) · ${fmtNum(x.v,dec)} ${jedn}`+(x.jeden?` · od ${fmtNum(x.min,dec)} do ${fmtNum(x.max,dec)}`:'');
+      el.push(`<span class="k" data-blok="${esc(b.klucz)}" data-data="${x.date}" style="grid-row:${baza+tydzien(dt)};grid-column:${kol(dt)+2};background:${sk.kolor(x.v)}" title="${opis}"></span>`);
+    }
+  });
   kal.innerHTML=el.join('');
-  document.getElementById('kal-info').textContent=` · ${opcje.find(([k])=>k===state.kalCo)[1].toLowerCase()} · ${plDoba(doby.length)}`;
-  const przejscie=miara==='hum'?RAMPA.slice().reverse().map(([p,c])=>`${rgba(c,.9)} ${Math.round((1-p)*100)}%`).join(','):gradientRampy(.9);
-  document.getElementById('kal-skala').innerHTML=`<span><em>${fmtNum(min,dec)} ${jedn}</em><i style="background:linear-gradient(90deg,${przejscie})"></i><em>${fmtNum(max,dec)} ${jedn}</em></span>`;
+  const doby=new Set(wszystkieDaty).size;
+  document.getElementById('kal-info').textContent=` · ${opcje.find(([k])=>k===state.kalCo)[1].toLowerCase()} · ${plDoba(doby)}`;
+  document.getElementById('kal-skala').innerHTML=wielu
+    ? [skP&&legendaKalendarza('pokoje',skP,miara),skD&&legendaKalendarza(zewn?.name.toLowerCase(),skD,miara)].filter(Boolean).join('')
+    : legendaKalendarza(null,skP||skD,miara);
   const wybor=document.getElementById('kal-wybor');
   wybor.innerHTML=`<span>${opcje.map(([k,n])=>`<button class="range" data-kal="${esc(k)}"${k===state.kalCo?' aria-pressed="true"':''}>${esc(n)}</button>`).join('')}</span>`
     +`<span><button class="range" data-kmiara="temp"${miara==='temp'?' aria-pressed="true"':''}>temperatura</button><button class="range" data-kmiara="hum"${miara==='hum'?' aria-pressed="true"':''}>wilgotność</button></span>`;

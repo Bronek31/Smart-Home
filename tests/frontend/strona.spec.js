@@ -520,6 +520,7 @@ test.describe('strefa komfortu', () => {
 test.describe('kalendarz całej historii', () => {
   test('kratka na każdą dobę z agregatów, w wierszu swojego dnia tygodnia', async ({ page }) => {
     const bledy = await otworz(page);
+    await page.click('[data-kal="dom"]');
     const w = await page.evaluate(() => {
       const doby = new Set(state.daily.filter((r) => !state.devices.find((d) => d.id === r.id)?.ext).map((r) => r.date));
       const kratki = [...document.querySelectorAll('#kal .k')].map((k) => ({ data: k.dataset.data, wiersz: +k.style.gridRow.split('/')[0] }));
@@ -530,6 +531,32 @@ test.describe('kalendarz całej historii', () => {
       const [r, m, d] = k.data.split('-').map(Number);
       expect(k.wiersz, k.data).toBe(((new Date(r, m - 1, d).getDay() + 6) % 7) + 2);
     }
+    expect(bledy).toEqual([]);
+  });
+
+  /* „Wszystkie": blok na pokój i na dwór w jednej siatce. Sedno w tym, że ta sama doba
+     stoi w każdym bloku w tej samej kolumnie — inaczej porównanie wzrokiem kłamie. */
+  test('widok „Wszystkie" układa bloki jeden pod drugim w tych samych kolumnach', async ({ page }) => {
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => {
+      const kr = [...document.querySelectorAll('#kal .k')].map((k) => ({
+        blok: k.dataset.blok, data: k.dataset.data, kol: k.style.gridColumn.split('/')[0].trim(), wiersz: +k.style.gridRow.split('/')[0] }));
+      const bloki = [...new Set(kr.map((k) => k.blok))];
+      const kolumny = {};
+      for (const k of kr) (kolumny[k.data] ??= new Set()).add(k.kol);
+      return { bloki, nazwy: [...document.querySelectorAll('#kal .n')].map((n) => n.textContent),
+        rozjechane: Object.entries(kolumny).filter(([, s]) => s.size > 1).map(([d]) => d), kr };
+    });
+    expect(w.bloki).toEqual(['salon', 'sypialnia', 'kuchnia', 'lazienka', 'zewn']);
+    expect(w.nazwy).toEqual(['Salon', 'Sypialnia', 'Kuchnia', 'Łazienka', 'Na zewnątrz']);
+    expect(w.rozjechane, 'ta sama doba w różnych kolumnach').toEqual([]);
+    // wiersz = początek bloku + dzień tygodnia; bloki nie nachodzą na siebie
+    const wiersze = {};
+    for (const k of w.kr) (wiersze[k.blok] ??= []).push(k.wiersz);
+    const zakresy = w.bloki.map((b) => [Math.min(...wiersze[b]), Math.max(...wiersze[b])]);
+    for (let i = 1; i < zakresy.length; i++) expect(zakresy[i][0]).toBeGreaterThan(zakresy[i - 1][1]);
+    await expect(page.locator('#kal-skala')).toContainText('pokoje');
+    await expect(page.locator('#kal-skala')).toContainText('na zewnątrz');
     expect(bledy).toEqual([]);
   });
 
@@ -545,6 +572,7 @@ test.describe('kalendarz całej historii', () => {
     expect(w.z).toBeGreaterThan(0);
     expect(w.sJeden).toBe(true);
     expect(w.domJeden).toBe(false);
+    await page.click('[data-kal="dom"]');
     await page.click('[data-kmiara="hum"]');
     // w fiksturze wilgotność pokoju jest stała, więc różne doby podstawiamy wprost
     const kolory = await page.evaluate(() => {
