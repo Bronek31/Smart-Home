@@ -370,6 +370,31 @@ test.describe('rzut mieszkania i odtwarzanie', () => {
     expect(bledy).toEqual([]);
   });
 
+  /* Zimą „gdzie najgorzej" to pytanie o zapas do progu pleśni, nie o temperaturę.
+     Kolor ma iść za zapasem, a nie za samą wilgotnością. */
+  test('tryb „wilgotność a pleśń" koloruje zapasem do progu', async ({ page }) => {
+    const bledy = await otworz(page);
+    const przed = await page.$$eval('#floor .rm-temp', (n) => n.map((x) => x.textContent));
+    await page.click('[data-rzut="plesn"]');
+    await page.waitForTimeout(200);
+    const po = await page.$$eval('#floor .rm-temp', (n) => n.map((x) => x.textContent));
+    expect(przed.every((x) => x.endsWith('°'))).toBe(true);
+    expect(po.every((x) => x.endsWith('%')), 'duża liczba to wilgotność').toBe(true);
+    await expect(page.locator('#floor .rm-hum').first()).toContainText('próg');
+    await expect(page.locator('#maplegend')).toContainText('próg pleśni');
+    const w = await page.evaluate(() => ({
+      daleko: barwaPlesni(PLESN_ZAPAS + 5), naProgu: barwaPlesni(0), ponad: barwaPlesni(-8),
+      zielony: RAMPA_PLESN[0][1], czerwony: RAMPA_PLESN.at(-1)[1],
+    }));
+    expect(w.daleko).toEqual(w.zielony);
+    expect(w.naProgu).toEqual(w.czerwony);
+    expect(w.ponad, 'ponad progiem dalej czerwony, nie poza skalą').toEqual(w.czerwony);
+    await page.click('[data-rzut="temp"]');
+    await page.waitForTimeout(200);
+    expect(await page.$$eval('#floor .rm-temp', (n) => n.map((x) => x.textContent))).toEqual(przed);
+    expect(bledy).toEqual([]);
+  });
+
   test('rzut podpisuje strony świata', async ({ page }) => {
     await otworz(page);
     const strony = await page.$$eval('#floor .rm-strona', (n) => n.map((x) => x.textContent));
@@ -489,6 +514,58 @@ test.describe('strefa komfortu', () => {
   });
 });
 
+/* Kalendarz całej historii: kratka na dobę, wiersz to dzień tygodnia. Sprawdzamy
+   układ na datach, których dzień tygodnia znamy z kalendarza, a kolory — tym, że
+   wilgotność jest odwrócona (mokro = niebiesko), jak obiecuje podpis. */
+test.describe('kalendarz całej historii', () => {
+  test('kratka na każdą dobę z agregatów, w wierszu swojego dnia tygodnia', async ({ page }) => {
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => {
+      const doby = new Set(state.daily.filter((r) => !state.devices.find((d) => d.id === r.id)?.ext).map((r) => r.date));
+      const kratki = [...document.querySelectorAll('#kal .k')].map((k) => ({ data: k.dataset.data, wiersz: +k.style.gridRow.split('/')[0] }));
+      return { doby: [...doby].sort(), kratki };
+    });
+    expect(w.kratki.map((k) => k.data).sort()).toEqual(w.doby);
+    for (const k of w.kratki) {
+      const [r, m, d] = k.data.split('-').map(Number);
+      expect(k.wiersz, k.data).toBe(((new Date(r, m - 1, d).getDay() + 6) % 7) + 2);
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  test('przełącza pokój i wielkość; wilgotność ma odwróconą skalę', async ({ page }) => {
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => {
+      const t = dobyKalendarza('dom', 'temp'), h = dobyKalendarza('dom', 'hum');
+      const z = dobyKalendarza('zewn', 'temp'), s = dobyKalendarza('salon', 'temp');
+      return { t: t.length, h: h.length, z: z.length, s: s.length, sJeden: s[0]?.jeden, domJeden: t[0]?.jeden };
+    });
+    expect(w.t).toBeGreaterThan(2);
+    expect(w.h).toBe(w.t);
+    expect(w.z).toBeGreaterThan(0);
+    expect(w.sJeden).toBe(true);
+    expect(w.domJeden).toBe(false);
+    await page.click('[data-kmiara="hum"]');
+    // w fiksturze wilgotność pokoju jest stała, więc różne doby podstawiamy wprost
+    const kolory = await page.evaluate(() => {
+      const daty = [...new Set(state.daily.map((r) => r.date))].sort();
+      state.daily.forEach((r) => { if (state.devices.find((d) => d.id === r.id)?.hum === r.code) r.avg = 40 + 5 * daty.indexOf(r.date); });
+      renderKalendarz();
+      const kr = [...document.querySelectorAll('#kal .k')];
+      const dane = dobyKalendarza('dom', 'hum');
+      const naj = dane.reduce((a, b) => (b.v > a.v ? b : a)), najm = dane.reduce((a, b) => (b.v < a.v ? b : a));
+      const rgb = (d) => kr.find((k) => k.dataset.data === d.date).style.background.match(/\d+/g).slice(0, 3).map(Number);
+      const odNiebieskiego = (c) => Math.hypot(...c.map((v, i) => v - RAMPA[0][1][i]));
+      return { mokro: odNiebieskiego(rgb(naj)), sucho: odNiebieskiego(rgb(najm)), rozne: naj.v !== najm.v };
+    });
+    expect(kolory.rozne, 'fikstura bez różnic wilgotności, test nic nie sprawdza').toBe(true);
+    expect(kolory.mokro, 'mokrzej ma być bliżej niebieskiego').toBeLessThan(kolory.sucho);
+    await page.click('[data-kal="zewn"]');
+    await expect(page.locator('#kal-info')).toContainText('na zewnątrz');
+    expect(bledy).toEqual([]);
+  });
+});
+
 /* Noce w sypialni: 23:00–7:00 czasu lokalnego, średnia z godzinowych średnich. Serię
    podajemy wprost: noc chłodna, dzień ciepły — średnia nocy nie może złapać ani jednej
    godziny dnia, a noc, która jeszcze trwa, nie może wejść na listę. */
@@ -523,7 +600,7 @@ test.describe('noce w sypialni', () => {
     await expect(page.locator('#noce')).toBeVisible();
     await expect(page.locator('#noce-podsumowanie')).toContainText('Ostatnia noc');
     // pokoje w fiksturze stoją na ok. 25 °C, czyli wyraźnie powyżej 16–19
-    await expect(page.locator('#noce-podsumowanie')).toContainText('cieplej niż zalecane do snu');
+    await expect(page.locator('#noce-podsumowanie')).toContainText('cieplej niż strefa optymalna do snu');
     const w = await page.evaluate(() => state.noce.map((n) => [n.min, n.sr, n.max]));
     expect(w.length).toBeGreaterThanOrEqual(3);
     for (const [min, sr, max] of w) { expect(sr).toBeGreaterThanOrEqual(min); expect(sr).toBeLessThanOrEqual(max); }
