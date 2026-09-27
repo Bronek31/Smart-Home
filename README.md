@@ -47,7 +47,7 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `KONTEKST.md` | notatka przekazania: dlaczego jest tak, jak jest, i na co uważać przy dalszej pracy |
 | `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
-| `.github/workflows/zbieraj.yml` | zbieranie; zapasowy harmonogram co godzinę o :19, właściwym zegarem jest zewnętrzny cron co 30 min (patrz „Kolektor co godzinę") |
+| `.github/workflows/zbieraj.yml` | zbieranie; zapasowy harmonogram co godzinę o :19, właściwym zegarem jest zewnętrzny cron co godzinę (patrz „Kolektor co godzinę") |
 | `.github/workflows/watchdog.yml` | co 6 godzin sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
 | `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
 | `.github/workflows/testy.yml` | testy przy każdej zmianie kodu i raz na dobę na żywych danych |
@@ -502,14 +502,16 @@ a dwa przebiegi naraz nic nie psują (`zapisz.sh`).
 
 Token ma datę ważności — przed nią trzeba wygenerować nowy i podmienić nagłówek.
 
-**Stan:** postawiony 27.09.2026 na cron-job.org, co 30 minut (o :00 i :30).
+**Stan:** postawiony 27.09.2026 na cron-job.org, co godzinę. Przez pierwsze godziny
+chodził co 30 minut — zmienione, bo czujniki same raportują mniej więcej raz na
+godzinę, więc częstsze pobieranie dawało dane świeższe średnio o kwadrans za cenę
+dwa razy większej liczby zapytań do Tuya.
 
 **Limit zapytań Tuya.** Każdy przebieg pobiera pełne 7 dni logów, czyli ok. 30 zapytań
 (ok. 24 strony logów po 100 wpisów dla czterech czujników, plus token i specyfikacje).
-Przy przebiegu co 30 minut to ok. 1500 zapytań na dobę, dwa razy tyle co przy
-godzinowym. Trial IoT Core ma miesięczny limit zapytań — jego wykorzystanie widać na
-iot.tuya.com w projekcie, przy usłudze IoT Core. Gdyby zbliżało się do limitu,
-wystarczy wrócić do przebiegu co godzinę.
+Co godzinę to ok. 750 zapytań na dobę, do tego przebiegi z zapasowego harmonogramu
+GitHuba. Trial IoT Core ma miesięczny limit zapytań — jego wykorzystanie widać na
+iot.tuya.com w projekcie, przy usłudze IoT Core.
 
 ## Widżety na telefon
 
