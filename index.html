@@ -142,7 +142,7 @@
 <section id="app" hidden>
   <div class="statusbar" id="statusbar"></div>
   <div class="pens" id="pens"></div>
-  <div class="controls"><span class="lbl">Zakres wykresów</span><button class="range" data-hours="dzis">dziś</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><label class="chk" title="Ukrywa krótkie skoki, po których wartość wraca do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki. Trwałe zmiany, takie jak włączony grzejnik, zostają."><input type="checkbox" id="filtr" checked>Ukryj chwilowe skoki</label><button class="range lupa" id="pelny-zakres" hidden title="Wraca do całego wybranego zakresu">&#10530; cały zakres</button><div class="toggles" id="toggles"></div></div>
+  <div class="controls"><span class="lbl">Zakres wykresów</span><button class="range" data-hours="dzis">dziś</button><button class="range" data-hours="168" aria-pressed="true">7 dni</button><button class="range" data-hours="720">30 dni</button><button class="range" data-hours="0">całość</button><label class="chk" title="Ukrywa krótkie skoki, po których wartość wraca do poprzedniego poziomu — np. gdy czujnik trafi komuś do ręki — oraz znane artefakty z pliku artefakty.json, np. farelkę tuż pod czujnikiem. Trwałe zmiany, takie jak włączony grzejnik, zostają."><input type="checkbox" id="filtr" checked>Ukryj chwilowe skoki i znane artefakty</label><button class="range lupa" id="pelny-zakres" hidden title="Wraca do całego wybranego zakresu">&#10530; cały zakres</button><div class="toggles" id="toggles"></div></div>
 
   <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div>
     <div class="plot plot-dwor" id="plot-dwor"><canvas id="temp-dwor"></canvas></div>
@@ -226,7 +226,7 @@ const DZIS='dzis';   // zakres "od dzisiejszej północy do teraz" — długoś�
    2,1–5,8 °C, czyli sześciokrotnie więcej niż wynosi rozstaw między pokojami —
    i dopiero wtedy jest co odtwarzać. Doba zostaje jako opcja do przyglądania się. */
 const OKNO_DOBA=24,OKNO_TYDZIEN=168;   // wartości przycisków okna odtwarzania, w godzinach
-const state={hours:DZIS,filtr:true,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],updated:null,
+const state={hours:DZIS,filtr:true,artefakty:[],rowsAll:null,cut:{},devices:[],appliances:[],rows:[],daily:[],months:[],off:new Set(),charts:{},health:[],updated:null,
   // odtwarzanie historii na rzucie: klatka null znaczy „stan bieżący"
   klatka:null,os:null,timer:null,gra:false,indeks:{},skala:null,oknoOdtw:OKNO_TYDZIEN,normy:null,trybBarwy:'temp',trybRzutu:'temp',kalCo:'wszystkie',kalMiara:'temp',rytmDev:null,rytmSkala:'wspolna',tabHours:168,dobaCache:null};const monthCache=new Map();
 /* --- rytm systemu: te trzy liczby decydują, co jest awarią, a co normą --- */
@@ -472,13 +472,29 @@ const monthKey=t=>{const d=new Date(t);return `${d.getFullYear()}-${String(d.get
 // bieżącym odczytom i diagnostyce ostatniej doby. Dwa miesiące zamiast jednego, bo
 // pierwszego dnia miesiąca sam bieżący plik ma dopiero kilka godzin historii.
 function neededMonths(){const all=state.months,newest=all.at(-1);if(!all.length)return[];if(!state.daily.length)return all;if(!state.hours)return all.slice(-2);const from=monthKey(Math.min(zakresOd(),Date.now()-RYTM_DNI*86400e3)),need=all.filter(m=>m>=from);return need.includes(newest)?need:need.concat(newest)}
-async function ensureRows(){state.rows=(await Promise.all(neededMonths().map(loadMonth))).flat().sort((a,b)=>a.t-b.t)}
+/* Znane artefakty (artefakty.json, przez manifest): przedziały, w których czujnik mierzył
+   coś innego niż pokój — farelka tuż pod nim, przenoszenie. Chowamy je razem z chwilowymi
+   skokami, jednym przełącznikiem. state.rows to to, co widać (wykresy, statystyki, rytm,
+   komfort, noce, skala rzutu); state.rowsAll to wszystko, co przyszło — z niego liczy się
+   diagnostyka łączności i kafle, bo czujnik w tym czasie raportował jak należy i ukrycie
+   jego odczytów wyglądałoby jak zgubione raporty. */
+function wczytajArtefakty(lista){
+  return(lista||[]).map(a=>({id:a.czujnik,od:Date.parse(a.od),do:Date.parse(a.do),powod:a.powod||''}))
+    .filter(a=>a.id&&isFinite(a.od)&&isFinite(a.do)&&a.od<a.do);
+}
+const wArtefakcie=r=>state.artefakty.some(a=>a.id===r.id&&r.t>=a.od&&r.t<=a.do);
+async function ensureRows(){
+  state.rowsAll=(await Promise.all(neededMonths().map(loadMonth))).flat().sort((a,b)=>a.t-b.t);
+  state.rows=state.filtr&&state.artefakty.length?state.rowsAll.filter(r=>!wArtefakcie(r)):state.rowsAll;
+}
+// artefakty w widocznym zakresie — do dopisku przy wykresach, żeby ukrycie nie było ciche
+const artefaktyOd=od=>state.filtr?state.artefakty.filter(a=>a.do>=od&&!state.off.has(a.id)):[];
 /* Zakres jako parametr, nie jako globalna prawda. Wykresy i tabela zakresów mają
    od teraz własne przełączniki, więc każda z tych funkcji musi umieć policzyć się dla
    dowolnego okresu, a nie tylko dla tego jednego wybranego u góry. */
 const dobowe=h=>state.daily.length>0&&!h;
 const useDaily=()=>dobowe(state.hours);
-async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;const wszystkie=ids.map(id=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,ext:!!d.external,appliance:!!d.appliance,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery'),power:Object.keys(codes).find(c=>codes[c].kind==='power')}});state.appliances=wszystkie.filter(d=>d.appliance);state.devices=wszystkie.filter(d=>!d.appliance);{let i=0;state.devices.forEach(d=>{d.color=d.ext?BARWA_DWORU:PENS[i++%PENS.length]})}state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;state.hours=DZIS;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();wireReplay();wireRzut();['temp','temp-dwor','hum','abs'].forEach(wireTouch);wirePelnyZakres();await render()}
+async function boot(){let manifest;try{const res=await fetch('data/index.json',{cache:'no-cache'});if(!res.ok)throw new Error(res.status);manifest=await res.json()}catch{return fail('Nie ma jeszcze żadnych odczytów','Plik <code>data/index.json</code> pojawi się po pierwszym udanym przebiegu kolektora.','Uruchom <b>Zbieranie odczytów</b> w Actions.')}const ids=Object.keys(manifest.devices||{});if(!ids.length)return fail('Kolektor nie znalazł czujników','Sprawdź urządzenia w Tuya.');if(!(manifest.months||[]).length)return fail('Czujniki są, odczytów jeszcze nie ma','Po pierwszym przebiegu kolektora dane pojawią się tutaj.');state.updated=manifest.updated?Date.parse(manifest.updated):null;state.artefakty=wczytajArtefakty(manifest.artefakty);const wszystkie=ids.map(id=>{const d=manifest.devices[id],codes=d.codes||{};return{id,name:d.name||id,ext:!!d.external,appliance:!!d.appliance,temp:Object.keys(codes).find(c=>codes[c].kind==='temp'),hum:Object.keys(codes).find(c=>codes[c].kind==='hum'),batt:Object.keys(codes).find(c=>codes[c].kind==='battery'),power:Object.keys(codes).find(c=>codes[c].kind==='power')}});state.appliances=wszystkie.filter(d=>d.appliance);state.devices=wszystkie.filter(d=>!d.appliance);{let i=0;state.devices.forEach(d=>{d.color=d.ext?BARWA_DWORU:PENS[i++%PENS.length]})}state.months=manifest.months.slice().sort();state.daily=manifest.daily?await loadDaily(manifest.daily):[];state.weather=manifest.weather?await loadJson(manifest.weather):null;const wewn=new Set(state.devices.filter(d=>!d.ext).map(d=>d.id));const oldest=state.daily.find(r=>wewn.has(r.id))?.t;await ensureRows();if(!state.rows.length)return fail('Pliki z danymi są puste','Kolektor jeszcze nic nie zapisał.');const start=oldest??state.rows[0].t;state.since=start;state.hours=DZIS;readHash();writeHash();document.getElementById('app').hidden=false;buildToggles();wireRanges();wireReplay();wireRzut();['temp','temp-dwor','hum','abs'].forEach(wireTouch);wirePelnyZakres();await render()}
 // ktoś wkleił adres z innym widokiem albo cofnął się po historii
 addEventListener('hashchange',()=>{if(!state.devices.length)return;readHash();zerujOkno();buildToggles();state.markRanges?.();document.getElementById('filtr').checked=state.filtr;render()});
 /* --- Widok zapisany w adresie ---
@@ -641,9 +657,9 @@ const wartoscW=(seria,t,tol)=>{
   const bliski=Math.abs(a.x-t)<=Math.abs(b.x-t)?a:b;
   return tol!=null&&Math.abs(bliski.x-t)>tol?null:bliski.y;
 };
-function rawPoints(device,kind,from){if(!device[kind])return[];return state.rows.filter(r=>r.id===device.id&&r.code===device[kind]&&r.t>=from&&isFinite(r.v))}
-function readings(device,kind){if(!device[kind])return{last:null,dayAgo:null};const cutoff=Date.now()-24*3600e3;let last=null,dayAgo=null;for(const r of state.rows){if(r.id!==device.id||r.code!==device[kind]||!isFinite(r.v))continue;last=r;if(r.t<=cutoff)dayAgo=r}return{last,dayAgo}}
-const BATTERY_PL={low:'niski',middle:'średni',high:'wysoki'};function lastBattery(d){if(!d.batt)return null;for(let i=state.rows.length-1;i>=0;i--){const r=state.rows[i];if(r.id===d.id&&r.code===d.batt)return BATTERY_PL[r.raw]||(isFinite(r.v)?`${r.v}%`:r.raw)}return null}
+function rawPoints(device,kind,from){if(!device[kind])return[];return(state.rowsAll||state.rows).filter(r=>r.id===device.id&&r.code===device[kind]&&r.t>=from&&isFinite(r.v))}
+function readings(device,kind){if(!device[kind])return{last:null,dayAgo:null};const cutoff=Date.now()-24*3600e3;let last=null,dayAgo=null;for(const r of(state.rowsAll||state.rows)){if(r.id!==device.id||r.code!==device[kind]||!isFinite(r.v))continue;last=r;if(r.t<=cutoff)dayAgo=r}return{last,dayAgo}}
+const BATTERY_PL={low:'niski',middle:'średni',high:'wysoki'};function lastBattery(d){if(!d.batt)return null;const wsz=state.rowsAll||state.rows;for(let i=wsz.length-1;i>=0;i--){const r=wsz[i];if(r.id===d.id&&r.code===d.batt)return BATTERY_PL[r.raw]||(isFinite(r.v)?`${r.v}%`:r.raw)}return null}
 /* Jaka część doby minęła z wilgotnością powyżej progu pleśni. Każdy odczyt porównujemy
    z progiem z jego chwili, bo pokój i dwór zmieniają się w ciągu doby, a z nimi narożnik.
    Liczone czasem, nie liczbą odczytów — przy zmianie czujnik raportuje gęściej. */
@@ -2175,7 +2191,9 @@ function renderHealth(){if(state.health.some(r=>r.status!=='ok'))document.getEle
 // widokach rysujemy z surowych wierszy, więc i podpis musi iść z surowych.
 function rangeLabel(h=state.hours){const base={[DZIS]:'dzisiaj od północy',168:'ostatnie 7 dni',720:'ostatnie 30 dni',0:'cała historia'}[h]+(dobowe(h)?' · dobowe min/śr/max':''),oldest=wewnOd(0,h)||state.since||state.rows[0]?.t,from=odKiedy(h);if(oldest&&oldest>from+3600e3)return`${base} · dane od ${new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(oldest))}`;return base}
 async function render(){await ensureRows();state.indeks=indeksSerii();computeHealth();renderStatus();renderPens();resetReplay();renderMap();renderWeather();renderEvents();const T=series('temp'),H=series('hum'),A=seriesAbs();
-  ['temp','hum','abs'].forEach(k=>document.getElementById('cut-'+k).textContent=useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'');renderSummary();renderHealth();renderRytm();renderKomfort();renderNoce();renderKalendarz();const newest=state.rows.at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
+  const art=useDaily()?[]:artefaktyOd(zakresOd()),artTxt=art.length?` · ukryto ${art.length===1?'znany artefakt':`${art.length} znane artefakty`}`:'';
+  ['temp','hum','abs'].forEach(k=>{const el=document.getElementById('cut-'+k);el.textContent=(useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'')+artTxt;
+    el.title=art.map(a=>`${state.devices.find(d=>d.id===a.id)?.name||a.id}: ${a.powod}`).join('\n')});renderSummary();renderHealth();renderRytm();renderKomfort();renderNoce();renderKalendarz();const newest=(state.rowsAll||state.rows).at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
   rysujWykresy(T,H,A)}
 boot();
 // Instalacja na ekranie głównym i tryb offline. Rejestracja po load, żeby nie

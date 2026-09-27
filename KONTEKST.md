@@ -161,6 +161,21 @@ tylko bieżący miesiąc.
   dodana do ekranu strona wchodziła nagłówkiem pod pasek stanu (`black-translucent` bez
   `viewport-fit=cover`) — poprawione.
 
+### Farelka pod czujnikiem i znane artefakty
+
+Czujnik w łazience wisiał tuż nad farelką, więc 27.09 rano mierzył strumień gorącego
+powietrza, nie łazienkę. Właściciel przestawił go 27.09 ok. 20:30 UTC poza nawiew,
+a poranek trafił do `artefakty.json` — nowej, ręcznej listy przedziałów, które nie
+opisują pokoju. To nie jest powrót odrzuconego `TUYA_POMIN`: wiersze zostają w CSV,
+znika tylko widok i agregaty, dokładnie tak jak przy filtrze skoków, i jednym
+przełącznikiem da się je pokazać.
+
+Plik leży obok `fetch.py`, a nie w `data/`, bo to konfiguracja, nie odczyt; ścieżka liczy
+się od pliku, żeby test odtwarzania agregatów w katalogu tymczasowym widział tę samą
+listę. Pierwsza wersja pliku miała w opisie cudzysłów zamknięty zwykłym `"` — JSON się
+nie parsował, a kolektor po cichu uznawał listę za pustą. Złapał to test
+`test_prawdziwy_plik_artefaktow_jest_poprawny`; zostaje właśnie po to.
+
 ### Odtwarzanie historii — schowane, nie usunięte
 
 Na życzenie. Przełącznik `ODTWARZANIE`, a testy włączają kod flagą
@@ -666,8 +681,8 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **80** (`python -m unittest discover -s tests`) |
-| Testy strony | **122** (`cd tests/frontend && npx playwright test`) |
+| Testy kolektora | **84** (`python -m unittest discover -s tests`) |
+| Testy strony | **125** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 30 zapytań Tuya na przebieg · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |

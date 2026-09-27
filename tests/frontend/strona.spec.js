@@ -644,6 +644,54 @@ test.describe('noce w sypialni', () => {
   });
 });
 
+/* Znane artefakty (artefakty.json): farelka tuż pod czujnikiem, przenoszenie. Znikają
+   z tego, co opisuje pokój, razem z chwilowymi skokami — ale nie z diagnostyki łączności,
+   bo czujnik w tym czasie raportował jak należy. */
+test.describe('znane artefakty', () => {
+  const ARTEFAKT = { artefakty: [{ czujnik: 'lazienka', odGodz: 30, doGodz: 27 }] };
+  const wOknie = (page) => page.evaluate(() => {
+    const od = Date.now() - 30 * 3600e3, doK = Date.now() - 27 * 3600e3;
+    const s = series('temp', 168, false).find((x) => x.device.id === 'lazienka');
+    return s.points.filter((p) => p.x >= od && p.x <= doK).length;
+  });
+
+  test('znika z wykresów i statystyk, a po odznaczeniu przełącznika wraca', async ({ page }) => {
+    const bledy = await otworzTydzien(page, ARTEFAKT);
+    expect(await wOknie(page), 'artefakt dalej na wykresie').toBe(0);
+    await expect(page.locator('#cut-temp')).toContainText('znany artefakt');
+    const wIndeksie = await page.evaluate(() => (state.indeks['lazienka|va_temperature'] || [])
+      .filter((r) => r.t >= Date.now() - 30 * 3600e3 && r.t <= Date.now() - 27 * 3600e3).length);
+    expect(wIndeksie, 'artefakt w rytmie doby, komforcie i nocach').toBe(0);
+    await page.uncheck('#filtr');
+    await page.waitForTimeout(500);
+    expect(await wOknie(page), 'po odznaczeniu artefakt ma być widoczny').toBeGreaterThan(0);
+    await expect(page.locator('#cut-temp')).not.toContainText('artefakt');
+    expect(bledy).toEqual([]);
+  });
+
+  // Strażnik: stara wersja niczego nie chowała, więc przechodzi w obie strony. Pilnuje,
+  // żeby ukrywanie nie przeciekło do diagnostyki łączności (rowsAll zamiast rows).
+  test('nie robi z czujnika milczącego w diagnostyce łączności (strażnik)', async ({ page }) => {
+    const bledy = await otworz(page, ARTEFAKT);
+    const w = await page.evaluate(() => state.health.find((r) => r.d.id === 'lazienka'));
+    expect(w.suspicious, 'ukryte odczyty wyglądają jak zgubione raporty').toBe(false);
+    await expect(page.locator('#events')).not.toContainText('Łazienka — cisza');
+    expect(bledy).toEqual([]);
+  });
+
+  test('zły wpis jest pomijany, a strona żyje dalej', async ({ page }) => {
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => wczytajArtefakty([
+      { czujnik: 'x', od: 'nie-data', do: '2026-09-27T10:00:00Z' },
+      { czujnik: 'x', od: '2026-09-27T11:00:00Z', do: '2026-09-27T10:00:00Z' },
+      { od: '2026-09-27T09:00:00Z', do: '2026-09-27T10:00:00Z' },
+      { czujnik: 'x', od: '2026-09-27T09:00:00Z', do: '2026-09-27T10:00:00Z', powod: 'ok' },
+    ]));
+    expect(w).toHaveLength(1);
+    expect(bledy).toEqual([]);
+  });
+});
+
 test.describe('podpowiedzi i diagnostyka', () => {
   test('kafel milczy przy spokojnym pokoju', async ({ page }) => {
     await otworz(page);

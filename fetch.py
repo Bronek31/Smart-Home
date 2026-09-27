@@ -42,6 +42,10 @@ REGIONS = {
 
 DATA_DIR = Path("data")
 MANIFEST = DATA_DIR / "index.json"
+# Znane artefakty leżą obok fetch.py, nie w data/: to ręczna konfiguracja, nie odczyt.
+# Ścieżka od pliku, nie od katalogu roboczego — test agregatów liczy je w kopii data/
+# w katalogu tymczasowym i musi widzieć tę samą listę co kolektor.
+ARTEFAKTY_PLIK = Path(__file__).resolve().parent / "artefakty.json"
 DAILY = DATA_DIR / "dzienne.csv"
 FIELDS = ["ts", "device_id", "code", "value"]
 DAILY_FIELDS = ["date", "device_id", "code", "min", "avg", "max", "n"]
@@ -703,6 +707,31 @@ def external_ids(devices: dict) -> set[str]:
     }
 
 
+def wczytaj_artefakty() -> list[dict]:
+    """Znane artefakty: przedziały, w których czujnik mierzył coś innego niż pokój
+    (farelka tuż pod nim, przenoszenie). Wiersze zostają w CSV — pomija się je tylko
+    w agregatach, tak jak wyskoki. Zły wpis jest pomijany, a nie wywraca przebiegu."""
+    try:
+        wpisy = json.loads(ARTEFAKTY_PLIK.read_text(encoding="utf-8")).get("artefakty") or []
+    except (OSError, ValueError):
+        return []
+    out = []
+    for w in wpisy:
+        try:
+            od = datetime.fromisoformat(w["od"].replace("Z", "+00:00")).timestamp()
+            do = datetime.fromisoformat(w["do"].replace("Z", "+00:00")).timestamp()
+        except (KeyError, TypeError, ValueError, AttributeError):
+            print(f"Artefakty: pominięty wpis bez poprawnych dat: {w!r}", flush=True)
+            continue
+        if w.get("czujnik") and od < do:
+            out.append({**w, "od_s": od, "do_s": do})
+    return out
+
+
+def w_artefakcie(artefakty: list[dict], device: str, t: float) -> bool:
+    return any(a["czujnik"] == device and a["od_s"] <= t <= a["do_s"] for a in artefakty)
+
+
 def write_daily(devices: dict | None = None) -> int:
     """Przelicza całą historię na dobowe min/średnią/max.
 
@@ -731,7 +760,8 @@ def write_daily(devices: dict | None = None) -> int:
             )
 
     buckets: dict[tuple, list] = {}
-    skipped = 0
+    skipped = artefaktowe = 0
+    artefakty = wczytaj_artefakty()
     for (device, code), points in series.items():
         points.sort()
         # gdy manifest milczy o tym kodzie, próbujemy go jeszcze rozpoznać po nazwie
@@ -743,8 +773,11 @@ def write_daily(devices: dict | None = None) -> int:
         # "całość" z 7-dniowym — a te dwa mają pokazywać to samo.
         bad = set() if device in zewnetrzne else drop_spikes([(t, v) for t, v, _ in points], kind)
         skipped += len(bad)
-        for index, (_, value, day) in enumerate(points):
+        for index, (t, value, day) in enumerate(points):
             if index in bad:
+                continue
+            if w_artefakcie(artefakty, device, t):
+                artefaktowe += 1
                 continue
             key = (day, device, code)
             found = buckets.get(key)
@@ -757,6 +790,8 @@ def write_daily(devices: dict | None = None) -> int:
                 found[3] = max(found[3], value)
     if skipped:
         print(f"Agregaty: pominięto {skipped} odczytów uznanych za wyskoki.", flush=True)
+    if artefaktowe:
+        print(f"Agregaty: pominięto {artefaktowe} odczytów ze znanych artefaktów.", flush=True)
 
     rows = [
         {
@@ -1018,6 +1053,9 @@ def write_manifest(devices: dict, alerty: list[str] | None = None) -> None:
                 "weather": WEATHER.name if WEATHER.exists() else None,
                 # czyta to watchdog, żeby raz na dobę zgłosić to, co wymaga ręki
                 "alerty": alerty or [],
+                # strona chowa te przedziały razem z chwilowymi skokami
+                "artefakty": [{k: a[k] for k in ("czujnik", "od", "do", "powod") if k in a}
+                              for a in wczytaj_artefakty()],
                 "devices": devices,
             },
             ensure_ascii=False, indent=2,

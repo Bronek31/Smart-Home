@@ -1,0 +1,12 @@
+{
+  "opis": "Znane artefakty: odczyty, które nie opisują pokoju, tylko to, co działo się przy samym czujniku. Wiersze zostają w data/*.csv; strona chowa je razem z chwilowymi skokami (przełącznik „Ukryj chwilowe skoki i znane artefakty”), a kolektor pomija je w agregatach dobowych. Czas w UTC. Po zmianie tego pliku kolektor przelicza agregaty przy najbliższym przebiegu.",
+  "artefakty": [
+    {
+      "czujnik": "bfd6f4f87fea9d866dvpve",
+      "nazwa": "Łazienka",
+      "od": "2026-09-27T07:50:00Z",
+      "do": "2026-09-27T11:00:00Z",
+      "powod": "farelka tuż pod czujnikiem — mierzył strumień gorącego powietrza, nie łazienkę (20,5 → 26,9 °C w pół godziny)"
+    }
+  ]
+}

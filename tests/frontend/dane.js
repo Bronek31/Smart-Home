@@ -130,6 +130,7 @@ const kodyCzujnika = () => ({
  *   bezMiejsca     true — pogoda bez współrzędnych, czyli strona nie ma z czego liczyć łuku doby
  *   waskaWilgotnosc  true — wszystkie pokoje w paśmie kilku punktów, jak w prawdziwym mieszkaniu
  *   przesuniete    true — każdy pokój raportuje w innej minucie godziny, jak prawdziwe czujniki
+ *   artefakty      [{czujnik, odGodz, doGodz}] — znane artefakty, godziny wstecz od „teraz"
  *   opoznienieZbiorki  ile godzin temu kolektor ostatnio zapisał — odczyty kończą się wtedy,
  *                  bo nowszych nikt nie pobrał (GitHub potrafi opóźniać harmonogram o godziny)
  */
@@ -139,7 +140,7 @@ function zbuduj(opcje = {}) {
     wietrzenie = false, rekaNaCzujniku = false, upalDzien = false, zgubionyRaport = false,
     nazwaZnacznik = false,
     pogodaGodzinowa = 'sucho', bezMiejsca = false,
-    waskaWilgotnosc = false, przesuniete = false, opoznienieZbiorki = 0,
+    waskaWilgotnosc = false, przesuniete = false, opoznienieZbiorki = 0, artefakty = [],
   } = opcje;
   /* Prawdziwe pokoje stoją w paśmie kilku punktów wilgotności (46–51), a nie ośmiu.
      Przy tak wąskim zakresie Chart.js dzieli oś na kreski co pół procenta i podpisy
@@ -308,6 +309,7 @@ function zbuduj(opcje = {}) {
     daily: 'dzienne.csv',
     weather: 'pogoda.json',
     alerty: [],
+    artefakty: artefakty.map((a) => ({ czujnik: a.czujnik, od: iso(teraz - a.odGodz * GODZ), do: iso(teraz - a.doGodz * GODZ), powod: 'test' })),
     devices: urzadzenia,
   };
 

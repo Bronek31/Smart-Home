@@ -164,6 +164,54 @@ class TestDropSpikes(unittest.TestCase):
         self.assertEqual(int(wzorzec.group(1)) * 60, fetch.SPIKE_RISE)
 
 
+class TestArtefakty(WKatalogu):
+    """Znane artefakty wypadają z agregatów dobowych, ale zostają w CSV."""
+
+    def setUp(self):
+        super().setUp()
+        self.poprzedni_plik = fetch.ARTEFAKTY_PLIK
+        fetch.ARTEFAKTY_PLIK = self.katalog / "artefakty.json"
+
+    def tearDown(self):
+        fetch.ARTEFAKTY_PLIK = self.poprzedni_plik
+        super().tearDown()
+
+    def ustaw(self, wpisy):
+        fetch.ARTEFAKTY_PLIK.write_text(json.dumps({"artefakty": wpisy}), encoding="utf-8")
+
+    def test_odczyt_z_artefaktu_nie_trafia_do_agregatu_ale_zostaje_w_csv(self):
+        wiersze = [("2026-08-20T08:00:00Z", "c", "va_temperature", "21"),
+                   ("2026-08-20T09:00:00Z", "c", "va_temperature", "27"),     # farelka pod czujnikiem
+                   ("2026-08-20T10:00:00Z", "c", "va_temperature", "22")]
+        self.zapisz("2026-08", wiersze)
+        self.ustaw([{"czujnik": "c", "od": "2026-08-20T08:30:00Z", "do": "2026-08-20T09:30:00Z", "powod": "test"}])
+        os.environ["TZ_LOCAL"] = "UTC"
+        fetch.write_daily({"c": {"codes": {"va_temperature": {"kind": "temp"}}}})
+        wiersz = next(csv.DictReader(fetch.DAILY.open(encoding="utf-8")))
+        self.assertEqual((wiersz["max"], wiersz["n"]), ("22", "2"))
+        self.assertIn("27", (self.katalog / "data" / "2026-08.csv").read_text(encoding="utf-8"))
+
+    def test_zle_wpisy_sa_pomijane_a_brak_pliku_to_brak_artefaktow(self):
+        self.assertEqual(fetch.wczytaj_artefakty(), [])
+        self.ustaw([{"czujnik": "c", "od": "zle", "do": "2026-08-20T09:30:00Z"},
+                    {"czujnik": "c", "od": "2026-08-20T10:00:00Z", "do": "2026-08-20T09:00:00Z"},
+                    {"od": "2026-08-20T08:00:00Z", "do": "2026-08-20T09:00:00Z"},
+                    {"czujnik": "c", "od": "2026-08-20T08:00:00Z", "do": "2026-08-20T09:00:00Z"}])
+        self.assertEqual(len(fetch.wczytaj_artefakty()), 1)
+
+    def test_manifest_niesie_artefakty_dla_strony(self):
+        self.ustaw([{"czujnik": "c", "od": "2026-08-20T08:00:00Z", "do": "2026-08-20T09:00:00Z", "powod": "farelka"}])
+        fetch.write_manifest({})
+        m = json.loads(fetch.MANIFEST.read_text(encoding="utf-8"))
+        self.assertEqual(m["artefakty"], [{"czujnik": "c", "od": "2026-08-20T08:00:00Z",
+                                           "do": "2026-08-20T09:00:00Z", "powod": "farelka"}])
+
+    def test_prawdziwy_plik_artefaktow_jest_poprawny(self):
+        fetch.ARTEFAKTY_PLIK = self.poprzedni_plik
+        surowe = json.loads(self.poprzedni_plik.read_text(encoding="utf-8"))["artefakty"]
+        self.assertEqual(len(fetch.wczytaj_artefakty()), len(surowe), "któryś wpis w artefakty.json jest zły")
+
+
 class TestParseSince(unittest.TestCase):
     def test_pusty_znaczy_brak_granicy(self):
         self.assertEqual(fetch.parse_since(""), 0)

@@ -44,6 +44,7 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
 | `zapisz.sh` | pobiera odczyty i zapisuje je na gałąź, przeżywając wyścig dwóch przebiegów |
 | `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
+| `artefakty.json` | znane artefakty: przedziały, w których czujnik mierzył coś innego niż pokój. Ręczna lista |
 | `KONTEKST.md` | notatka przekazania: dlaczego jest tak, jak jest, i na co uważać przy dalszej pracy |
 | `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
@@ -462,9 +463,22 @@ Powyżej `TREND_MAX` (0,7 °C/godz.) też milczy: tak szybko pokój sam z siebie
 i przedłużony linią prostą obiecywałby „28° za godzinę" w łazience, która za godzinę
 wróci do 21 °C.
 
+### Znane artefakty
+
+`artefakty.json` w katalogu głównym to ręczna lista przedziałów, w których czujnik mierzył
+coś innego niż pokój: farelkę tuż pod nim, przenoszenie. Wiersze **zostają** w `data/*.csv`.
+Kolektor pomija je w agregatach dobowych i przekazuje listę stronie w manifeście, a strona
+chowa je razem z chwilowymi skokami — jednym przełącznikiem „Ukryj chwilowe skoki i znane
+artefakty", z dopiskiem „ukryto znany artefakt" przy wykresach. Diagnostyka łączności
+i kafle liczą się dalej ze wszystkiego, bo czujnik w tym czasie raportował jak należy.
+Po zmianie pliku wystarczy push — kolektor przeliczy agregaty przy najbliższym przebiegu.
+
 ### Farelka w łazience
 
-Farelka to prawdziwe grzanie, nie usterka czujnika, więc strona ją pokazuje. Filtr
+Farelka to prawdziwe grzanie, nie usterka czujnika, więc strona ją pokazuje — o ile
+czujnik nie wisi tuż nad nią. 27.09 wisiał i mierzył strumień gorącego powietrza
+(26,9 °C), więc tamten poranek jest na liście znanych artefaktów, a czujnik został
+przestawiony poza nawiew. Filtr
 chwilowych skoków odsiewa wyłącznie nagłe wyskoki **ze spokojnego poziomu** (czujnik
 w dłoni); do 27.09 wycinał też środek grzania farelką i zostawiał na wykresie garb
 o złej godzinie. Skala barw rzutu bierze percentyle godzinowych średnich, więc pół
