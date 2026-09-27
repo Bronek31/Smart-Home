@@ -485,6 +485,13 @@ def drop_spikes(points: list[tuple[float, float]], kind: str | None) -> set[int]
     Trwała zmiana (włączony grzejnik, otwarte okno) nie wraca, więc zostaje.
     Dzięki temu dobowe min/max nie biorą się z chwili, w której ktoś wziął
     czujnik do ręki.
+
+    Wyskok zaczyna się od spokojnego poziomu. 27.09.2026 farelka w łazience
+    grzała przez pół godziny, 20,5 → 26,9 °C, i wracała przez dwie. Okno SPIKE_RISE
+    przesuwało bazę w górę razem z rampą, więc w połowie wzrostu baza stała już
+    na 21,7 °C, a do niej ogon „wracał" w 90 minut — i filtr wyciął środek
+    prawdziwego grzania, zostawiając garb o złej godzinie. Baza, przed którą
+    wartość już szła, leży w środku rampy, a nie przed skokiem.
     """
     jump, back = SPIKE_JUMP.get(kind), SPIKE_BACK.get(kind)
     if jump is None or len(points) < 3:
@@ -496,7 +503,14 @@ def drop_spikes(points: list[tuple[float, float]], kind: str | None) -> set[int]
         while k > 0 and points[i][0] - points[k - 1][0] <= SPIKE_RISE:
             k -= 1
         base = points[k][1]
-        if abs(points[i][1] - base) >= jump:
+        spokojnie = True
+        m = k - 1
+        while m >= 0 and points[k][0] - points[m][0] <= SPIKE_RISE:
+            if abs(points[m][1] - base) >= back:
+                spokojnie = False
+                break
+            m -= 1
+        if spokojnie and abs(points[i][1] - base) >= jump:
             j = i
             while (j < len(points) and points[j][0] - points[k][0] <= SPIKE_MAX
                    and abs(points[j][1] - base) >= back):

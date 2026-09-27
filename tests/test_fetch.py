@@ -135,6 +135,25 @@ class TestDropSpikes(unittest.TestCase):
         bad = fetch.drop_spikes(pkt, "temp")
         self.assertIn(2, bad, "szczyt 27.4 °C powinien zostać uznany za wyskok")
 
+    def test_farelka_to_nie_wyskok(self):
+        """Prawdziwe odczyty łazienki z 27.09.2026: farelka grzeje pół godziny,
+        potem pomieszczenie stygnie przez dwie. To jest prawdziwa temperatura, nie
+        artefakt czujnika — nic nie może zostać wycięte. Stara wersja filtra brała
+        za bazę punkt w połowie rampy (21,7 °C) i wycinała 17 odczytów od 22,7 do 26,9,
+        zostawiając na wykresie garb o złej godzinie."""
+        godz = lambda h, m, s=0: h * 3600.0 + m * 60 + s
+        pkt = [
+            (godz(7, 15, 26), 20.0), (godz(7, 54, 25), 20.5), (godz(7, 56, 25), 21.7),
+            (godz(7, 58, 25), 22.7), (godz(8, 0, 25), 23.4), (godz(8, 2, 25), 23.9),
+            (godz(8, 4, 35), 24.4), (godz(8, 7, 15), 24.9), (godz(8, 10, 35), 25.4),
+            (godz(8, 15, 24), 25.9), (godz(8, 19, 43), 26.4), (godz(8, 24, 22), 26.9),
+            (godz(8, 29, 11), 26.4), (godz(8, 31, 11), 25.7), (godz(8, 33, 12), 25.2),
+            (godz(8, 35, 51), 24.7), (godz(8, 39, 31), 24.2), (godz(8, 45, 10), 23.7),
+            (godz(8, 53, 38), 23.2), (godz(9, 8, 34), 22.7), (godz(9, 24, 29), 22.2),
+            (godz(9, 43, 34), 21.7), (godz(10, 21, 2), 21.2), (godz(11, 20, 43), 20.9),
+        ]
+        self.assertEqual(fetch.drop_spikes(pkt, "temp"), set())
+
     def test_okno_wzrostu_zgadza_sie_ze_strona(self):
         """Filtr działa w dwóch miejscach — w kolektorze i w przeglądarce — i musi
         odrzucać dokładnie to samo, bo inaczej agregaty dobowe rozjeżdżają się

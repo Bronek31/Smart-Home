@@ -223,14 +223,11 @@ test.describe('zakresy', () => {
     expect(bledy).toEqual([]);
   });
 
-  test('widok „całość" rysuje z agregatów i nie liczy wietrzeń', async ({ page }) => {
+  test('widok „całość" rysuje z agregatów', async ({ page }) => {
     const bledy = await otworz(page);
     await page.click('[data-tab="0"]');
     await page.waitForTimeout(400);
     await expect(page.locator('#summary caption')).toContainText('dobowe min/śr/max');
-    const wietrz = await page.$$eval('#summary tbody tr', (n) =>
-      n.map((r) => r.children[r.children.length - 1].textContent));
-    expect(new Set(wietrz)).toEqual(new Set(['–']));
     expect(bledy).toEqual([]);
   });
 });
@@ -407,8 +404,44 @@ test.describe('podpowiedzi i diagnostyka', () => {
   });
 
   test('kafel ostrzega, gdy pokój wyraźnie się nagrzewa', async ({ page }) => {
-    const bledy = await otworz(page, { trend: { pokoj: 'salon', tempo: 0.8 } });
+    const bledy = await otworz(page, { trend: { pokoj: 'salon', tempo: 0.5 } });
     await expect(page.locator('#pens')).toContainText(/↗/);
+    expect(bledy).toEqual([]);
+  });
+
+  /* Farelka, prysznic, otwarte okno: ruch szybszy, niż pokój potrafi sam z siebie.
+     Przedłużony linią prostą obiecywał „28° za godzinę" w łazience, która za godzinę
+     wracała do 21 °C. Seria podana wprost, bez fikstury i bez zegara. */
+  test('impuls nie jest przedłużany w prognozę, powolny trend dalej jest', async ({ page }) => {
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => {
+      const d = state.devices.find((x) => x.id === 'lazienka'), klucz = `${d.id}|${d.temp}`;
+      const teraz = Date.now(), seria = (tempo, koniec) => Array.from({ length: 9 }, (_, i) =>
+        ({ t: teraz - (8 - i) * 30 * 60e3, v: +(koniec - tempo * (8 - i) / 2).toFixed(2) }));
+      const zapas = state.indeks[klucz];
+      state.indeks[klucz] = seria(3, 25);
+      const impuls = dokadZmierza(d);
+      state.indeks[klucz] = seria(0.5, 27);
+      const powolny = dokadZmierza(d);
+      state.indeks[klucz] = zapas;
+      return { impuls, powolny };
+    });
+    expect(w.impuls, 'impuls przedłużony w prognozę').toBe('');
+    expect(w.powolny).toContain('28°');
+    expect(bledy).toEqual([]);
+  });
+
+  test('farelka nie jest ucinana jak chwilowy skok', async ({ page }) => {
+    // prawdziwe odczyty łazienki z 27.09.2026, minuty od 7:15
+    const bledy = await otworz(page);
+    const ciete = await page.evaluate(() => {
+      const min = [0, 39, 41, 43, 45, 47, 49.2, 51.8, 55.2, 60, 64.3, 69, 73.8, 75.8, 77.8,
+        80.4, 84.1, 89.7, 98.2, 113.1, 129.1, 148.1, 185.6, 245.3];
+      const v = [20.0, 20.5, 21.7, 22.7, 23.4, 23.9, 24.4, 24.9, 25.4, 25.9, 26.4, 26.9, 26.4,
+        25.7, 25.2, 24.7, 24.2, 23.7, 23.2, 22.7, 22.2, 21.7, 21.2, 20.9];
+      return despike(min.map((m, i) => ({ x: m * 60e3, y: v[i] })), 'temp').cut;
+    });
+    expect(ciete).toBe(0);
     expect(bledy).toEqual([]);
   });
 
@@ -526,150 +559,16 @@ test.describe('podpowiedzi i diagnostyka', () => {
     expect(bledy).toEqual([]);
   });
 
-  /* Wietrzenia liczymy wprost z policzWietrzenia(), a nie z ostatniej kolumny tabeli:
-     tabela ma własny przełącznik zakresu, więc test czytający ją sprawdzałby przy okazji
-     to, na jakim zakresie akurat stoi. Pułapka nazewnicza: policzWietrzenia(od) zwraca
-     {wietrz, klima, nazwy}, a nie mapę po identyfikatorze — pokój siedzi w .wietrz[id]. */
-  const ileWietrzen = (page, pokoj) => page.evaluate(
-    (id) => policzWietrzenia(odKiedy(168)).wietrz[id]?.length ?? 0, pokoj);
-
-  test('wietrzenie widać po samej temperaturze, gdy wilgotność nic nie mówi', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { wietrzenie: true });
-    expect(await ileWietrzen(page, 'salon')).toBeGreaterThan(0);
-    // pozostałe pokoje stoją spokojnie przez całą fiksturę — nie ma tam czego wykrywać
-    for (const inny of ['sypialnia', 'kuchnia', 'lazienka']) {
-      expect(await ileWietrzen(page, inny)).toBe(0);
-    }
-    expect(bledy).toEqual([]);
-  });
-
-  test('spokojne mieszkanie nie generuje żadnego wietrzenia', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    for (const pokoj of ['salon', 'sypialnia', 'kuchnia', 'lazienka']) {
-      expect(await ileWietrzen(page, pokoj)).toBe(0);
-    }
-    expect(bledy).toEqual([]);
-  });
-
-  /* Drugi test negatywny, z prawdziwej wpadki. 20.08.2026 detektor narysował wietrzenie
-     od 13 do 16 w czterech pokojach naraz — a okna były zamknięte od 8 do 18, bo na
-     dworze było cieplej niż w mieszkaniu. Ściany i słońce robią dokładnie to samo co
-     otwarte okno, tylko wolniej, a para z gotowania podciąga wilgotność bezwzględną
-     w stronę dworu bez żadnej wymiany powietrza. Zmierzone tamtej doby: przy zamkniętych
-     oknach temperatura dawała λ do 0,18/godz., a wilgotność aż do 2,45 — czyli więcej
-     niż przy większości prawdziwych wietrzeń. Dlatego wyzwala już tylko temperatura. */
-  test('upalne popołudnie przy zamkniętych oknach to nie jest wietrzenie', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { upalDzien: true });
-    /* Cała trudność tego dnia siedzi w wieczornym minięciu się krzywych: dwór schodzi
-       przez temperaturę pokoju i przez chwilę różnica między nimi jest zerowa. Właśnie
-       tam 29.08 powstawało fałszywe wietrzenie — z ruchu pokoju podzielonego przez lukę,
-       której nie było (patrz `pozorna` w index.html). Fikstura musi ten moment zawierać,
-       inaczej test przechodzi, nie sprawdzając tego, po co powstał. */
-    const zblizenie = await page.evaluate(() => {
-      const zew = kanalyPokoju(state.devices.find((x) => x.ext), odKiedy(168));
-      const k = kanalyPokoju(state.devices.find((x) => x.id === 'salon'), odKiedy(168));
-      return {
-        najblizej: Math.min(...k.temp.map((p) => {
-          const r = wartoscW(zew.temp, p.x, WIETRZ.odniesienie);
-          return r == null ? Infinity : Math.abs(r - p.y);
-        })),
-        prog: WIETRZ.luka.temp,
-      };
-    });
-    expect(zblizenie.najblizej, 'dwór nie mija pokoju, test nie sprawdza tego, co miał')
-      .toBeLessThan(zblizenie.prog);
-    expect(await ileWietrzen(page, 'salon')).toBe(0);
-    expect(bledy).toEqual([]);
-  });
-
-  test('sama wilgotność nie wystarcza, żeby ogłosić wietrzenie', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { upalDzien: true });
-    // fikstura ma w tym oknie mocny ruch wilgotności ku dworowi i słaby ruch temperatury
-    const kanaly = await page.evaluate(() => {
-      const d = state.devices.find((x) => x.id === 'salon');
-      const k = kanalyPokoju(d, odKiedy(168));
-      const zew = kanalyPokoju(state.devices.find((x) => x.ext), odKiedy(168));
-      const skok = (s, r) => Math.max(...s.slice(1).map((p, i) => {
-        const ref = wartoscW(r, p.x, WIETRZ.odniesienie);
-        const luka = ref == null ? 0 : ref - s[i].y;
-        return Math.abs(luka) < 0.4 ? 0 : (p.y - s[i].y) / luka;
-      }));
-      return { abs: skok(k.abs, zew.abs) };
-    });
-    expect(kanaly.abs, 'fikstura nie rusza wilgotnością, test nic nie sprawdza').toBeGreaterThan(0.2);
-    expect(await ileWietrzen(page, 'salon')).toBe(0);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Test negatywny, i to on jest tu najważniejszy: 19.08.2026 jedyne trzy pasma, jakie
-     dawny algorytm kiedykolwiek narysował, wzięły się z czujników trzymanych w dłoniach.
-     Powrót po takim zaburzeniu idzie w stronę dworu i wygląda dokładnie jak otwarte okno,
-     więc odsiewa go wyłącznie strażnik odbicia — a nie filtr skoków. Dlatego sprawdzamy
-     to także przy filtrze wyłączonym: wykrywanie ma stać na własnych nogach. */
-  test('czujnik w dłoni nie jest liczony jako wietrzenie', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { rekaNaCzujniku: true });
-    expect(await ileWietrzen(page, 'salon')).toBe(0);
-    expect(bledy).toEqual([]);
-  });
-
-  test('czujnik w dłoni nie jest liczony jako wietrzenie także bez filtra skoków', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { rekaNaCzujniku: true });
-    await page.uncheck('#filtr');
-    await page.waitForFunction(() => state.filtr === false);
-    expect(await ileWietrzen(page, 'salon')).toBe(0);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Próg 0,7 g/m³ nie zadziałał ani razu przez pięć dób, bo pokój nigdy tyle nie robi:
-     największy zmierzony ruch dwugodzinny to 0,50 g/m³. Nowy próg jest ułamkiem
-     dostępnej różnicy, więc nie wolno mu być bezwzględnym skokiem — ten test pilnuje,
-     żeby przy przyszłym strojeniu nikt nie wrócił do liczby gramów. */
-  test('próg wykrywania jest ułamkiem różnicy z dworem, nie skokiem w gramach', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const w = await page.evaluate(() => WIETRZ);
-    expect(w.tempo).toBeGreaterThan(0);
-    expect(w.tempo).toBeLessThan(1);
-    // ruch mniejszy niż dwa kroki kwantyzacji czujnika ma zostać uznany za szum
-    expect(w.ruch.temp).toBeGreaterThanOrEqual(0.2);
-    expect(w.ruch.abs).toBeGreaterThanOrEqual(0.2);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Pasma muszą być na wykresie, z którego wykrywanie skorzystało. Dopóki liczyła się
-     sama wilgotność, wystarczało jedno miejsce; od kiedy w letni wieczór całą robotę
-     wykonuje temperatura, pasmo pod samą wilgotnością zostawia użytkownika z pytaniem
-     „to skąd to wietrzenie", patrzącego na wykres, na którym nic nie widać. Wilgotności
-     względnej pasma nie dostają celowo — nie jest kanałem wykrywania. */
-  test('pasma wietrzenia są nad temperaturą i wilgotnością bezwzględną, ale nie nad względną', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { wietrzenie: true });
-    const ma = (id) => page.evaluate(
-      (k) => (state.charts[k].config.plugins || []).some((p) => p.id === 'pasma'), id);
-    expect(await ma('temp'), 'temperatura bez pasm').toBe(true);
-    expect(await ma('abs'), 'wilgotność bezwzględna bez pasm').toBe(true);
-    expect(await ma('hum'), 'wilgotność względna nie powinna mieć pasm').toBe(false);
-    expect(bledy).toEqual([]);
-  });
-
-  test('licznik i legenda wietrzeń stoją przy obu wykresach z pasmami', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { wietrzenie: true });
-    const liczniki = await page.$$eval('.wietrz-licznik', (n) => n.map((e) => e.textContent));
-    expect(liczniki.length).toBe(2);
-    for (const t of liczniki) expect(t).toMatch(/wietrzeni/);
-    const legendy = await page.$$eval('.pasma-legenda', (n) => n.filter((e) => !e.hidden).length);
-    expect(legendy).toBe(2);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Bez tolerancji wartoscW() dobierałoby najbliższy odczyt z dworu niezależnie od tego,
-     jak bardzo jest odległy — przy dłuższej ciszy Open-Meteo pokój porównywałby się
-     z pogodą sprzed wielu godzin i nikt by tego nie zauważył. */
+  /* Bez tolerancji wartoscW() dobierałoby najbliższy odczyt niezależnie od tego, jak
+     bardzo jest odległy — przy dłuższej ciszy Open-Meteo pasek zestawienia i próg pleśni
+     porównywałyby pokój z pogodą sprzed wielu godzin i nikt by tego nie zauważył. */
   test('odczyt z dworu sprzed wielu godzin nie jest brany za „teraz”', async ({ page }) => {
     const bledy = await otworzTydzien(page);
     const wynik = await page.evaluate(() => {
       const seria = [{ x: Date.now() - 9 * 3600e3, y: 12 }];
       return {
-        bliski: wartoscW(seria, Date.now() - 9 * 3600e3, WIETRZ.odniesienie),
-        daleki: wartoscW(seria, Date.now(), WIETRZ.odniesienie),
+        bliski: wartoscW(seria, Date.now() - 9 * 3600e3, MISS_GAP),
+        daleki: wartoscW(seria, Date.now(), MISS_GAP),
       };
     });
     expect(wynik.bliski).toBe(12);
@@ -978,7 +877,7 @@ test.describe('wygładzanie linii', () => {
     expect(bledy).toEqual([]);
   });
 
-  test('kotwica nie wchodzi do tabeli zakresów ani do wykrywania wietrzeń', async ({ page }) => {
+  test('kotwica nie wchodzi do tabeli zakresów', async ({ page }) => {
     const bledy = await otworzTydzien(page, { dni: 10, przesuniete: true });
     const w = await page.evaluate(() => {
       const od = odKiedy(168);
@@ -990,14 +889,11 @@ test.describe('wygładzanie linii', () => {
         kotwicaPrzedZakresem: s.points[0].x < od,
         statMin: s.stats.min, statMax: s.stats.max,
         oczMin: Math.min(...surowe), oczMax: Math.max(...surowe),
-        wykrywanieOdZakresu: kanalyPokoju(state.devices.find((d) => d.id === 'salon'), od)
-          .temp.every((p) => p.x >= od),
       };
     });
     expect(w.kotwicaPrzedZakresem, 'brak kotwicy, test nic nie sprawdza').toBe(true);
     expect(w.statMin).toBeCloseTo(w.oczMin, 6);
     expect(w.statMax).toBeCloseTo(w.oczMax, 6);
-    expect(w.wykrywanieOdZakresu, 'kotwica wyciekła do wykrywania wietrzeń').toBe(true);
     expect(bledy).toEqual([]);
   });
 

@@ -105,7 +105,7 @@ date,device_id,code,min,avg,max,n
 2026-08-24,bf5741c97c96fa85b1d7do,va_temperature,22.8,23.45,23.9,26
 2026-08-24,bf7e2a70935af7de78mjqt,va_humidity,41,44.84,48,25
 2026-08-24,bf7e2a70935af7de78mjqt,va_temperature,23.5,24.14,25,25
-2026-08-24,bfd6f4f87fea9d866dvpve,va_humidity,45,49.23,59,26
+2026-08-24,bfd6f4f87fea9d866dvpve,va_humidity,45,49.59,59,32
 2026-08-24,bfd6f4f87fea9d866dvpve,va_temperature,23.4,24.17,24.8,30
 2026-08-24,zewnatrz,va_humidity,30,50.21,71,24
 2026-08-24,zewnatrz,va_temperature,14.3,18.70,22.9,24
@@ -446,6 +446,6 @@ date,device_id,code,min,avg,max,n
 2026-09-27,bf7e2a70935af7de78mjqt,va_humidity,63,63.62,64,16
 2026-09-27,bf7e2a70935af7de78mjqt,va_temperature,20.2,20.48,21,16
 2026-09-27,bfd6f4f87fea9d866dvpve,va_humidity,62,67.17,73,35
-2026-09-27,bfd6f4f87fea9d866dvpve,va_temperature,19.9,20.51,22.2,18
+2026-09-27,bfd6f4f87fea9d866dvpve,va_temperature,19.9,22.54,26.9,35
 2026-09-27,zewnatrz,va_humidity,37,60.18,74,17
 2026-09-27,zewnatrz,va_temperature,11.6,15.08,20.8,17
