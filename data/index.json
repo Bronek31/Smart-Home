@@ -1,5 +1,5 @@
 {
-  "updated": "2026-09-27T20:22:52Z",
+  "updated": "2026-09-27T20:38:44Z",
   "months": [
     "2026-08",
     "2026-09"
@@ -7,6 +7,14 @@
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
   "alerty": [],
+  "artefakty": [
+    {
+      "czujnik": "bfd6f4f87fea9d866dvpve",
+      "od": "2026-09-27T07:50:00Z",
+      "do": "2026-09-27T11:00:00Z",
+      "powod": "farelka tuż pod czujnikiem — mierzył strumień gorącego powietrza, nie łazienkę (20,5 → 26,9 °C w pół godziny)"
+    }
+  ],
   "devices": {
     "bfe38c4af789b0c8fbxte4": {
       "name": "FERSK VIND 2",
