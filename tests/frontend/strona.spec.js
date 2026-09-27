@@ -351,6 +351,25 @@ test.describe('rzut mieszkania i odtwarzanie', () => {
     expect(bledy).toEqual([]);
   });
 
+  /* Farelka to pół godziny w tygodniu. Skala rzutu nie może się od niej rozjechać,
+     bo wtedy cztery pokoje dostają jeden odcień (27.09: skala 19–27 °C przy pokojach
+     w 19,9–21,0). Impuls dokładamy do prawdziwej serii i patrzymy, o ile ruszył skalę. */
+  test('farelka nie rozciąga skali barw rzutu', async ({ page }) => {
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => {
+      const d = state.devices.find((x) => x.id === 'lazienka'), klucz = `${d.id}|${d.temp}`;
+      const od = Date.now() - 7 * 24 * 3600e3, przed = skalaCieplna(od, Date.now());
+      const zapas = state.indeks[klucz], t0 = Date.now() - 30 * 3600e3;
+      const impuls = Array.from({ length: 15 }, (_, i) => ({ t: t0 + i * 2 * 60e3, v: 21 + 6 * Math.sin(Math.PI * i / 14) }));
+      state.indeks[klucz] = [...zapas, ...impuls].sort((a, b) => a.t - b.t);
+      const po = skalaCieplna(od, Date.now());
+      state.indeks[klucz] = zapas;
+      return { przed, po };
+    });
+    expect(w.po.max - w.przed.max, 'impuls rozciągnął skalę').toBeLessThan(0.5);
+    expect(bledy).toEqual([]);
+  });
+
   test('rzut podpisuje strony świata', async ({ page }) => {
     await otworz(page);
     const strony = await page.$$eval('#floor .rm-strona', (n) => n.map((x) => x.textContent));
@@ -543,6 +562,25 @@ test.describe('podpowiedzi i diagnostyka', () => {
     const bledy = await otworz(page, { pogodaGodzinowa: 'brak' });
     await expect(page.locator('.wx-tip')).toBeVisible();
     expect(await page.locator('.wx-okno').count()).toBe(0);
+    expect(bledy).toEqual([]);
+  });
+
+  /* GitHub potrafi opóźniać harmonogram kolektora o kilka godzin. Czujnik odpowiada za to,
+     co zdążył wysłać przed zbiórką — wcześniej strona mierzyła do „teraz" i przy każdym
+     opóźnieniu mówiła „0/4 OK · 4 uwaga" obok zdarzenia „to nie wina czujników". */
+  test('spóźniony kolektor nie robi z czujników milczących', async ({ page }) => {
+    const bledy = await otworz(page, { opoznienieZbiorki: 5 });
+    await expect(page.locator('#statusbar')).toContainText('4/4 OK');
+    await expect(page.locator('#events')).toContainText('Kolektor nie zapisał');
+    await expect(page.locator('#events')).not.toContainText('milczał');
+    await expect(page.locator('#pens .dot.warn, #pens .dot.bad')).toHaveCount(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('przy spóźnionym kolektorze naprawdę milczący czujnik dalej jest widać', async ({ page }) => {
+    const bledy = await otworz(page, { opoznienieZbiorki: 5, martwy: 'kuchnia' });
+    await expect(page.locator('#events')).toContainText('Kolektor nie zapisał');
+    await expect(page.locator('#events')).toContainText('Kuchnia — milczał');
     expect(bledy).toEqual([]);
   });
 

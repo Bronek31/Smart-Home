@@ -241,18 +241,30 @@ const PLAN={w:400,h:500,door:[20,192,20,246],
    subtelnie), i podpisane końce w legendzie, bo skala względna bez podpisu kłamie. */
 const HEAT_MIN=19,HEAT_MAX=28;   // skala awaryjna, gdy w oknie nie ma odczytów
 const SKALA_ROZPIETOSC=1.0,SKALA_MARGINES=0.15;
+/* Końce skali to percentyle godzinowych średnich, nie skrajne odczyty. Farelka 27.09
+   (26,9 °C w łazience przy pokojach 19,9–21,0) rozciągnęła skalę do 19–27 °C i cztery
+   pokoje dostały jeden odcień. Pół godziny grzania to jedna z ok. 670 pokojo-godzin
+   tygodnia, więc odcięcie 5% z każdej strony zabiera impulsy — farelkę, prysznic, otwarte
+   okno — a zostawia to, jak pokoje naprawdę żyją. Średnia godzinowa, bo przy szybkiej
+   zmianie czujnik raportuje co dwie minuty: w surowych odczytach pół godziny farelki
+   waży tyle, co pół doby spokoju. Wartość spoza skali dostaje barwę jej końca. */
+const SKALA_BRZEG=0.05;
 function skalaCieplna(od,koniec){
-  let min=Infinity,max=-Infinity;
+  const godz=[];
   for(const d of state.devices){
     if(d.ext||!d.temp)continue;      // pogoda waha się o kilkanaście stopni i rozwaliłaby skalę
+    const kubelki=new Map();
     for(const r of state.indeks?.[`${d.id}|${d.temp}`]||[]){
       if(r.t<od||r.t>koniec)continue;
-      if(r.v<min)min=r.v;
-      if(r.v>max)max=r.v;
+      const k=Math.floor(r.t/3600e3),b=kubelki.get(k)||[0,0];
+      b[0]+=r.v;b[1]++;kubelki.set(k,b);
     }
+    for(const[suma,n]of kubelki.values())godz.push(suma/n);
   }
-  if(!isFinite(min))return{min:HEAT_MIN,max:HEAT_MAX};
-  min-=SKALA_MARGINES;max+=SKALA_MARGINES;
+  if(!godz.length)return{min:HEAT_MIN,max:HEAT_MAX};
+  godz.sort((a,b)=>a-b);
+  const q=p=>godz[Math.round(p*(godz.length-1))];
+  let min=q(SKALA_BRZEG)-SKALA_MARGINES,max=q(1-SKALA_BRZEG)+SKALA_MARGINES;
   const brak=SKALA_ROZPIETOSC-(max-min);
   if(brak>0){min-=brak/2;max+=brak/2}
   return{min,max};
@@ -575,7 +587,7 @@ function healthFor(d,from){
   // przerwa jest podejrzana dopiero gdy przekracza rytm heartbeatu, nie medianę odstępów
   const suspicious=worst!=null&&worst>MISS_GAP;
   const missed=suspicious?Math.max(1,Math.round(worst/HEARTBEAT)-1):0;
-  const age=last?Date.now()-last:Infinity;
+  const age=last?Math.max(0,chwilaZbiorki()-last):Infinity;
   const batt=lastBattery(d);
   const humHigh=humLoad(d,from,HUM_ALERT);
   let status='ok';
@@ -584,7 +596,13 @@ function healthFor(d,from){
   return{d,nT:T.length,nH:H.length,median,worst,paired,last,batt,status,gaps,times,suspicious,missed,humHigh,age};
 }
 
-function computeHealth(){const from=Date.now()-24*3600e3;state.health=state.devices.filter(d=>!d.ext).map(d=>healthFor(d,from));return state.health}
+/* Diagnostyka mierzy do chwili ostatniej zbiórki, nie do „teraz". GitHub potrafi opóźniać
+   harmonogram kolektora o kilka godzin (od końca sierpnia to norma) i wtedy każdy czujnik
+   wyglądał na milczący: kafle mówiły „0/4 OK · 4 uwaga" obok zdarzenia „to nie wina
+   czujników". Czujnik odpowiada za to, co zdążył wysłać przed zbiórką — spóźnienie samego
+   kolektora zgłasza osobno kafel „Ostatnia zbiórka" i zdarzenie. */
+const chwilaZbiorki=()=>Math.min(Date.now(),state.updated??Date.now());
+function computeHealth(){const from=chwilaZbiorki()-24*3600e3;state.health=state.devices.filter(d=>!d.ext).map(d=>healthFor(d,from));return state.health}
 function renderStatus(){const hs=state.health,ok=hs.filter(r=>r.status==='ok').length,warn=hs.filter(r=>r.status==='warn').length,bad=hs.filter(r=>r.status==='bad').length,last=Math.max(0,...hs.map(r=>r.last||0));const lag=state.updated?Date.now()-state.updated:null;const box=(k,v,cls='')=>`<div class="statusbox"><div class="k">${k}</div><div class="v ${cls}">${v}</div></div>`;document.getElementById('statusbar').innerHTML=box('Czujniki',`<span class="dot ${bad?'bad':warn?'warn':''}"></span>${ok}/${hs.length} OK${warn?` · ${warn} uwaga`:''}${bad?` · ${bad} problem`:''}`)+box('Ostatni raport czujnika',last?fmtAgo(last):'brak danych')+box('Ostatnia zbiórka',state.updated?fmtAgo(state.updated):'–',lag!=null&&lag>STALE_WARN?'warn-text':'')+box('Najdłuższa przerwa',fmtDur(Math.max(0,...hs.map(r=>r.worst||0))))}
 
 /* --- Dokąd to zmierza ---
@@ -1605,13 +1623,15 @@ function renderWeather(){
 }
 function renderEvents(){
   const ev=[],lag=state.updated?Date.now()-state.updated:null;
-  // gdy stoi kolektor, wszystkie czujniki wyglądają na martwe — mówimy to raz, zamiast czterech fałszywych alarmów
+  // wiek czujników liczy się do chwili zbiórki, więc spóźniony kolektor nie robi z nich martwych
+  // i oba rodzaje zdarzeń mogą stać obok siebie
   if(lag!=null&&lag>STALE_WARN){
     ev.push({t:state.updated,status:lag>STALE_BAD?'bad':'warn',text:`Kolektor nie zapisał nic od ${fmtDur(lag)} — sprawdź zakładkę Actions, to nie wina czujników`});
-  }else{
+  }
+  {
     state.health.forEach(r=>{
       if(r.suspicious){const idx=r.gaps.indexOf(r.worst);ev.push({t:r.times[idx+1]||r.last,status:'warn',text:`${esc(r.d.name)} — cisza przez ${fmtDur(r.worst)}, przepadło ok. ${plRap(r.missed)}`})}
-      if(r.age>STALE_WARN&&isFinite(r.age))ev.push({t:r.last,status:r.age>STALE_BAD?'bad':'warn',text:`${esc(r.d.name)} — ostatni raport ${fmtAgo(r.last)}`});
+      if(r.age>STALE_WARN&&isFinite(r.age))ev.push({t:r.last,status:r.age>STALE_BAD?'bad':'warn',text:`${esc(r.d.name)} — milczał ${fmtDur(r.age)} przed ostatnią zbiórką`});
       if(r.batt==='niski')ev.push({t:r.last,status:'warn',text:`${esc(r.d.name)} — bateria na wyczerpaniu, wymień ogniwo`});
       if(r.humHigh>=.25)ev.push({t:r.last,status:'warn',text:`${esc(r.d.name)} — wilgotność powyżej ${HUM_ALERT}% przez ${Math.round(r.humHigh*100)}% doby, przewietrz`});
     });
