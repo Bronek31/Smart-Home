@@ -176,6 +176,19 @@ listę. Pierwsza wersja pliku miała w opisie cudzysłów zamknięty zwykłym `"
 nie parsował, a kolektor po cichu uznawał listę za pustą. Złapał to test
 `test_prawdziwy_plik_artefaktow_jest_poprawny`; zostaje właśnie po to.
 
+### Luka po artefakcie i odświeżanie
+
+Pierwsza wersja artefaktów zostawiała na wykresie dziurę: po schowaniu farelki między
+sąsiednimi odczytami były ponad 4 godziny, a linia łączy się tylko przez 3 (spanGaps).
+Właściciel zobaczył to od razu jako „lukę w danych". Teraz `mostkuj()` dokłada przy
+rysowaniu punkty pomocnicze co najwyżej godzinę od siebie, a odcinek rysuje się kropkami;
+w rytmie doby kratki artefaktu są odtwarzane z sąsiadów. Granica zostaje: prawdziwą ciszę
+czujnika dalej widać jako przerwę.
+
+Odświeżanie: `odswiezDane()` przy powrocie do karty (≥ 2 min) i co 10 min; przerysowuje
+tylko przy zmianie `updated`. Farelka 27.09 o 20:55 UTC była pierwszą po przestawieniu
+czujnika — prawdziwe grzanie, na liście artefaktów jej nie ma.
+
 ### Odtwarzanie historii — schowane, nie usunięte
 
 Na życzenie. Przełącznik `ODTWARZANIE`, a testy włączają kod flagą
@@ -682,7 +695,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | | |
 |---|---|
 | Testy kolektora | **84** (`python -m unittest discover -s tests`) |
-| Testy strony | **125** (`cd tests/frontend && npx playwright test`) |
+| Testy strony | **130** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 30 zapytań Tuya na przebieg · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |

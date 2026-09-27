@@ -996,6 +996,27 @@ const WYGLADZ_LUKA=2*HEARTBEAT;   // dalej niż to sąsiad jest z innej epoki i 
    A na prawdziwych danych brzegiem jest **ostatni odczyt**, czyli „teraz" — ten, na
    który się patrzy — i przy wietrzeniu potrafi lecieć 0,5 °C w dwanaście minut.
    Rysowanie go z połową tego skoku byłoby kłamstwem dokładnie tam, gdzie boli. */
+/* Mostek przez ukryty artefakt. Po schowaniu farelki między ostatnim odczytem przed nią
+   a pierwszym po niej są cztery godziny, a linia łączy się tylko przez krótsze przerwy
+   (spanGaps) — więc w miejscu artefaktu robiła się dziura wyglądająca jak zgubione dane.
+   Tu wiemy, że czujnik działał, tylko jego odczyty nie opisują pokoju: dokładamy punkty
+   pomocnicze na prostej między sąsiadami (co najwyżej godzinę od siebie, żeby spanGaps
+   je połączył), oznaczone `most`, a draw() rysuje ten odcinek kropkami. Pomocnicze
+   punkty nie wchodzą do dymka ani do żadnej statystyki — powstają dopiero przy rysowaniu. */
+function mostkuj(pkt,d){
+  if(!state.filtr||d.ext||pkt.length<2)return pkt;
+  const moje=state.artefakty.filter(a=>a.id===d.id);
+  if(!moje.length)return pkt;
+  const out=[];
+  for(let i=0;i<pkt.length;i++){
+    out.push(pkt[i]);
+    const a=pkt[i],b=pkt[i+1];
+    if(!b||!moje.some(x=>x.od<=b.x&&x.do>=a.x&&x.od>=a.x-MISS_GAP&&x.do<=b.x+MISS_GAP))continue;
+    const n=Math.ceil((b.x-a.x)/HEARTBEAT);
+    for(let k=1;k<n;k++){const t=a.x+(b.x-a.x)*k/n;out.push({x:t,y:a.y+(b.y-a.y)*k/n,most:true})}
+  }
+  return out;
+}
 function wygladz(pkt){
   if(pkt.length<3)return pkt;
   return pkt.map((p,i)=>{
@@ -1047,7 +1068,7 @@ function draw(canvasId,sets,unit,decimals,extra=[],os=null,bezX=false){
   const pelne=os||zakresOsi(sets),w=oknoRysowania(pelne);
   // agregaty dobowe to już średnie z całej doby — nie ma w nich schodka do wygładzania
   const glad=!useDaily();
-  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:glad&&!s.device.ext?wygladz(s.points):s.points,borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],order:1,pointRadius:c=>s.points.length<=SAMOTNE?2.6:(!s.device.ext&&c.dataIndex===c.dataset.data.length-1?2.6:0),pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',min:w?w.min:undefined,...(w?{max:w.max}:{}),afterBuildTicks:s=>{const mk=useDaily()?24:1;krokH=krokPodzialki(s.min,s.max,s.chart.width,mk);s.ticks=timeTicks(s.min,s.max,s.chart.width,mk)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{display:!bezX,color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),krokH)}},y:{afterFit:sc=>{sc.width=OS_Y},afterDataLimits:domknijKrawedzie,border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{precision:decimals,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.raw?.v??item.parsed.y,decimals)} ${unit}`}}}}};state.charts[canvasId]?.destroy();const ch=state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);ch.$pelne=pelne;}
+  const cfg={type:'line',plugins:[dotyk,pustka,znacznik,...extra],data:{datasets:sets.map(s=>({label:s.device.name,data:mostkuj(glad&&!s.device.ext?wygladz(s.points):s.points,s.device),segment:{borderDash:c=>c.p0.raw?.most||c.p1.raw?.most?[2,4]:undefined},borderColor:s.device.color,backgroundColor:s.device.color,borderWidth:s.device.ext?1.2:1.5,borderDash:s.device.ext?[5,4]:[],order:1,pointRadius:c=>s.points.length<=SAMOTNE?2.6:(!s.device.ext&&c.dataIndex===c.dataset.data.length-1?2.6:0),pointHitRadius:12,tension:.18,spanGaps:useDaily()?3*24*3600e3:3*3600e3}))},options:{responsive:true,maintainAspectRatio:false,animation:false,interaction:{mode:'index',intersect:false},layout:{padding:{right:16,top:6}},scales:{x:{type:'time',min:w?w.min:undefined,...(w?{max:w.max}:{}),afterBuildTicks:s=>{const mk=useDaily()?24:1;krokH=krokPodzialki(s.min,s.max,s.chart.width,mk);s.ticks=timeTicks(s.min,s.max,s.chart.width,mk)},border:{color:C('--edge')},grid:{tickLength:4,color:ctx=>ctx.tick&&isMidnight(new Date(ctx.tick.value))?C('--grid-day'):C('--grid')},ticks:{display:!bezX,color:C('--dim'),font:{family:'IBM Plex Sans Condensed',size:11},maxRotation:0,autoSkip:false,callback:v=>fmtWhen(new Date(v),krokH)}},y:{afterFit:sc=>{sc.width=OS_Y},afterDataLimits:domknijKrawedzie,border:{color:C('--edge')},grid:{color:C('--grid')},ticks:{precision:decimals,color:C('--dim'),font:{family:'IBM Plex Mono',size:11},callback:v=>fmtNum(v,decimals)}}},plugins:{legend:{display:false},tooltip:{backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:'IBM Plex Sans Condensed',size:11,weight:'600'},bodyFont:{family:'IBM Plex Mono',size:12},callbacks:{title:items=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(items[0].parsed.x)),label:item=>` ${item.dataset.label}  ${fmtNum(item.raw?.v??item.parsed.y,decimals)} ${unit}`},filter:item=>!item.raw?.most}}}};state.charts[canvasId]?.destroy();const ch=state.charts[canvasId]=new Chart(document.getElementById(canvasId),cfg);ch.$pelne=pelne;}
 /* Chart.js leci z CDN, więc jedna zablokowana domena albo jego awaria i wykresów
    nie ma. Bez tej klamry wyjątek z draw() przerywał render() w połowie i zabierał ze
    sobą obie tabele oraz stempel w nagłówku — czyli rzeczy, które z wykresami nie mają
@@ -1829,7 +1850,10 @@ const MAPA_GODZ=24,RYTM_DNI=30;   // mapa pokazuje ostatni miesiąc, niezależni
    kreskowaną ramkę i dopisek w dymku — ma nie udawać pomiaru. Gdy przerwa przekracza
    MISS_GAP, czyli czujnik naprawdę milczał, pole zostaje czarne: nie ma z czego odtwarzać
    i nie wolno tego zamalowywać. */
-function zszyjDziury(kubelki,dni,seria){
+/* Dłuższa przerwa zostaje czarna, bo milczącego czujnika nie wolno domalowywać — chyba
+   że przerwę zrobiliśmy sami, chowając znany artefakt. Wtedy czujnik działał, tylko jego
+   odczyty nie opisywały pokoju, więc kratkę odtwarzamy z sąsiadów i podpisujemy, skąd jest. */
+function zszyjDziury(kubelki,dni,seria,id){
   if(seria.length<2)return;
   for(const dzien of dni)for(let g=0;g<MAPA_GODZ;g++){
     const klucz=`${dzien}|${g}`;
@@ -1837,9 +1861,12 @@ function zszyjDziury(kubelki,dni,seria){
     const[Y,M,D]=dzien.split('-').map(Number),srodek=new Date(Y,M-1,D,g,30).getTime();
     let i=0;while(i<seria.length&&seria[i].t<srodek)i++;
     const przed=seria[i-1],po=seria[i];
-    if(!przed||!po||po.t-przed.t>MISS_GAP)continue;
+    if(!przed||!po)continue;
+    const dluga=po.t-przed.t>MISS_GAP;
+    const artefakt=dluga&&state.filtr&&state.artefakty.some(a=>a.id===id&&a.od<=po.t&&a.do>=przed.t&&a.od-przed.t<=MISS_GAP&&po.t-a.do<=MISS_GAP);
+    if(dluga&&!artefakt)continue;
     const w=(srodek-przed.t)/(po.t-przed.t);
-    kubelki.set(klucz,{n:1,suma:przed.v+(po.v-przed.v)*w,dzien,godz:g,zszyte:true});
+    kubelki.set(klucz,{n:1,suma:przed.v+(po.v-przed.v)*w,dzien,godz:g,zszyte:true,artefakt});
   }
 }
 function siatkaDoby(d){
@@ -1853,7 +1880,7 @@ function siatkaDoby(d){
   }
   if(!kubelki.size)return null;
   const dni=[...new Set([...kubelki.values()].map(b=>b.dzien))].sort();
-  zszyjDziury(kubelki,dni,(state.indeks?.[`${d.id}|${d.temp}`]||[]).filter(r=>r.t>=od));
+  zszyjDziury(kubelki,dni,(state.indeks?.[`${d.id}|${d.temp}`]||[]).filter(r=>r.t>=od),d.id);
   let min=Infinity,max=-Infinity;
   for(const b of kubelki.values()){const v=b.suma/b.n;if(v<min)min=v;if(v>max)max=v}
   return{kubelki,dni,min,max};      // surowe krańce; rozciąga je dopiero skalaMapy()
@@ -2155,7 +2182,7 @@ function renderRytm(){
       const b=s.kubelki.get(`${dzien}|${g}`);
       if(!b){kom.push('<span class="cell"></span>');continue}
       const v=b.suma/b.n;
-      kom.push(`<span class="cell${b.zszyte?' zszyte':''}" style="background:${rgba(barwaK((v-zakres.min)/(zakres.max-zakres.min)),.85)}" title="${dzien.slice(8)}.${dzien.slice(5,7)} ${pad(g)}:00 · ${fmtNum(v,1)} °C${b.zszyte?' · odtworzone z sąsiednich odczytów, czujnik nie zdążył z raportem':''}"></span>`);
+      kom.push(`<span class="cell${b.zszyte?' zszyte':''}" style="background:${rgba(barwaK((v-zakres.min)/(zakres.max-zakres.min)),.85)}" title="${dzien.slice(8)}.${dzien.slice(5,7)} ${pad(g)}:00 · ${fmtNum(v,1)} °C${b.artefakt?' · ukryty znany artefakt, odtworzone z sąsiednich odczytów':b.zszyte?' · odtworzone z sąsiednich odczytów, czujnik nie zdążył z raportem':''}"></span>`);
     }
   }
   mapa.innerHTML=kom.join('');

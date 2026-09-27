@@ -15,15 +15,6 @@ data wygaśnięcia triala Tuya. Zostają dwie rzeczy cykliczne, obie w kalendarz
 Gdyby któreś przepadło: pierwsze objawi się powrotem do odczytów co 3–5 godz.,
 drugie zgłoszeniem „Kolektor stoi" z kodem `28841002`.
 
-## Do zrobienia
-
-- **Strona sama dociąga świeże dane.** Dziś pobiera je tylko przy otwarciu. Zainstalowana
-  na telefonie działa w trybie `standalone`, czyli bez przycisku odświeżania, a telefon
-  trzyma ją w tle godzinami — po powrocie widać stan z chwili ostatniego otwarcia, choć
-  kolektor ma już nowsze odczyty. Dociągać przy powrocie do karty (`visibilitychange`)
-  i co kilka minut, gdy jest otwarta; pamięć podręczną miesięcy (`monthCache`) czyścić
-  przynajmniej dla bieżącego miesiąca.
-
 ## Do sprawdzenia po kilku tygodniach grzania
 
 Kaloryfery ruszają 1.10, a farelka w łazience będzie chodzić codziennie. Dwa progi
@@ -56,6 +47,9 @@ dobrane są na danych bez ogrzewania — w listopadzie przyłożyć je do nowych
 
 ## Zrobione
 
+- **Strona sama dociąga świeże dane** (27.09) — przy powrocie do karty i co 10 minut;
+  zainstalowana na telefonie nie ma przycisku odświeżania.
+- **Znane artefakty** (27.09) — `artefakty.json`; ukryte odczyty mostkowane kropkami.
 - **Rzut w trybie „wilgotność a pleśń", kalendarz całej historii** (27.09). Widżety na
   telefon zrobione i wycofane tego samego dnia — strona zainstalowana jako aplikacja
   wystarcza; na iPhonie poprawione miejsce pod paskiem stanu.

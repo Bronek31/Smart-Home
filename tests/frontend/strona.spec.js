@@ -679,6 +679,34 @@ test.describe('znane artefakty', () => {
     expect(bledy).toEqual([]);
   });
 
+  /* Luka po ukrytym artefakcie nie może wyglądać jak zgubione dane: na wykresie mostek
+     kropkami, w rytmie doby odtworzona kratka zamiast czarnej. Artefakt w fiksturze
+     trwa trzy godziny — dłużej niż spanGaps i MISS_GAP — więc bez tego zostaje dziura. */
+  test('luka po artefakcie jest mostkowana, a nie wygląda jak zgubione dane', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { artefakty: [{ czujnik: 'lazienka', odGodz: 30, doGodz: 26 }] });
+    const w = await page.evaluate(() => {
+      const zb = state.charts.temp.data.datasets.find((d) => d.label === 'Łazienka').data;
+      const mosty = zb.filter((p) => p.most);
+      const naj = Math.max(...zb.slice(1).map((p, i) => p.x - zb[i].x));
+      const od = Date.now() - 30 * 3600e3, doK = Date.now() - 26 * 3600e3;
+      const siatka = siatkaDoby(state.devices.find((d) => d.id === 'lazienka'));
+      const kratki = [...siatka.kubelki.values()].filter((b) => b.artefakt).length;
+      return { mosty: mosty.length, najwiekszaPrzerwa: naj, kratki, wOknie: mosty.every((p) => p.x > od - MISS_GAP && p.x < doK + MISS_GAP) };
+    });
+    expect(w.mosty, 'brak mostka przez artefakt').toBeGreaterThan(0);
+    expect(w.wOknie).toBe(true);
+    expect(w.najwiekszaPrzerwa, 'linia dalej się urywa').toBeLessThanOrEqual(3 * 3600e3);
+    expect(w.kratki, 'rytm doby ma czarne kratki w miejscu artefaktu').toBeGreaterThan(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('mostki powstają tylko przy rysowaniu, nie w statystykach', async ({ page }) => {
+    const bledy = await otworzTydzien(page, { artefakty: [{ czujnik: 'lazienka', odGodz: 30, doGodz: 26 }] });
+    const w = await page.evaluate(() => series('temp', 168, false).find((x) => x.device.id === 'lazienka').points.some((p) => p.most));
+    expect(w).toBe(false);
+    expect(bledy).toEqual([]);
+  });
+
   test('zły wpis jest pomijany, a strona żyje dalej', async ({ page }) => {
     const bledy = await otworz(page);
     const w = await page.evaluate(() => wczytajArtefakty([

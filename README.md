@@ -473,6 +473,17 @@ artefakty", z dopiskiem „ukryto znany artefakt" przy wykresach. Diagnostyka ł
 i kafle liczą się dalej ze wszystkiego, bo czujnik w tym czasie raportował jak należy.
 Po zmianie pliku wystarczy push — kolektor przeliczy agregaty przy najbliższym przebiegu.
 
+Ukryty artefakt nie zostawia dziury: na wykresie linia przechodzi przez niego kropkami
+(punkty pomocnicze powstają tylko przy rysowaniu, nie wchodzą do dymka ani statystyk),
+a w rytmie doby jego godziny są odtworzone z sąsiednich odczytów i tak podpisane.
+Prawdziwa, dłuższa cisza czujnika dalej zostaje przerwą i czarną kratką.
+
+### Odświeżanie
+
+Strona sama dociąga dane: przy powrocie do karty po co najmniej 2 minutach i co
+10 minut, gdy jest widoczna. Przerysowuje się tylko wtedy, gdy kolektor coś dopisał
+(zmienił się `updated` w manifeście); zakres, przybliżenie i przełączniki zostają.
+
 ### Farelka w łazience
 
 Farelka to prawdziwe grzanie, nie usterka czujnika, więc strona ją pokazuje — o ile
