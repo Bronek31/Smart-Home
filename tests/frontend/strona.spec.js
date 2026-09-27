@@ -1550,6 +1550,16 @@ test.describe('odporność', () => {
 });
 
 test.describe('pliki towarzyszące', () => {
+  /* Strażnik, nie test: iPhona w Chromium nie da się udać. Na iPhonie strona dodana do
+     ekranu początkowego ma przezroczysty pasek stanu i bez tych dwóch rzeczy nagłówek
+     wchodzi pod zegar — a wycięcie którejkolwiek z nich wygląda jak porządki. */
+  test('na iPhonie strona zostawia miejsce pod paskiem stanu (strażnik)', async () => {
+    const html = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'index.html'), 'utf8');
+    expect(html).toMatch(/name="apple-mobile-web-app-status-bar-style" content="black-translucent"/);
+    expect(html).toMatch(/name="viewport" content="[^"]*viewport-fit=cover/);
+    expect(html).toMatch(/\.sheet\{padding-top:max\(var\(--gap\),env\(safe-area-inset-top\)\)/);
+  });
+
   // jedyny test, w którym worker ma działać — reszta go blokuje, bo omijałby podstawione dane
   test.describe('z włączonym service workerem', () => {
     test.use({ serviceWorkers: 'allow' });

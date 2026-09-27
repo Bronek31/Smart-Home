@@ -56,8 +56,9 @@ dobrane są na danych bez ogrzewania — w listopadzie przyłożyć je do nowych
 
 ## Zrobione
 
-- **Rzut w trybie „wilgotność a pleśń", kalendarz całej historii, widżety na telefon**
-  (27.09) — `data/teraz.json` z kolektora, Scriptable na iPhone'a, KWGT na Androida.
+- **Rzut w trybie „wilgotność a pleśń", kalendarz całej historii** (27.09). Widżety na
+  telefon zrobione i wycofane tego samego dnia — strona zainstalowana jako aplikacja
+  wystarcza; na iPhonie poprawione miejsce pod paskiem stanu.
 - **Strefa komfortu i noce w sypialni** (27.09) — wykres temperatura × wilgotność
   z polem 20–24 °C / 40–60% i procentem czasu w polu dla każdego pokoju; ostatnie 14 nocy
   w sypialni na tle strefy optymalnej do snu 16–19 °C. We wrześniu żadna noc nie zeszła poniżej

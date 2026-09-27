@@ -164,57 +164,6 @@ class TestDropSpikes(unittest.TestCase):
         self.assertEqual(int(wzorzec.group(1)) * 60, fetch.SPIKE_RISE)
 
 
-class TestTeraz(WKatalogu):
-    """Plik dla widżetów na telefonie: ostatnie odczyty, próg pleśni i gotowy tekst."""
-
-    def manifest(self):
-        return {
-            "sprzet": {"name": "Klimatyzator", "appliance": True, "codes": {
-                "switch": {"kind": "power", "unit": "", "scale": 0}}},
-            "salon": {"name": "Salon", "codes": {
-                "va_temperature": {"kind": "temp", "unit": "℃", "scale": 1},
-                "va_humidity": {"kind": "hum", "unit": "%", "scale": 0}}},
-            "kuchnia": {"name": "Kuchnia", "codes": {
-                "va_temperature": {"kind": "temp", "unit": "℃", "scale": 1},
-                "va_humidity": {"kind": "hum", "unit": "%", "scale": 0}}},
-            "pogoda": {"name": "Na zewnątrz", "external": True, "codes": {
-                "va_temperature": {"kind": "temp", "unit": "°C", "scale": 0},
-                "va_humidity": {"kind": "hum", "unit": "%", "scale": 0}}},
-        }
-
-    def test_ostatnie_odczyty_prog_i_tekst(self):
-        miesiac = datetime.now(timezone.utc).strftime("%Y-%m")
-        self.zapisz(miesiac, [
-            (ts(-3), "salon", "va_temperature", "22"), (ts(-3), "salon", "va_humidity", "50"),
-            (ts(-1), "salon", "va_temperature", "20.1"), (ts(-1), "salon", "va_humidity", "58"),
-            (ts(-1), "kuchnia", "va_temperature", "20"), (ts(-1), "kuchnia", "va_humidity", "62"),
-            (ts(-1), "pogoda", "va_temperature", "0"), (ts(-1), "pogoda", "va_humidity", "90"),
-            (ts(-1), "sprzet", "switch", "1"),
-        ])
-        stan = fetch.write_teraz(self.manifest())
-        zapisany = json.loads(fetch.TERAZ.read_text(encoding="utf-8"))
-        self.assertEqual(stan, zapisany)
-        self.assertEqual([p["nazwa"] for p in stan["pokoje"]], ["Salon", "Kuchnia"])   # bez sprzętu i dworu
-        salon, kuchnia = stan["pokoje"]
-        self.assertEqual((salon["t"], salon["h"]), (20.1, 58.0))                        # ostatni, nie pierwszy
-        # przy 0 °C na dworze próg dla 20 °C to ok. 55% — kuchnia z 62% jest ponad nim
-        self.assertEqual(kuchnia["prog"], 55)
-        self.assertTrue(kuchnia["plesn"])
-        self.assertTrue(salon["plesn"])
-        linie = stan["tekst"].split("\n")
-        self.assertEqual(linie[0], "Salon 20,1° 58% ⚠")
-        self.assertEqual(linie[2], "Na zewnątrz 0,0°")
-        self.assertTrue(linie[3].startswith("odczyt "))
-
-    def test_bez_pogody_prog_zapasowy(self):
-        miesiac = datetime.now(timezone.utc).strftime("%Y-%m")
-        self.zapisz(miesiac, [(ts(-1), "salon", "va_temperature", "21"), (ts(-1), "salon", "va_humidity", "60")])
-        stan = fetch.write_teraz(self.manifest())
-        self.assertIsNone(stan["dwor"])
-        self.assertEqual(stan["pokoje"][0]["prog"], round(fetch.HUM_ALERT))
-        self.assertFalse(stan["pokoje"][0]["plesn"])
-
-
 class TestParseSince(unittest.TestCase):
     def test_pusty_znaczy_brak_granicy(self):
         self.assertEqual(fetch.parse_since(""), 0)

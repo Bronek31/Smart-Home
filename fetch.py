@@ -42,7 +42,6 @@ REGIONS = {
 
 DATA_DIR = Path("data")
 MANIFEST = DATA_DIR / "index.json"
-TERAZ = DATA_DIR / "teraz.json"      # bieżący stan dla widżetów na telefonie
 DAILY = DATA_DIR / "dzienne.csv"
 FIELDS = ["ts", "device_id", "code", "value"]
 DAILY_FIELDS = ["date", "device_id", "code", "min", "avg", "max", "n"]
@@ -1026,67 +1025,6 @@ def write_manifest(devices: dict, alerty: list[str] | None = None) -> None:
     )
 
 
-def _liczba_pl(v: float | None, miejsc: int) -> str:
-    return "–" if v is None else f"{v:.{miejsc}f}".replace(".", ",")
-
-
-def write_teraz(devices: dict) -> dict:
-    """Bieżący stan mieszkania w jednym małym pliku — dla widżetów na telefonie.
-
-    Widżet (Scriptable na iPhonie, KWGT na Androidzie) nie ma jak przeliczać CSV-ów
-    i progu pleśni, więc dostaje gotowe liczby. Pole `tekst` to całość w kilku liniach
-    dla widżetu, który umie wyciągnąć z JSON-a tylko jedno pole. Próg pleśni liczony
-    tak samo jak w diagnose(): z temperatury pokoju i dworu z ostatnich odczytów.
-    """
-    teraz = int(time.time() * 1000)
-    rows = recent_rows(teraz - 24 * 3600 * 1000)
-    try:
-        strefa = ZoneInfo(os.environ.get("TZ_LOCAL", "Europe/Warsaw"))
-    except Exception:
-        strefa = timezone.utc
-
-    def ostatni(device_id: str, entry: dict, rodzaj: str):
-        kody = {c for c, m in (entry.get("codes") or {}).items() if m.get("kind") == rodzaj}
-        for r in reversed(rows):
-            if r["device_id"] == device_id and r["code"] in kody and _liczba(r["value"]):
-                return r["ms"], float(r["value"])
-        return None, None
-
-    dwor = None
-    for device_id, entry in (devices or {}).items():
-        if entry.get("external"):
-            _, t = ostatni(device_id, entry, "temp")
-            _, h = ostatni(device_id, entry, "hum")
-            if t is not None:
-                dwor = {"nazwa": entry.get("name") or device_id, "t": t, "h": h}
-                break
-
-    pokoje, najnowszy = [], None
-    for device_id, entry in (devices or {}).items():
-        if entry.get("external") or entry.get("appliance"):
-            continue
-        kiedy, t = ostatni(device_id, entry, "temp")
-        _, h = ostatni(device_id, entry, "hum")
-        if t is None:
-            continue
-        prog = prog_plesni(t, dwor["t"] if dwor else None)
-        pokoje.append({
-            "nazwa": entry.get("name") or device_id, "t": t, "h": h,
-            "odczyt": iso(kiedy), "prog": round(prog), "plesn": h is not None and h >= prog,
-        })
-        najnowszy = max(najnowszy or 0, kiedy)
-
-    linie = [f"{p['nazwa']} {_liczba_pl(p['t'], 1)}° {_liczba_pl(p['h'], 0)}%" + (" ⚠" if p["plesn"] else "")
-             for p in pokoje]
-    if dwor:
-        linie.append(f"{dwor['nazwa']} {_liczba_pl(dwor['t'], 1)}°")
-    if najnowszy:
-        linie.append("odczyt " + datetime.fromtimestamp(najnowszy / 1000, strefa).strftime("%H:%M"))
-    stan = {"updated": iso(teraz), "pokoje": pokoje, "dwor": dwor, "tekst": "\n".join(linie)}
-    TERAZ.write_text(json.dumps(stan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return stan
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Kolektor odczytów z chmury Tuya")
     parser.add_argument("--discover", action="store_true", help="wypisz urządzenia i zakończ")
@@ -1248,7 +1186,6 @@ def main() -> int:
     days_written = write_daily(manifest_devices)
     alerty = diagnose(manifest_devices)
     write_manifest(manifest_devices, alerty)
-    write_teraz(manifest_devices)
     print(f"\nDopisano {added} nowych odczytów ({len(collected) - added} już było).")
     print(f"Agregaty dobowe: {days_written} wierszy w {DAILY}.")
     if alerty:

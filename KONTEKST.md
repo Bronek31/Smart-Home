@@ -154,10 +154,12 @@ tylko bieżący miesiąc.
   wilgotność. Przy odtwarzaniu historii rzut wraca do temperatury (próg liczy się
   z bieżącej pogody).
 - **Kalendarz historii** z `dzienne.csv` — nie potrzebuje plików miesięcznych.
-- **Widżety:** właściciel ma Androida, narzeczona iPhone'a. Kolektor zapisuje
-  `data/teraz.json` (z polem `tekst` dla KWGT, który umie wyciągnąć jedno pole), a skrypt
-  Scriptable leży w `widzety/` i jest testowany w Node na atrapie API — Scriptable nie ma
-  wersji na komputer, a widżet, który się wywraca, po prostu przestaje się odświeżać.
+- **Widżety — zrobione i wycofane tego samego dnia.** Były: `data/teraz.json` z kolektora,
+  skrypt Scriptable na iPhone'a z testem na atrapie API, instrukcja KWGT na Androida.
+  Właściciel zainstalował stronę w Chrome jako aplikację i uznał, że to wystarcza; kod
+  jest w historii gita (commit „Widżety na telefon…"). Przy okazji wyszło, że na iPhonie
+  dodana do ekranu strona wchodziła nagłówkiem pod pasek stanu (`black-translucent` bez
+  `viewport-fit=cover`) — poprawione.
 
 ### Odtwarzanie historii — schowane, nie usunięte
 
@@ -664,8 +666,8 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **82** (`python -m unittest discover -s tests`) |
-| Testy strony | **125** (`cd tests/frontend && npx playwright test`, w tym 5 widżetu) |
+| Testy kolektora | **80** (`python -m unittest discover -s tests`) |
+| Testy strony | **122** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 30 zapytań Tuya na przebieg · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |

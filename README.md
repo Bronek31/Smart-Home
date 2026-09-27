@@ -56,8 +56,6 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `data/RRRR-MM.csv` | surowe odczyty: `ts,device_id,code,value` |
 | `data/dzienne.csv` | dobowe min/średnia/max — z tego rysuje się widok „całość" |
 | `data/pogoda.json` | migawka: teraz, prognoza na 3 dni i godzinowa na dobę, jakość powietrza. Nadpisywana co przebieg |
-| `data/teraz.json` | bieżący stan dla widżetów na telefonie: ostatnie odczyty, próg pleśni, gotowy tekst. Nadpisywany co przebieg |
-| `widzety/iphone-scriptable.js` | widżet na iPhone'a dla aplikacji Scriptable |
 | `data/index.json` | lista urządzeń, miesięcy, czas ostatniej zbiórki i diagnostyka dla watchdoga |
 
 ---
@@ -513,42 +511,19 @@ Co godzinę to ok. 750 zapytań na dobę, do tego przebiegi z zapasowego harmono
 GitHuba. Trial IoT Core ma miesięczny limit zapytań — jego wykorzystanie widać na
 iot.tuya.com w projekcie, przy usłudze IoT Core.
 
-## Widżety na telefon
+## Na ekranie telefonu
 
-Kolektor przy każdym przebiegu zapisuje `data/teraz.json`: ostatnią temperaturę
-i wilgotność każdego pokoju, próg pleśni, temperaturę na dworze i gotowy tekst
-w kilku liniach. Oba widżety czytają ten plik ze strony, więc odświeżają się same.
+Strona instaluje się jak aplikacja — własna ikona, pełny ekran, bez paska przeglądarki:
 
-**iPhone — Scriptable** (darmowa aplikacja z App Store):
+- **Android (Chrome):** menu ⋮ → **Zainstaluj aplikację** (albo „Dodaj do ekranu głównego").
+- **iPhone (Safari):** przycisk udostępniania (kwadrat ze strzałką) → **Do ekranu
+  początkowego** → „Dodaj". Musi to być Safari — inne przeglądarki na iPhonie tej opcji
+  nie mają albo dodają zwykłą zakładkę.
 
-1. Na iPhonie otwórz <https://bronek31.github.io/Smart-Home/widzety/iphone-scriptable.js>,
-   zaznacz cały tekst i skopiuj.
-2. W Scriptable: „+" w prawym górnym rogu, wklej, nazwij skrypt „Smart Home" (dotknij
-   nazwy u góry), „Done". Dotknięcie skryptu na liście pokazuje podgląd widżetu.
-3. Ekran główny: przytrzymaj puste miejsce → „Edytuj" → „Dodaj widżet" → Scriptable →
-   rozmiar mały albo średni → „Dodaj widżet".
-4. Przytrzymaj nowy widżet → „Edytuj widżet" → Script: **Smart Home**. Pole „When
-   Interacting" zostaw na „Open URL" — dotknięcie otworzy stronę.
-
-Wilgotność pokoju ponad progiem pleśni świeci na pomarańczowo; godzina odczytu też,
-gdy dane są starsze niż trzy godziny. Odświeżanie ustala iOS — zwykle co kilkanaście
-minut do godziny.
-
-**Android — KWGT** (Kustom Widget Maker ze Sklepu Play):
-
-1. Ekran główny: przytrzymaj puste miejsce → Widżety → KWGT → rozmiar 4×2 → przeciągnij.
-2. Dotknij pustego widżetu — otworzy się edytor KWGT.
-3. „+" → **Text**. W polu tekstu wklej:
-   `$wg("https://bronek31.github.io/Smart-Home/data/teraz.json", json, ".tekst")$`
-4. Zakładka **Touch** → akcja **Open link** → `https://bronek31.github.io/Smart-Home/`.
-5. Czcionka, kolor i tło według uznania, potem zapisz (ikona dyskietki u góry).
-
-Widżet pokaże kilka linii w rodzaju „Kuchnia 19,9° 69%", znak ⚠ przy pokoju ponad
-progiem pleśni, temperaturę na dworze i godzinę ostatniego odczytu.
-
-Skrypt na iPhone'a ma test (`tests/frontend/widzet.spec.js`), który uruchamia go poza
-telefonem na atrapie API Scriptable — łapie zmianę pól w `teraz.json`, zanim widżet
-po cichu przestanie działać.
+Na iPhonie pasek stanu jest przezroczysty, więc strona zostawia pod nim miejsce
+(`viewport-fit=cover` i `env(safe-area-inset-*)`); bez tego nagłówek wchodził pod zegar.
+Widżety na ekran główny (Scriptable, KWGT) były gotowe 27.09 i zostały wycofane tego
+samego dnia — zainstalowana strona wystarcza.
 
 ## Gdy coś nie działa
 

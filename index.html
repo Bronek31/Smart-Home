@@ -2,7 +2,7 @@
 <html lang="pl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0f1419">
 <title>Smart Home</title>
 <link rel="manifest" href="manifest.json">
@@ -19,6 +19,10 @@
 <style>
 :root{--bg:#0f1419;--panel:#151c24;--edge:#212c36;--grid:#1d262f;--grid-day:#2f3d4a;--text:#e4ebf1;--dim:#a6b7c4;--faint:#8496a5;--ok:#5fce9e;--warn:#e8a13c;--bad:#e2708f;--pen-1:#e8a13c;--pen-2:#5fb8e0;--pen-3:#5fce9e;--pen-4:#e2708f;--pen-5:#b79ae8;--pen-6:#d4c95f;--gap:clamp(1rem,3.2vw,2rem)}
 *{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;min-height:100vh;background:radial-gradient(120% 70% at 50% -10%,#1a232c 0%,transparent 60%),repeating-linear-gradient(to bottom,transparent 0 31px,rgba(255,255,255,.014) 31px 32px),var(--bg);color:var(--text);font-family:"Familjen Grotesk",system-ui,sans-serif;font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}.sheet{max-width:1080px;margin:0 auto;padding:var(--gap) var(--gap) 4rem}
+/* Na iPhonie dodana do ekranu początkowego strona ma przezroczysty pasek stanu
+   (black-translucent) i rysuje się pod nim — bez tego nagłówek wchodził pod zegar
+   i wcięcie ekranu. env() działa tylko przy viewport-fit=cover; poza iPhonem daje 0. */
+.sheet{padding-top:max(var(--gap),env(safe-area-inset-top));padding-left:max(var(--gap),env(safe-area-inset-left));padding-right:max(var(--gap),env(safe-area-inset-right));padding-bottom:max(4rem,env(safe-area-inset-bottom))}
 .masthead{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1.2rem;padding-bottom:.8rem;border-bottom:1px solid var(--edge)}.masthead h1{margin:0;font-size:clamp(1.25rem,4.5vw,1.9rem);font-weight:700;letter-spacing:-.02em}.masthead h1 .nib{color:var(--pen-1);text-shadow:0 0 14px rgba(232,161,60,.55)}.stamp{margin-left:auto;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 .section-title{margin:2rem 0 .55rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .statusbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:1px;background:var(--edge);border:1px solid var(--edge);margin-top:var(--gap)}.statusbox{background:var(--panel);padding:.8rem .9rem}.statusbox .k{font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}.statusbox .v{margin-top:.2rem;font-family:"IBM Plex Mono",monospace;font-size:1rem}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.45rem;background:var(--ok);box-shadow:0 0 9px currentColor}.dot.warn{background:var(--warn);color:var(--warn)}.dot.bad{background:var(--bad);color:var(--bad)}
