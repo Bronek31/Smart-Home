@@ -56,6 +56,8 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `data/RRRR-MM.csv` | surowe odczyty: `ts,device_id,code,value` |
 | `data/dzienne.csv` | dobowe min/średnia/max — z tego rysuje się widok „całość" |
 | `data/pogoda.json` | migawka: teraz, prognoza na 3 dni i godzinowa na dobę, jakość powietrza. Nadpisywana co przebieg |
+| `data/teraz.json` | bieżący stan dla widżetów na telefonie: ostatnie odczyty, próg pleśni, gotowy tekst. Nadpisywany co przebieg |
+| `widzety/iphone-scriptable.js` | widżet na iPhone'a dla aplikacji Scriptable |
 | `data/index.json` | lista urządzeń, miesięcy, czas ostatniej zbiórki i diagnostyka dla watchdoga |
 
 ---
@@ -396,10 +398,25 @@ uciekał najczęściej. Zakres ten sam co wykresów. Punkt to średnia godzinowa
 zmianie czujnik raportuje co dwie minuty i surowe odczyty przeważyłyby impulsy.
 
 **Noce w sypialni** — ostatnie 14 nocy, 23:00–7:00: średnia (kropka), rozpiętość od
-najchłodniejszej do najcieplejszej godziny (pasek) i średnia wilgotność, na tle pasma
-16–19 °C, które zwykle zaleca się do snu (`SEN`). Noc z mniej niż sześcioma godzinami
+najchłodniejszej do najcieplejszej godziny (pasek) i średnia wilgotność, na tle
+**strefy optymalnej do snu**, 16–19 °C (`SEN`) — tyle zalecają NHS, brytyjska Sleep
+Charity (16–18) i amerykańska Sleep Foundation (15,6–19,4). To zalecenie dla snu,
+nie komfort dzienny w mieszkaniu. Noc z mniej niż sześcioma godzinami
 odczytów jest pomijana, noc, która jeszcze trwa — też. Obie sekcje liczą liczby bez
 Chart.js, więc przy awarii CDN znika tylko sam wykres komfortu.
+
+### Rzut w trybie „wilgotność a pleśń" i kalendarz historii
+
+Pod rzutem jest przełącznik **temperatura / wilgotność a pleśń**. W drugim trybie duża
+liczba w pokoju to wilgotność, pod nią próg pleśni przy obecnej pogodzie, a kolor
+mówi o zapasie do progu: zielony od 15 punktów w dół (`PLESN_ZAPAS`), czerwony na
+progu i ponad nim. Sama wilgotność tego nie mówi, bo próg zależy od temperatury
+pokoju i dworu.
+
+**Cała historia** to kalendarz jak na GitHubie: kratka na dobę, kolumna na tydzień
+od poniedziałku, z agregatów dobowych — więc sięga do początku zbierania. Do wyboru
+mieszkanie (średnia pokoi), każdy pokój i dwór, temperatura albo wilgotność; przy
+wilgotności skala jest odwrócona, niebieski znaczy mokro.
 
 ### Próg pleśni
 
@@ -491,6 +508,43 @@ Przy przebiegu co 30 minut to ok. 1500 zapytań na dobę, dwa razy tyle co przy
 godzinowym. Trial IoT Core ma miesięczny limit zapytań — jego wykorzystanie widać na
 iot.tuya.com w projekcie, przy usłudze IoT Core. Gdyby zbliżało się do limitu,
 wystarczy wrócić do przebiegu co godzinę.
+
+## Widżety na telefon
+
+Kolektor przy każdym przebiegu zapisuje `data/teraz.json`: ostatnią temperaturę
+i wilgotność każdego pokoju, próg pleśni, temperaturę na dworze i gotowy tekst
+w kilku liniach. Oba widżety czytają ten plik ze strony, więc odświeżają się same.
+
+**iPhone — Scriptable** (darmowa aplikacja z App Store):
+
+1. Na iPhonie otwórz <https://bronek31.github.io/Smart-Home/widzety/iphone-scriptable.js>,
+   zaznacz cały tekst i skopiuj.
+2. W Scriptable: „+" w prawym górnym rogu, wklej, nazwij skrypt „Smart Home" (dotknij
+   nazwy u góry), „Done". Dotknięcie skryptu na liście pokazuje podgląd widżetu.
+3. Ekran główny: przytrzymaj puste miejsce → „Edytuj" → „Dodaj widżet" → Scriptable →
+   rozmiar mały albo średni → „Dodaj widżet".
+4. Przytrzymaj nowy widżet → „Edytuj widżet" → Script: **Smart Home**. Pole „When
+   Interacting" zostaw na „Open URL" — dotknięcie otworzy stronę.
+
+Wilgotność pokoju ponad progiem pleśni świeci na pomarańczowo; godzina odczytu też,
+gdy dane są starsze niż trzy godziny. Odświeżanie ustala iOS — zwykle co kilkanaście
+minut do godziny.
+
+**Android — KWGT** (Kustom Widget Maker ze Sklepu Play):
+
+1. Ekran główny: przytrzymaj puste miejsce → Widżety → KWGT → rozmiar 4×2 → przeciągnij.
+2. Dotknij pustego widżetu — otworzy się edytor KWGT.
+3. „+" → **Text**. W polu tekstu wklej:
+   `$wg("https://bronek31.github.io/Smart-Home/data/teraz.json", json, ".tekst")$`
+4. Zakładka **Touch** → akcja **Open link** → `https://bronek31.github.io/Smart-Home/`.
+5. Czcionka, kolor i tło według uznania, potem zapisz (ikona dyskietki u góry).
+
+Widżet pokaże kilka linii w rodzaju „Kuchnia 19,9° 69%", znak ⚠ przy pokoju ponad
+progiem pleśni, temperaturę na dworze i godzinę ostatniego odczytu.
+
+Skrypt na iPhone'a ma test (`tests/frontend/widzet.spec.js`), który uruchamia go poza
+telefonem na atrapie API Scriptable — łapie zmianę pól w `teraz.json`, zanim widżet
+po cichu przestanie działać.
 
 ## Gdy coś nie działa
 

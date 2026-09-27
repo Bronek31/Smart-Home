@@ -131,7 +131,7 @@ na danych, które już są, i dają się sprawdzić własnym doświadczeniem:
 - **Strefa komfortu** — wrzesień: Salon 80% czasu w polu, pozostałe 58–65%, poza polem
   głównie za wilgotno. Wykres trzymany poza `state.charts` (tam są wykresy z osią czasu,
   które przybliżanie przesuwa razem — strażnik testu to wyłapał).
-- **Noce w sypialni** — wrzesień: średnio 22,6 °C nocą, 0 z 14 nocy w zalecanych 16–19 °C.
+- **Noce w sypialni** — wrzesień: średnio 22,6 °C nocą, 0 z 14 nocy w strefie optymalnej do snu (16–19 °C).
   Od 1.10 to liczba, na którą da się wpłynąć zaworem.
 
 **Odrzucone po pomiarze: dziennik łazienki (prysznic, farelka).** Właściciel bierze
@@ -142,6 +142,22 @@ więc sama para ich nie budzi.
 Przy okazji `neededMonths()` ładuje zawsze ostatnie `RYTM_DNI` dób, nie tylko zakres
 wykresów — na początku miesiąca w zakresie „dziś" rytm doby i noce widziały wcześniej
 tylko bieżący miesiąc.
+
+### Rzut „wilgotność a pleśń", kalendarz, widżety
+
+- **Strefa optymalna do snu zostaje 16–19 °C.** Właściciel sprawdzał, czy to nie za
+  zimno (jego komfort dzienny to 20,5 °C), i zdecydował: zalecenie to zalecenie, ma się
+  tylko nazywać „strefą optymalną do snu". Źródła: NHS / Sleep Charity 16–18 °C,
+  Sleep Foundation 15,6–19,4 °C (strony pierwotne zablokowane przez proxy sesji —
+  wartości z wyników wyszukiwania, zgodne między sobą).
+- **Rzut: tryb „wilgotność a pleśń"** — kolor to zapas do progu pleśni, nie sama
+  wilgotność. Przy odtwarzaniu historii rzut wraca do temperatury (próg liczy się
+  z bieżącej pogody).
+- **Kalendarz historii** z `dzienne.csv` — nie potrzebuje plików miesięcznych.
+- **Widżety:** właściciel ma Androida, narzeczona iPhone'a. Kolektor zapisuje
+  `data/teraz.json` (z polem `tekst` dla KWGT, który umie wyciągnąć jedno pole), a skrypt
+  Scriptable leży w `widzety/` i jest testowany w Node na atrapie API — Scriptable nie ma
+  wersji na komputer, a widżet, który się wywraca, po prostu przestaje się odświeżać.
 
 ### Odtwarzanie historii — schowane, nie usunięte
 
@@ -648,8 +664,8 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **80** (`python -m unittest discover -s tests`) |
-| Testy strony | **117** (`cd tests/frontend && npx playwright test`) |
+| Testy kolektora | **82** (`python -m unittest discover -s tests`) |
+| Testy strony | **125** (`cd tests/frontend && npx playwright test`, w tym 5 widżetu) |
 | Workflowy | `zbieraj` z cron-job.org co 30 min o :00 i :30, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 30 zapytań Tuya na przebieg · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
