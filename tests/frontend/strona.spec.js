@@ -1516,6 +1516,55 @@ test.describe('łuk doby', () => {
   });
 });
 
+/* Odświeżanie: strona zainstalowana na telefonie nie ma przycisku odświeżania, więc
+   sama dociąga dane, gdy kolektor coś dopisze. Dane podmieniamy w trakcie testu —
+   podstaw() czyta pliki przy każdym zapytaniu. */
+test.describe('odświeżanie', () => {
+  async function start(page) {
+    const bledy = pilnujBledow(page);
+    await podepnijChart(page);
+    const pliki = await podstaw(page, {});
+    await page.goto('/index.html');
+    await page.waitForFunction(() => !/wczytywanie/.test(document.getElementById('stamp').textContent), null, { timeout: 20000 });
+    return { bledy, pliki };
+  }
+
+  test('po powrocie do karty strona sama dociąga nowy odczyt', async ({ page }) => {
+    const { bledy, pliki } = await start(page);
+    await expect(page.locator('#pens')).not.toContainText('30,0°');
+    const teraz = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+    const m = JSON.parse(pliki['index.json']);
+    m.updated = teraz;
+    pliki['index.json'] = JSON.stringify(m);
+    pliki[`${teraz.slice(0, 7)}.csv`] += `${teraz},salon,va_temperature,30.0\n${teraz},salon,va_humidity,50\n`;
+    // powrót do karty po dłuższej przerwie
+    await page.evaluate(() => { ostatnieOdswiezenie = 0; document.dispatchEvent(new Event('visibilitychange')); });
+    await expect(page.locator('#pens')).toContainText('30,0°');
+    expect(bledy).toEqual([]);
+  });
+
+  test('bez nowego zapisu kolektora nic się nie przerysowuje', async ({ page }) => {
+    const { bledy } = await start(page);
+    const przerysowane = await page.evaluate(async () => {
+      const przed = state.indeks;
+      await odswiezDane();
+      return state.indeks !== przed;
+    });
+    expect(przerysowane).toBe(false);
+    expect(bledy).toEqual([]);
+  });
+
+  test('krótki powrót do karty nie odpytuje serwera', async ({ page }) => {
+    const { bledy } = await start(page);
+    let zapytania = 0;
+    page.on('request', (r) => { if (r.url().endsWith('/data/index.json')) zapytania++; });
+    await page.evaluate(() => { ostatnieOdswiezenie = Date.now(); document.dispatchEvent(new Event('visibilitychange')); });
+    await page.waitForTimeout(300);
+    expect(zapytania).toBe(0);
+    expect(bledy).toEqual([]);
+  });
+});
+
 test.describe('odporność', () => {
   test('brak Chart.js nie zabiera tabel ani nagłówka', async ({ page }) => {
     const bledy = await otworz(page, {}, { cdnDziala: false });

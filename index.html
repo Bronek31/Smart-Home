@@ -2195,6 +2195,39 @@ async function render(){await ensureRows();state.indeks=indeksSerii();computeHea
   ['temp','hum','abs'].forEach(k=>{const el=document.getElementById('cut-'+k);el.textContent=(useDaily()?'':state.cut[k]?` · ukryto ${plSkok(state.cut[k])}`:'')+artTxt;
     el.title=art.map(a=>`${state.devices.find(d=>d.id===a.id)?.name||a.id}: ${a.powod}`).join('\n')});renderSummary();renderHealth();renderRytm();renderKomfort();renderNoce();renderKalendarz();const newest=(state.rowsAll||state.rows).at(-1)?.t;document.getElementById('stamp').textContent='ostatni zapis · '+(newest?new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(newest)):'–');
   rysujWykresy(T,H,A)}
+/* --- Odświeżanie ---
+   Strona pobierała dane tylko przy otwarciu. Zainstalowana na telefonie działa bez
+   paska przeglądarki, czyli bez przycisku odświeżania, a telefon trzyma ją w tle
+   godzinami — po powrocie pokazywała stan sprzed godzin, choć kolektor miał nowsze
+   odczyty. Teraz przy powrocie do karty (po co najmniej ODSWIEZ_PO_POWROCIE) i co
+   ODSWIEZ_CO, gdy jest widoczna, sprawdza manifest; przerysowuje się tylko wtedy, gdy
+   kolektor coś dopisał. Zakres, przybliżenie i przełączniki zostają, bo render() czyta
+   je ze stanu. */
+const ODSWIEZ_CO=10*60e3,ODSWIEZ_PO_POWROCIE=2*60e3;
+let ostatnieOdswiezenie=Date.now(),odswiezanieTrwa=false;
+async function odswiezDane(){
+  if(odswiezanieTrwa||!state.devices.length)return;
+  odswiezanieTrwa=true;
+  try{
+    const res=await fetch('data/index.json',{cache:'no-cache'});
+    if(!res.ok)return;
+    const m=await res.json();
+    ostatnieOdswiezenie=Date.now();
+    const upd=m.updated?Date.parse(m.updated):null;
+    if(upd===state.updated)return;          // kolektor nic nie dopisał — nie ma czego rysować
+    state.updated=upd;
+    state.artefakty=wczytajArtefakty(m.artefakty);
+    state.months=(m.months||state.months).slice().sort();
+    // kolektor przepisuje tylko ostatnie dni, więc wystarczy zapomnieć dwa najnowsze miesiące
+    state.months.slice(-2).forEach(k=>monthCache.delete(k));
+    if(m.daily)state.daily=await loadDaily(m.daily);
+    if(m.weather)state.weather=(await loadJson(m.weather))??state.weather;
+    await render();
+  }catch{/* brak sieci: zostaje to, co widać, spróbujemy przy następnej okazji */}
+  finally{odswiezanieTrwa=false}
+}
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&Date.now()-ostatnieOdswiezenie>ODSWIEZ_PO_POWROCIE)odswiezDane()});
+setInterval(()=>{if(!document.hidden)odswiezDane()},ODSWIEZ_CO);
 boot();
 // Instalacja na ekranie głównym i tryb offline. Rejestracja po load, żeby nie
 // konkurowała o łącze z pierwszym wczytaniem danych. Brak wsparcia albo blokada
