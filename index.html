@@ -44,7 +44,7 @@
 .rytm-skala{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem .8rem;margin-top:.5rem;font:400 .72rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}
 .rytm-skala em{font-style:normal;font-family:"IBM Plex Mono",monospace;color:var(--faint)}
 .rytm-skala i{display:inline-block;width:80px;height:8px}
-.pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}
+.pasma-legenda{display:flex;flex-wrap:wrap;gap:.4rem 1.1rem;margin-top:.5rem;font:400 .74rem "IBM Plex Sans Condensed",sans-serif;color:var(--dim)}.pasma-legenda span{display:inline-flex;align-items:center;gap:.4rem}.pasma-legenda i{display:inline-block;width:22px;height:11px;border:1px solid var(--edge)}.pasma-legenda i.kreska{height:0;border:0;border-top:2px dashed rgba(240,82,74,.9)}
 .bottom-layout{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(260px,1fr);gap:1.2rem;margin-top:2.5rem}.panel{background:var(--panel);border:1px solid var(--edge);padding:1rem}.panel h2{margin:0 0 .75rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .floor svg{display:block;width:100%;max-width:392px;height:auto;margin:0 auto}.rm-name{font:600 12px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.09em;text-transform:uppercase;fill:var(--dim)}.rm-temp{font:400 30px "IBM Plex Mono",monospace;letter-spacing:-.03em}.rm-hum{font:400 13px "IBM Plex Mono",monospace;fill:var(--dim)}.rm-quiet{fill:rgba(255,255,255,.018);stroke:var(--edge);stroke-width:1.5;stroke-dasharray:5 4}.rm-quiet-t{font:400 10px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.14em;text-transform:uppercase;fill:var(--faint)}.rm-strona{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.2em;text-transform:uppercase;fill:var(--faint);opacity:.7}.rm-door{stroke:var(--pen-1);stroke-width:5;stroke-linecap:round;opacity:.8}.rm-okno{stroke:var(--pen-2);stroke-width:5;stroke-linecap:round;opacity:.85}.replay{margin-top:.9rem;padding-top:.9rem;border-top:1px solid var(--edge)}
 .doba{display:block;width:100%;max-width:392px;height:auto;margin:0 auto .7rem}.doba text{font:400 9px "IBM Plex Sans Condensed",sans-serif;letter-spacing:.06em;fill:var(--faint)}
@@ -107,7 +107,8 @@
   <div class="trace"><h2>Temperatura <small>&deg;C</small><small id="cut-temp"></small></h2><div class="plot"><canvas id="temp"></canvas></div>
     <div class="plot plot-dwor" id="plot-dwor"><canvas id="temp-dwor"></canvas></div>
     <div class="pasma-legenda" id="legenda-temp" hidden></div></div>
-  <div class="trace"><h2>Wilgotność względna <small>%</small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div></div>
+  <div class="trace"><h2>Wilgotność względna <small>%</small><small id="cut-hum"></small></h2><div class="plot"><canvas id="hum"></canvas></div>
+    <div class="pasma-legenda" id="legenda-hum" hidden></div></div>
   <div class="trace"><h2>Wilgotność bezwzględna <small>g/m&sup3;</small><small id="cut-abs"></small></h2><div class="plot"><canvas id="abs"></canvas></div>
     <p class="hint">Ile pary wodnej naprawdę wisi w powietrzu. Wilgotność względna skacze od samej temperatury, ta nie. Im niżej linia dworu pod liniami pokoi, tym mocniej otwarte okno osuszy mieszkanie — zimą różnica jest zwykle duża, więc wystarczy kilka minut szeroko otwartego okna.</p></div>
 
@@ -177,7 +178,19 @@ const PAIR_TOL=5000;           // temperatura i wilgotność z jednego raportu b
 const STALE_WARN=HEARTBEAT+COLLECT+30*60000;   // 2,5 godz. — dopiero tyle znaczy "coś jest nie tak"
 const STALE_BAD=6*3600e3;
 const MISS_GAP=2.5*HEARTBEAT;  // przerwa uznana za zgubione raporty
-const HUM_ALERT=65;            // próg wilgotności dla ostrzeżenia o pleśni
+/* Próg pleśni — ten sam rachunek co prog_plesni() w fetch.py, tam opisany szerzej.
+   Pleśń rośnie na najzimniejszym kawałku ściany zewnętrznej, a jego temperatura zależy
+   od dworu: θsi = θe + fRsi·(θi − θe) (PN-EN ISO 13788). Przy 80% wilgotności na tej
+   powierzchni zaczyna się kłopot. Stały próg 65% był trafny w jedną porę roku. */
+const FRSI=0.70;               // z normy, nie z pomiaru — do zmierzenia czujnikiem w narożniku
+const WILG_POWIERZCHNI=80;
+const HUM_ALERT=65;            // zapas, gdy brakuje temperatury pokoju albo dworu
+const psat=t=>610.94*Math.exp(17.625*t/(t+243.04));
+function progPlesni(tPokoj,tDwor){
+  if(tPokoj==null||tDwor==null||!isFinite(tPokoj)||!isFinite(tDwor))return HUM_ALERT;
+  if(tDwor>=tPokoj)return WILG_POWIERZCHNI;     // ściana nie jest chłodniejsza od powietrza
+  return WILG_POWIERZCHNI*psat(tDwor+FRSI*(tPokoj-tDwor))/psat(tPokoj);
+}
 /* --- rzut mieszkania: jedyne miejsce do poprawiania proporcji pokoi --- */
 const WMO_ICO={
  clear:'<circle cx="12" cy="12" r="4.2"/><path d="M12 2.2v2.3M12 19.5v2.3M2.2 12h2.3M19.5 12h2.3M5.1 5.1l1.6 1.6M17.3 17.3l1.6 1.6M18.9 5.1l-1.6 1.6M6.7 17.3l-1.6 1.6"/>',
@@ -573,7 +586,20 @@ const wartoscW=(seria,t,tol)=>{
 function rawPoints(device,kind,from){if(!device[kind])return[];return state.rows.filter(r=>r.id===device.id&&r.code===device[kind]&&r.t>=from&&isFinite(r.v))}
 function readings(device,kind){if(!device[kind])return{last:null,dayAgo:null};const cutoff=Date.now()-24*3600e3;let last=null,dayAgo=null;for(const r of state.rows){if(r.id!==device.id||r.code!==device[kind]||!isFinite(r.v))continue;last=r;if(r.t<=cutoff)dayAgo=r}return{last,dayAgo}}
 const BATTERY_PL={low:'niski',middle:'średni',high:'wysoki'};function lastBattery(d){if(!d.batt)return null;for(let i=state.rows.length-1;i>=0;i--){const r=state.rows[i];if(r.id===d.id&&r.code===d.batt)return BATTERY_PL[r.raw]||(isFinite(r.v)?`${r.v}%`:r.raw)}return null}
-function humLoad(d,from,limit){const P=rawPoints(d,'hum',from);if(P.length<2)return 0;let above=0,total=0;for(let i=1;i<P.length;i++){const dt=Math.min(P[i].t-P[i-1].t,2*HEARTBEAT);total+=dt;if((P[i-1].v+P[i].v)/2>=limit)above+=dt}return total?above/total:0}
+/* Jaka część doby minęła z wilgotnością powyżej progu pleśni. Każdy odczyt porównujemy
+   z progiem z jego chwili, bo pokój i dwór zmieniają się w ciągu doby, a z nimi narożnik.
+   Liczone czasem, nie liczbą odczytów — przy zmianie czujnik raportuje gęściej. */
+function humLoad(d,from){
+  const P=rawPoints(d,'hum',from);if(P.length<2)return{udzial:0,prog:null};
+  const xy=r=>({x:r.t,y:r.v});
+  const T=rawPoints(d,'temp',from-MISS_GAP).map(xy);
+  const zewn=state.devices.find(x=>x.ext&&x.temp),D=zewn?rawPoints(zewn,'temp',from-MISS_GAP).map(xy):[];
+  const prog=r=>progPlesni(wartoscW(T,r.t,MISS_GAP),wartoscW(D,r.t,MISS_GAP));
+  const nad=P.map(r=>r.v-prog(r));
+  let above=0,total=0;
+  for(let i=1;i<P.length;i++){const dt=Math.min(P[i].t-P[i-1].t,2*HEARTBEAT);total+=dt;if((nad[i-1]+nad[i])/2>=0)above+=dt}
+  return{udzial:total?above/total:0,prog:prog(P.at(-1))};
+}
 function healthFor(d,from){
   const T=rawPoints(d,'temp',from),H=rawPoints(d,'hum',from);
   const times=T.map(r=>r.t),gaps=times.slice(1).map((t,i)=>t-times[i]);
@@ -589,11 +615,11 @@ function healthFor(d,from){
   const missed=suspicious?Math.max(1,Math.round(worst/HEARTBEAT)-1):0;
   const age=last?Math.max(0,chwilaZbiorki()-last):Infinity;
   const batt=lastBattery(d);
-  const humHigh=humLoad(d,from,HUM_ALERT);
+  const{udzial:humHigh,prog:humProg}=humLoad(d,from);
   let status='ok';
   if(age>STALE_BAD)status='bad';
   else if(suspicious||age>STALE_WARN||batt==='niski')status='warn';
-  return{d,nT:T.length,nH:H.length,median,worst,paired,last,batt,status,gaps,times,suspicious,missed,humHigh,age};
+  return{d,nT:T.length,nH:H.length,median,worst,paired,last,batt,status,gaps,times,suspicious,missed,humHigh,humProg,age};
 }
 
 /* Diagnostyka mierzy do chwili ostatniej zbiórki, nie do „teraz". GitHub potrafi opóźniać
@@ -1034,6 +1060,20 @@ function legendaZestawienia(pasek){
   }
   box.innerHTML=cz.join('');box.hidden=!cz.length;
 }
+/* Próg pleśni w czasie: w każdej chwili, dla której mamy dwór, z temperatury dworu
+   i średniej temperatury pokoi. Jedna linia dla mieszkania — pokoje różnią się o stopień,
+   co przesuwa próg o 3–4 punkty; zdarzenia i watchdog liczą go osobno dla każdego pokoju. */
+const BARWA_PROGU='rgba(240,82,74,.9)';   // spoza palety pokoi — różowy należy do salonu
+function seriaProgu(T){
+  const zewn=T.find(s=>s.device.ext),wewn=T.filter(s=>!s.device.ext);
+  if(!zewn||!wewn.length)return null;
+  const tol=useDaily()?36*3600e3:MISS_GAP;
+  const pts=zewn.points.map(p=>{
+    const t=wewn.map(s=>wartoscW(s.points,p.x,tol)).filter(v=>v!=null);
+    return t.length?{x:p.x,y:progPlesni(t.reduce((a,b)=>a+b,0)/t.length,p.y)}:null;
+  }).filter(Boolean);
+  return pts.length?{device:{id:'prog-plesni',name:'próg pleśni',color:BARWA_PROGU,ext:true},points:pts}:null;
+}
 function rysujWykresy(T,H,A){
   if(typeof Chart==='undefined')return brakWykresow('Nie udało się wczytać biblioteki wykresów z cdn.jsdelivr.net. Kafle z bieżącymi odczytami i tabele poniżej są aktualne.');
   try{
@@ -1050,10 +1090,16 @@ function rysujWykresy(T,H,A){
     const pasek=!!zewnT&&wewnT.length>0&&osT!=null&&rysujZestawienie('temp-dwor',zewnT,wewnT,osT);
     draw('temp',wewnT.length?wewnT:T,'°C',1,[],osT,pasek);
     document.getElementById('plot-dwor').hidden=!pasek;
-    // Pasma rysujemy na tych dwóch wykresach, z których wykrywanie naprawdę korzysta.
-    // Wilgotność względna ich nie dostaje: skacze od samej temperatury, więc pasmo nad
-    // nią obiecywałoby związek, którego tam nie ma.
-    draw('hum',H,'%',0,[],zakresOsi(H));
+    /* Wilgotność względna bez dworu. Porównywanie jej z dworem jest fizycznie mylące
+       (skacze od samej temperatury), a linia dworu chodziła 30–100% i ściskała pokoje
+       w pasek. Zamiast niej próg pleśni — to jedyna rzecz z dworu, która na tym
+       wykresie coś znaczy: kiedy linie pokoi go przekraczają, najzimniejszy narożnik
+       ściany zewnętrznej ma ponad 80%. */
+    const wewnH=H.filter(s=>!s.device.ext),progH=seriaProgu(T);
+    const osH=zakresOsi(wewnH.length?wewnH:H);
+    draw('hum',wewnH.length?[...wewnH,...(progH?[progH]:[])]:H,'%',0,[],osH);
+    const lp=document.getElementById('legenda-hum');
+    if(lp){lp.hidden=!progH;lp.innerHTML=progH?`<span><i class="kreska"></i>próg pleśni dla średniej temperatury mieszkania — powyżej niego najzimniejszy narożnik ściany zewnętrznej ma ponad ${WILG_POWIERZCHNI}% wilgotności</span>`:''}
     draw('abs',A,'g/m³',1,[],zakresOsi(A));
     legendaZestawienia(pasek);
     const lupa=document.getElementById('pelny-zakres');if(lupa)lupa.hidden=!wZoomie();
@@ -1648,7 +1694,7 @@ function renderEvents(){
       if(r.suspicious){const idx=r.gaps.indexOf(r.worst);ev.push({t:r.times[idx+1]||r.last,status:'warn',text:`${esc(r.d.name)} — cisza przez ${fmtDur(r.worst)}, przepadło ok. ${plRap(r.missed)}`})}
       if(r.age>STALE_WARN&&isFinite(r.age))ev.push({t:r.last,status:r.age>STALE_BAD?'bad':'warn',text:`${esc(r.d.name)} — milczał ${fmtDur(r.age)} przed ostatnią zbiórką`});
       if(r.batt==='niski')ev.push({t:r.last,status:'warn',text:`${esc(r.d.name)} — bateria na wyczerpaniu, wymień ogniwo`});
-      if(r.humHigh>=.25)ev.push({t:r.last,status:'warn',text:`${esc(r.d.name)} — wilgotność powyżej ${HUM_ALERT}% przez ${Math.round(r.humHigh*100)}% doby, przewietrz`});
+      if(r.humHigh>=.25)ev.push({t:r.last,status:'warn',text:`${esc(r.d.name)} — wilgotność powyżej progu pleśni przez ${Math.round(r.humHigh*100)}% doby (przy obecnej pogodzie ok. ${fmtNum(r.humProg,0)}%), przewietrz`});
     });
   }
   ev.sort((a,b)=>(b.t||0)-(a.t||0));

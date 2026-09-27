@@ -861,11 +861,47 @@ test.describe('dwór jako tło', () => {
      pokoje, jest kreskowaną linią — bo tam porównanie jest sensem wykresu. */
   test('wszędzie, gdzie dzieli wykres z pokojami, jest kreskowaną linią', async ({ page }) => {
     const bledy = await otworzTydzien(page);
-    for (const w of ['hum', 'abs']) {
+    // wilgotność względna nie ma już dworu wcale — patrz „wilgotność względna: próg pleśni"
+    for (const w of ['abs']) {
       const d = await dwor(page, w);
       expect(d.fill, `${w}: dwór wrócił do pasma`).toBe(false);
       expect(d.dash, `${w}: dwór przestał być kreskowany`).toBeGreaterThan(0);
     }
+    expect(bledy).toEqual([]);
+  });
+
+  /* Dwór na wilgotności względnej chodził 30–100% i ściskał pokoje w pasek, a samo
+     porównanie było fizycznie mylące. Jego miejsce zajął próg pleśni: kreskowana linia
+     spoza palety pokoi, z legendą, która mówi, co znaczy. */
+  test('wilgotność względna: bez dworu, z progiem pleśni', async ({ page }) => {
+    const bledy = await otworzTydzien(page);
+    const w = await page.evaluate(() => {
+      const zb = state.charts.hum.data.datasets;
+      const prog = zb.find((d) => d.label === 'próg pleśni');
+      return {
+        etykiety: zb.map((d) => d.label),
+        prog: prog ? { n: prog.data.length, dash: prog.borderDash.length, kolor: prog.borderColor } : null,
+        pokoje: state.devices.filter((d) => !d.ext).map((d) => d.color),
+      };
+    });
+    expect(w.etykiety).not.toContain('Na zewnątrz');
+    expect(w.prog, 'brak linii progu').not.toBeNull();
+    expect(w.prog.n).toBeGreaterThan(50);
+    expect(w.prog.dash).toBeGreaterThan(0);
+    expect(w.pokoje).not.toContain(w.prog.kolor);
+    await expect(page.locator('#legenda-hum')).toBeVisible();
+    await expect(page.locator('#legenda-hum')).toContainText('próg pleśni');
+    expect(bledy).toEqual([]);
+  });
+
+  test('próg pleśni liczy się tak samo jak w kolektorze', async ({ page }) => {
+    // te same liczby co test_prog_plesni_z_normy w tests/test_fetch.py
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => [11, 5, 0, -5, -10].map((d) => progPlesni(20, d))
+      .concat([progPlesni(24, 30), progPlesni(null, 0)]));
+    [67.6, 60.3, 54.7, 49.6, 44.9].forEach((v, i) => expect(w[i]).toBeCloseTo(v, 1));
+    expect(w[5]).toBe(80);
+    expect(w[6]).toBe(65);
     expect(bledy).toEqual([]);
   });
 
@@ -905,8 +941,9 @@ test.describe('wygładzanie linii', () => {
 
   test('dwór zostaje surowy', async ({ page }) => {
     const bledy = await otworzTydzien(page);
-    // temperatury nie ma na liście: dwór ma tam własny panel i własną funkcję rysującą
-    for (const w of ['hum', 'abs']) {
+    // temperatury nie ma na liście: dwór ma tam własny panel i własną funkcję rysującą;
+    // wilgotności względnej też nie — dwór z niej zniknął
+    for (const w of ['abs']) {
       const p = await seria(page, w, 'Na zewnątrz');
       expect(p, `${w}: brak serii dworu`).not.toBeNull();
       expect(p.length, `${w}: pusta seria, test nic nie sprawdza`).toBeGreaterThan(50);

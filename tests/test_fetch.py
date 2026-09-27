@@ -342,6 +342,45 @@ class TestDiagnose(WKatalogu):
         self.assertIn("bateria", alerty)
         self.assertIn("wilgotność", alerty)
 
+    def wilgotna_doba(self, pokoj, wilgotnosc, dwor):
+        miesiac = datetime.now(timezone.utc).strftime("%Y-%m")
+        wiersze = []
+        for i in range(24, 0, -1):
+            wiersze += [(ts(-i), "czujnik", "va_temperature", str(pokoj)),
+                        (ts(-i), "czujnik", "va_humidity", str(wilgotnosc)),
+                        (ts(-i), "czujnik", "battery_state", "high"),
+                        (ts(-i), "pogoda", "va_temperature", str(dwor))]
+        self.zapisz(miesiac, wiersze)
+        return [a for a in fetch.diagnose(self.manifest()) if "wilgotność" in a]
+
+    def test_mroz_obniza_prog_plesni(self):
+        """60% przy 20 °C to w styczniu kłopot: przy 0 °C na dworze narożnik ściany ma
+        ok. 14 °C i wilgotność przy nim przekracza 80%. Stały próg 65% tego nie widział."""
+        alerty = self.wilgotna_doba(20, 60, 0)
+        self.assertEqual(len(alerty), 1)
+        self.assertIn("ok. 55%", alerty[0])
+
+    def test_ciepla_jesien_podnosi_prog_plesni(self):
+        """70% przy 20 °C i 15 °C na dworze: narożnik ma 18,5 °C, wilgotność przy nim
+        77% — poniżej granicy. Stały próg 65% alarmował tu przez całą dobę."""
+        self.assertEqual(self.wilgotna_doba(20, 70, 15), [])
+
+    def test_prog_plesni_z_normy(self):
+        # PN-EN ISO 13788, fRsi = 0,7, 80% przy powierzchni; pokój 20 °C
+        for dwor, oczekiwany in ((11, 67.6), (5, 60.3), (0, 54.7), (-5, 49.6), (-10, 44.9)):
+            self.assertAlmostEqual(fetch.prog_plesni(20, dwor), oczekiwany, places=1)
+        self.assertEqual(fetch.prog_plesni(24, 30), fetch.WILG_POWIERZCHNI)   # upał: ściana nie zimniejsza
+        self.assertEqual(fetch.prog_plesni(None, 0), fetch.HUM_ALERT)          # bez pokoju — dawny próg
+        self.assertEqual(fetch.prog_plesni(20, None), fetch.HUM_ALERT)         # bez pogody — dawny próg
+
+    def test_prog_plesni_zgadza_sie_ze_strona(self):
+        strona = (REPO / "index.html").read_text(encoding="utf-8")
+        for nazwa, wartosc in (("FRSI", fetch.FRSI), ("WILG_POWIERZCHNI", fetch.WILG_POWIERZCHNI),
+                               ("HUM_ALERT", fetch.HUM_ALERT)):
+            znal = re.search(rf"\b{nazwa}=([\d.]+)", strona)
+            self.assertIsNotNone(znal, f"nie znalazłem {nazwa} w index.html")
+            self.assertEqual(float(znal.group(1)), wartosc, nazwa)
+
     def test_pomija_sprzet(self):
         miesiac = datetime.now(timezone.utc).strftime("%Y-%m")
         self.zapisz(miesiac, [(ts(-30), "sprzet", "switch", "1")])

@@ -16,10 +16,12 @@ Użycie:
 from __future__ import annotations
 
 import argparse
+import bisect
 import csv
 import hashlib
 import hmac
 import json
+import math
 import os
 import sys
 import time
@@ -770,13 +772,57 @@ def write_daily(devices: dict | None = None) -> int:
     return len(rows)
 
 
-# Progi diagnostyki. Te same, którymi kieruje się strona (HEARTBEAT, STALE_BAD i
-# HUM_ALERT w index.html) — muszą się zgadzać, bo inaczej watchdog zakładałby zgłoszenie
-# o czymś, czego dashboard nie pokazuje, albo odwrotnie.
+# Progi diagnostyki. Te same, którymi kieruje się strona (HEARTBEAT, STALE_BAD, FRSI,
+# WILG_POWIERZCHNI i HUM_ALERT w index.html) — muszą się zgadzać, bo inaczej watchdog
+# zakładałby zgłoszenie o czymś, czego dashboard nie pokazuje, albo odwrotnie.
 HEARTBEAT_MS = 60 * 60 * 1000
 CISZA_ALARM = 6 * HEARTBEAT_MS
-HUM_ALERT = 65.0
 HUM_UDZIAL = 0.25          # ułamek doby powyżej progu, od którego warto się odezwać
+
+# Próg pleśni. Pleśń nie rośnie w powietrzu pokoju, tylko na najzimniejszym kawałku
+# ściany zewnętrznej — w narożniku, za szafą, przy nadprożu okna. Ten kawałek jest tym
+# zimniejszy, im zimniej na dworze, więc stały próg wilgotności powietrza (dawniej 65%)
+# był dobry w jedną porę roku: we wrześniu przypadkiem się zgadzał, w styczniu milczałby
+# przy 55%, gdy w narożnikach pleśń już rośnie.
+#
+# Metoda z PN-EN ISO 13788: temperatura powierzchni θsi = θe + fRsi·(θi − θe), a pleśń
+# grozi, gdy wilgotność przy tej powierzchni trwale przekracza 80%. Z tego wychodzi
+# wilgotność powietrza w pokoju, przy której w narożniku robi się 80% — przy 20 °C
+# w środku: 68% przy 11 °C na dworze, 55% przy 0 °C, 45% przy −10 °C.
+#
+# fRsi to liczba z normy, nie z pomiaru (warunki techniczne wymagają 0,72 od nowych
+# budynków; starsze bywają gorsze). Da się ją zmierzyć: jeden czujnik na dobę
+# w najzimniejszym narożniku ściany zewnętrznej, drugi w środku pokoju, i odczyt z dworu.
+FRSI = 0.70
+WILG_POWIERZCHNI = 80.0
+HUM_ALERT = 65.0           # zapas, gdy nie ma temperatury pokoju albo dworu — dawny stały próg
+BLISKO_MS = int(2.5 * HEARTBEAT_MS)   # starszego odczytu nie wolno już brać za „wtedy"
+
+
+def _psat(t: float) -> float:
+    """Ciśnienie pary nasyconej w Pa (wzór Magnusa)."""
+    return 610.94 * math.exp(17.625 * t / (t + 243.04))
+
+
+def prog_plesni(t_pokoj: float | None, t_dwor: float | None) -> float:
+    """Wilgotność powietrza w pokoju, przy której w najzimniejszym narożniku ściany
+    zewnętrznej robi się WILG_POWIERZCHNI procent."""
+    if t_pokoj is None or t_dwor is None:
+        return HUM_ALERT
+    if t_dwor >= t_pokoj:
+        return WILG_POWIERZCHNI      # ściana nie jest chłodniejsza od powietrza
+    t_sciany = t_dwor + FRSI * (t_pokoj - t_dwor)
+    return WILG_POWIERZCHNI * _psat(t_sciany) / _psat(t_pokoj)
+
+
+def _najblizsza(czasy: list[int], wartosci: list[float], t: int) -> float | None:
+    """Wartość najbliższa w czasie, o ile nie dalej niż BLISKO_MS."""
+    if not czasy:
+        return None
+    i = bisect.bisect_left(czasy, t)
+    kandydaci = [j for j in (i - 1, i) if 0 <= j < len(czasy)]
+    j = min(kandydaci, key=lambda k: abs(czasy[k] - t))
+    return wartosci[j] if abs(czasy[j] - t) <= BLISKO_MS else None
 BATERIA_NISKA = {"low", "niski"}
 BATERIA_PROC = 15.0
 
@@ -820,7 +866,23 @@ def diagnose(devices: dict) -> list[str]:
     patrzy. Watchdog czyta tę listę i zakłada zgłoszenie, czyli maila od GitHuba.
     """
     teraz = int(time.time() * 1000)
-    rows = recent_rows(teraz - 24 * 3600 * 1000)
+    rows = recent_rows(teraz - 24 * 3600 * 1000 - BLISKO_MS)
+    doba = [r for r in rows if r["ms"] >= teraz - 24 * 3600 * 1000]
+
+    # temperatura dworu do progu pleśni — z pierwszego urządzenia zewnętrznego z temperaturą
+    dwor_t: list[int] = []
+    dwor_v: list[float] = []
+    for device_id, entry in (devices or {}).items():
+        if not entry.get("external"):
+            continue
+        kody = {c for c, m in (entry.get("codes") or {}).items() if m.get("kind") == "temp"}
+        for r in rows:
+            if r["device_id"] == device_id and r["code"] in kody and _liczba(r["value"]):
+                dwor_t.append(r["ms"])
+                dwor_v.append(float(r["value"]))
+        if dwor_t:
+            break
+
     alerty = []
     for device_id, entry in sorted((devices or {}).items(), key=lambda kv: kv[1].get("name") or kv[0]):
         if entry.get("appliance"):
@@ -828,7 +890,7 @@ def diagnose(devices: dict) -> list[str]:
         zewnetrzny = bool(entry.get("external"))
         name = entry.get("name") or device_id
         codes = entry.get("codes") or {}
-        moje = [r for r in rows if r["device_id"] == device_id]
+        moje = [r for r in doba if r["device_id"] == device_id]
         rodzaj = {code: meta.get("kind") for code, meta in codes.items()}
 
         klimat = [r["ms"] for r in moje if rodzaj.get(r["code"]) in ("temp", "hum")]
@@ -863,13 +925,22 @@ def diagnose(devices: dict) -> list[str]:
             if niska:
                 alerty.append(f"**{name}** — bateria na wyczerpaniu ({bateria[-1]}), wymień ogniwo.")
 
-        wilgotne = [(r["ms"], float(r["value"])) for r in moje
-                    if rodzaj.get(r["code"]) == "hum" and _liczba(r["value"])]
-        udzial = udzial_powyzej(wilgotne, HUM_ALERT)
+        temp = [(r["ms"], float(r["value"])) for r in rows
+                if r["device_id"] == device_id and rodzaj.get(r["code"]) == "temp" and _liczba(r["value"])]
+        temp_t, temp_v = [t for t, _ in temp], [v for _, v in temp]
+        # każdy odczyt wilgotności porównujemy z progiem z jego chwili: pokój i dwór
+        # zmieniają się w ciągu doby, a z nimi temperatura narożnika
+        nadwyzka, prog = [], None
+        for r in moje:
+            if rodzaj.get(r["code"]) != "hum" or not _liczba(r["value"]):
+                continue
+            prog = prog_plesni(_najblizsza(temp_t, temp_v, r["ms"]), _najblizsza(dwor_t, dwor_v, r["ms"]))
+            nadwyzka.append((r["ms"], float(r["value"]) - prog))
+        udzial = udzial_powyzej(nadwyzka, 0.0)
         if udzial >= HUM_UDZIAL:
             alerty.append(
-                f"**{name}** — wilgotność powyżej {HUM_ALERT:g}% przez {udzial * 100:.0f}% doby, "
-                "przewietrz albo osusz."
+                f"**{name}** — wilgotność powyżej progu pleśni przez {udzial * 100:.0f}% doby "
+                f"(przy obecnej pogodzie to ok. {prog:.0f}%), przewietrz albo osusz."
             )
     return alerty
 
