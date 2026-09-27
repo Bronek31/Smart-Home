@@ -1259,6 +1259,50 @@ test.describe('odporność', () => {
     expect(bledy).toEqual([]);
   });
 
+  /* Na telefonie strona ma kilka ekranów wysokości i kolejność decyduje, co zostanie
+     zobaczone. Dawniej pierwszy ekran zajmowały cztery wiersze diagnostyki, pogoda z radą
+     leżała na samym dole, a tabela zakresów przewijała się w bok bez żadnej wskazówki. */
+  test('na telefonie pogoda i rada są zaraz pod kaflami, a tabela mieści się bez przewijania', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 1400 });
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => {
+      const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+      const t = document.getElementById('summary'), kafle = r('#pens');
+      const ostatni = [...document.querySelectorAll('#pens .pen')].at(-1).getBoundingClientRect();
+      return {
+        pogoda: r('#wx-panel').top, wykres: r('#temp').top, kafle: kafle.bottom,
+        status: r('#statusbar').height, tabela: t.scrollWidth - t.clientWidth,
+        ostatni: ostatni.width, szer: kafle.width,
+      };
+    });
+    expect(w.pogoda, 'pogoda nad kaflami').toBeGreaterThanOrEqual(w.kafle - 1);
+    expect(w.pogoda, 'pogoda pod wykresami').toBeLessThan(w.wykres);
+    expect(w.status, 'status zajmuje pół ekranu').toBeLessThan(200);
+    expect(w.tabela, 'tabela zakresów przewija się w bok').toBeLessThanOrEqual(1);
+    expect(w.ostatni, 'kafel dworu nie idzie na całą szerokość').toBeGreaterThan(w.szer * 0.9);
+    expect(bledy).toEqual([]);
+  });
+
+  // Strażnik: przestawienie kolejności dotyczy wyłącznie telefonu.
+  test('na komputerze pogoda zostaje w prawej kolumnie obok rzutu', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const bledy = await otworz(page);
+    const w = await page.evaluate(() => {
+      const r = (sel) => document.querySelector(sel).getBoundingClientRect();
+      return { pogoda: r('#wx-panel'), rzut: r('#floor'), naglowki: document.querySelectorAll('#summary th').length };
+    });
+    expect(w.pogoda.left).toBeGreaterThan(w.rzut.right);
+    expect(w.naglowki).toBe(7);
+    expect(bledy).toEqual([]);
+  });
+
+  test('diagnostyka łączności zwinięta, gdy wszystko gra, i rozwinięta przy kłopocie', async ({ page }) => {
+    await otworz(page);
+    expect(await page.$eval('#diagnostyka', (d) => d.open)).toBe(false);
+    await otworz(page, { martwy: 'kuchnia' });
+    expect(await page.$eval('#diagnostyka', (d) => d.open)).toBe(true);
+  });
+
   test('na telefonie nic nie wystaje w poziomie', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 1400 });
     const bledy = await otworz(page);

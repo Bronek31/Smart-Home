@@ -94,7 +94,23 @@
 .summary{width:100%;border-collapse:collapse;margin-top:2.1rem;font-size:.85rem}.summary caption{text-align:left;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding-bottom:.55rem}.summary th,.summary td{text-align:right;padding:.45rem .5rem;border-bottom:1px solid var(--edge);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-weight:300;color:var(--text)}.summary th{font-family:"IBM Plex Sans Condensed",sans-serif;font-weight:600;font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}.summary th:first-child,.summary td:first-child{text-align:left}.summary td:first-child{font-family:"Familjen Grotesk",sans-serif;font-weight:400;border-left:3px solid var(--c);padding-left:.7rem}.warn-text{color:var(--warn)!important}.bad-text{color:var(--bad)!important}
 .tabela-zakres{margin-top:2.1rem}
 .summary{margin-top:.9rem}
-.notice{margin:2.5rem 0;padding:1.4rem 1.5rem;border:1px solid var(--edge);background:var(--panel);max-width:44rem}.notice h2{margin:0 0 .55rem;font-size:1.05rem}.notice p{margin:.45rem 0;color:var(--dim);font-size:.92rem}.notice code{font-family:"IBM Plex Mono",monospace;font-size:.85em;color:var(--pen-1);background:#0b1015;padding:.12em .42em;border:1px solid var(--edge)}[hidden]{display:none!important}@media(max-width:720px){.statusbar{grid-template-columns:1fr}.bottom-layout{grid-template-columns:1fr}.summary{font-size:.75rem;display:block;overflow-x:auto;white-space:nowrap}.summary th,.summary td{padding:.4rem .35rem}}
+.notice{margin:2.5rem 0;padding:1.4rem 1.5rem;border:1px solid var(--edge);background:var(--panel);max-width:44rem}.notice h2{margin:0 0 .55rem;font-size:1.05rem}.notice p{margin:.45rem 0;color:var(--dim);font-size:.92rem}.notice code{font-family:"IBM Plex Mono",monospace;font-size:.85em;color:var(--pen-1);background:#0b1015;padding:.12em .42em;border:1px solid var(--edge)}[hidden]{display:none!important}@media(max-width:720px){.statusbar{grid-template-columns:1fr 1fr}.statusbox{padding:.6rem .75rem}.bottom-layout{grid-template-columns:1fr}.summary{font-size:.75rem;display:block;overflow-x:auto;white-space:nowrap}.summary th,.summary td{padding:.4rem .35rem}
+/* Na telefonie strona to jedna kolumna długa na kilka ekranów, więc kolejność decyduje
+   o tym, co w ogóle zostanie zobaczone. Pogoda z radą „czy wietrzyć" to jedyna rzecz,
+   na podstawie której coś się robi — idzie zaraz pod kafle, a nie ~4500 px niżej.
+   Obudowy układu dwukolumnowego znikają (display:contents), żeby ich dzieci mogły
+   dostać własne miejsce w kolejności. */
+#app:not([hidden]){display:flex;flex-direction:column}
+.bottom-layout,.rightcol{display:contents}
+#app>*{min-width:0}
+.statusbar{order:-5}.pens{order:-4}#wx-panel{order:-3;margin-top:1.2rem}#ev-panel{order:-2;margin-top:1.2rem}
+.bottom-layout>.panel{margin-top:2.5rem}
+/* piąty kafel — dwór — na całą szerokość, zamiast samotnej komórki obok pustej */
+.pens>.pen:last-child:nth-child(odd){grid-column:1/-1}}
+.diagnostyka{margin-top:2.1rem}
+.diagnostyka>summary{cursor:pointer;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;color:var(--faint);padding:.3rem 0}
+.diagnostyka>summary:hover{color:var(--dim)}
+.diagnostyka .summary{margin-top:.6rem}
 </style>
 </head>
 <body><main class="sheet">
@@ -120,7 +136,8 @@
   </div>
 
   <div class="controls tabela-zakres"><span class="lbl">Zakres tabeli</span><button class="range" data-tab="dzis">dziś</button><button class="range" data-tab="168" aria-pressed="true">7 dni</button><button class="range" data-tab="720">30 dni</button><button class="range" data-tab="0">całość</button></div>
-  <table class="summary" id="summary"></table><table class="summary" id="health"></table>
+  <table class="summary" id="summary"></table>
+  <details class="diagnostyka" id="diagnostyka"><summary>Łączność z bramką — diagnostyka</summary><table class="summary" id="health"></table></details>
 
   <div class="bottom-layout">
     <section class="panel"><h2 id="plan-tytul">Plan mieszkania · aktualny stan</h2>
@@ -148,7 +165,7 @@
     </section>
     <div class="rightcol">
       <section class="panel" id="wx-panel" hidden><h2>Pogoda i powietrze</h2><div class="wx" id="wx"></div></section>
-      <section class="panel"><h2>Ostatnie zdarzenia</h2><div class="events" id="events"></div></section>
+      <section class="panel" id="ev-panel"><h2>Ostatnie zdarzenia</h2><div class="events" id="events"></div></section>
     </div>
   </div>
 </section><div class="notice" id="notice" hidden></div>
@@ -1820,8 +1837,18 @@ function renderSummary(){
   const tempSets=series('temp',h,false),humSets=series('hum',h,false);
   return rysujSummary(tempSets,humSets,h);
 }
-function rysujSummary(tempSets,humSets,okres){const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||zakresy(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel(okres)}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td></tr>`}).join('')+'</tbody>'}
-function renderHealth(){document.getElementById('health').innerHTML=`<caption>Łączność z bramką · diagnostyka ostatnich 24 h · alarm dopiero powyżej ${fmtDur(MISS_GAP)} ciszy</caption><thead><tr><th>Czujnik</th><th>temp.</th><th>wilg.</th><th>mediana odstępu</th><th>najdłuższa przerwa</th><th>para t+w</th><th>bateria</th><th>ostatni</th></tr></thead><tbody>`+state.health.map(r=>`<tr style="--c:${r.d.color}"><td>${esc(r.d.name)}</td><td>${r.nT}</td><td>${r.nH}</td><td>${fmtDur(r.median)}</td><td class="${r.suspicious?'warn-text':''}">${fmtDur(r.worst)}</td><td class="${r.paired!=null&&r.paired<.9?'warn-text':''}">${r.paired==null?'–':Math.round(r.paired*100)+'%'}</td><td class="${r.batt==='niski'?'warn-text':''}">${r.batt||'–'}</td><td class="${r.age>STALE_BAD?'bad-text':r.age>STALE_WARN?'warn-text':''}">${r.last?fmtAgo(r.last):'–'}</td></tr>`).join('')+'</tbody>'}
+/* Na wąskim ekranie siedem kolumn liczb nie mieściło się i tabela przewijała się w bok
+   bez żadnej wskazówki — połowy nie było widać. Tam min i max idą w jedną kolumnę. */
+const WASKI=matchMedia('(max-width:720px)');
+WASKI.addEventListener?.('change',()=>{if(state.devices.length)renderSummary()});
+const odDo=(a,b,m)=>a==null||b==null?'–':`${fmtNum(a,m)}–${fmtNum(b,m)}`;
+function rysujSummary(tempSets,humSets,okres){const byId=sets=>Object.fromEntries(sets.map(s=>[s.device.id,s.stats||zakresy(s.points)]));const T=byId(tempSets),H=byId(humSets),shown=state.devices.filter(d=>T[d.id]||H[d.id]);
+  if(WASKI.matches){document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel(okres)}</caption><thead><tr><th>Czujnik</th><th>śr °C</th><th>min–max</th><th>śr %</th><th>min–max</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.avg)}</td><td>${odDo(t?.min,t?.max)}</td><td>${fmtNum(h?.avg,0)}</td><td>${odDo(h?.min,h?.max,0)}</td></tr>`}).join('')+'</tbody>';return}
+  document.getElementById('summary').innerHTML=`<caption>Zakresy · ${rangeLabel(okres)}</caption><thead><tr><th>Czujnik</th><th>min °C</th><th>śr °C</th><th>max °C</th><th>min %</th><th>śr %</th><th>max %</th></tr></thead><tbody>`+shown.map(d=>{const t=T[d.id],h=H[d.id];return`<tr style="--c:${d.color}"><td>${esc(d.name)}</td><td>${fmtNum(t?.min)}</td><td>${fmtNum(t?.avg)}</td><td>${fmtNum(t?.max)}</td><td>${fmtNum(h?.min,0)}</td><td>${fmtNum(h?.avg,0)}</td><td>${fmtNum(h?.max,0)}</td></tr>`}).join('')+'</tbody>'}
+/* Diagnostyka łączności to narzędzie do szukania usterek, nie do codziennego patrzenia —
+   o usterkach mówią zdarzenia i watchdog. Stąd zwinięta; otwiera się sama, gdy któryś
+   czujnik ma kłopot, a zwinąć ją z powrotem może już tylko ręka. */
+function renderHealth(){if(state.health.some(r=>r.status!=='ok'))document.getElementById('diagnostyka').open=true;document.getElementById('health').innerHTML=`<caption>Łączność z bramką · diagnostyka ostatnich 24 h · alarm dopiero powyżej ${fmtDur(MISS_GAP)} ciszy</caption><thead><tr><th>Czujnik</th><th>temp.</th><th>wilg.</th><th>mediana odstępu</th><th>najdłuższa przerwa</th><th>para t+w</th><th>bateria</th><th>ostatni</th></tr></thead><tbody>`+state.health.map(r=>`<tr style="--c:${r.d.color}"><td>${esc(r.d.name)}</td><td>${r.nT}</td><td>${r.nH}</td><td>${fmtDur(r.median)}</td><td class="${r.suspicious?'warn-text':''}">${fmtDur(r.worst)}</td><td class="${r.paired!=null&&r.paired<.9?'warn-text':''}">${r.paired==null?'–':Math.round(r.paired*100)+'%'}</td><td class="${r.batt==='niski'?'warn-text':''}">${r.batt||'–'}</td><td class="${r.age>STALE_BAD?'bad-text':r.age>STALE_WARN?'warn-text':''}">${r.last?fmtAgo(r.last):'–'}</td></tr>`).join('')+'</tbody>'}
 // „dane od” ma podawać pierwszy prawdziwy odczyt z mieszkania. W widoku „całość”
 // wypada on w południe, bo tak stemplowane są doby w agregatach; w pozostałych
 // widokach rysujemy z surowych wierszy, więc i podpis musi iść z surowych.
