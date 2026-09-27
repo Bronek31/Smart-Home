@@ -1,0 +1,43 @@
+{
+  "updated": "2026-09-27T19:54:54Z",
+  "pokoje": [
+    {
+      "nazwa": "Łazienka",
+      "t": 20.4,
+      "h": 67.0,
+      "odczyt": "2026-09-27T19:18:17Z",
+      "prog": 74,
+      "plesn": false
+    },
+    {
+      "nazwa": "Sypialnia",
+      "t": 21.1,
+      "h": 60.0,
+      "odczyt": "2026-09-27T19:29:34Z",
+      "prog": 73,
+      "plesn": false
+    },
+    {
+      "nazwa": "Kuchnia",
+      "t": 19.9,
+      "h": 69.0,
+      "odczyt": "2026-09-27T19:14:14Z",
+      "prog": 75,
+      "plesn": false
+    },
+    {
+      "nazwa": "Salon",
+      "t": 19.9,
+      "h": 66.0,
+      "odczyt": "2026-09-27T19:43:24Z",
+      "prog": 75,
+      "plesn": false
+    }
+  ],
+  "dwor": {
+    "nazwa": "Na zewnątrz",
+    "t": 16.2,
+    "h": 58.0
+  },
+  "tekst": "Łazienka 20,4° 67%\nSypialnia 21,1° 60%\nKuchnia 19,9° 69%\nSalon 19,9° 66%\nNa zewnątrz 16,2°\nodczyt 21:43"
+}
