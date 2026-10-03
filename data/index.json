@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-03T02:00:57Z",
+  "updated": "2026-10-03T02:03:15Z",
   "months": [
     "2026-08",
     "2026-09",
@@ -7,7 +7,9 @@
   ],
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
-  "alerty": [],
+  "alerty": [
+    "**Salon** — wilgotność powyżej progu pleśni przez 26% doby (przy obecnej pogodzie to ok. 65%), przewietrz albo osusz."
+  ],
   "artefakty": [
     {
       "czujnik": "bfd6f4f87fea9d866dvpve",
