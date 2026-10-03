@@ -509,3 +509,5 @@ date,device_id,code,min,avg,max,n
 2026-10-03,bfd6f4f87fea9d866dvpve,va_temperature,21.2,21.46,22.3,27
 2026-10-03,zewnatrz,va_humidity,24,44.92,66,24
 2026-10-03,zewnatrz,va_temperature,12.2,17.20,22.4,24
+2026-10-04,zewnatrz,va_humidity,44,44.00,44,1
+2026-10-04,zewnatrz,va_temperature,16.2,16.20,16.2,1
