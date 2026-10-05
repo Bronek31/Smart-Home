@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-05T16:01:48Z",
+  "updated": "2026-10-05T16:03:55Z",
   "current": {
     "time": "2026-10-05T18:00",
     "interval": 900,
@@ -33,7 +33,7 @@
     "precipitation_probability_max": [
       0,
       0,
-      10
+      14
     ],
     "precipitation_sum": [
       0.0,
