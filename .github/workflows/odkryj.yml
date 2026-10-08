@@ -11,8 +11,8 @@ name: Pokaż urządzenia w Tuya
 # urządzenia w Tuya -> Run workflow, a potem czytasz log kroku. Rusza też sam po
 # każdej zmianie tego pliku na main — tak może go odpalić Claude, którego
 # integracja z GitHubem czyta przebiegi, ale nie może ich uruchamiać (403).
-# Ostatnie takie uruchomienie: 8.10, po przełączeniu produktu czujników w doniczkach
-# (0ints6wl) na DP Instruction — czy chmura podaje już światło i wilgotność powietrza.
+# Ostatnie takie uruchomienie: 8.10 o 17:13 UTC — tempo wpisów czujników w doniczkach
+# po godzinie bez dotykania, przy próbkowaniu ustawionym na 600 s.
 #
 # Uwaga: log przebiegu w publicznym repozytorium jest publiczny. Wypisywane są
 # identyfikatory, nazwy i bieżące odczyty urządzeń — identyfikatory i tak leżą
