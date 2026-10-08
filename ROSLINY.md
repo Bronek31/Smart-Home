@@ -179,14 +179,57 @@ punkt danych (112). Etykieta „4 in 1" wskazuje na zwykłą wersję. Rozstrzygn
   Przez logi to ok. 2 strony na czujnik na przebieg, więc pakiet to zniesie. Bateria
   przy raporcie co 30 s — niekoniecznie. Pomiar do powtórzenia po godzinie spokoju przy
   ustawionym próbkowaniu 600 s.
+- **Godzina spokoju** (16:15–17:15 UTC, nikt nie dotykał czujników; przebieg 37815058708):
+  - Fikus 10, Skrzydłokwiat 8, Azalia 10 wpisów na godzinę, czyli ok. 240 na dobę;
+  - gleba 1–3 razy na godzinę, temperatura 1–3, wilgotność powietrza 1–2, światło 1–2,
+    bateria 2.
+
+  Raport co 30 s był więc skutkiem parowania i zmian ustawień, a nie pracy czujnika.
+  Zalewania komunikatami nie ma. Godzinna zakładka w kolektorze roślin to zwykle jedna
+  strona, a tydzień historii to ok. 17 stron na czujnik.
 - **Bateria:** Skrzydłokwiat wysłał już `battery_state=high`. Fikus i Azalia jeszcze nic,
   więc aplikacja pokazuje domyślne „low" — to brak pierwszego raportu, nie stan baterii.
-- **Brakuje światła i wilgotności powietrza.** W trybie *Standard Instruction* chmura
-  pokazuje tylko pola ze standardu kategorii `zwjcy` — dokładnie to, przed czym
-  ostrzegał tinytuya. Bez przełączenia produktu na *DP Instruction* nie ma reguły
-  „przestaw", bo nie ma światła.
+- **Brakowało światła i wilgotności powietrza.** W trybie *Standard Instruction* chmura
+  pokazywała tylko pola ze standardu kategorii `zwjcy` — dokładnie to, przed czym
+  ostrzegał tinytuya. Rozwiązane przełączeniem na *DP Instruction* (niżej).
 - Dzisiejsze `classify()` wzięłoby `humidity` za wilgotność powietrza — potwierdzone
   na żywo.
+
+**Po przełączeniu na *DP Instruction*** (8.10 ok. 16:45 UTC; przebieg 37812052768,
+zadziałało od razu, bez czekania godzinami):
+
+| Kod w chmurze | Co to jest | Typ, zakres | Odczyt 16:52 UTC (Fikus) |
+|---|---|---|---|
+| `humidity` | wilgotność gleby | Integer, %, 0…100 | 10 |
+| `temp_current` | temperatura powietrza | Integer, ℃, scale 1 | 22,5 °C |
+| `env_humidity` | wilgotność powietrza | Integer, %, 0…100 | 51 |
+| `illumiance` (sic, z literówką) | światło | Integer, 0…10 000, bez jednostki | 160 |
+| `battery_state` | bateria | low / middle / high | high |
+| `water_warning` | wbudowany alarm „sucho" | Boolean | True (sonda w powietrzu) |
+
+Ustawienia (`functions`):
+- `soil_sampling` 5…1200 s;
+- `soil_calibration` ±30;
+- `humidity_calibration` ±30%;
+- `illumiance_calibration` ±1000 lx;
+- `temperature_calibration` ±2,0 °C;
+- `soil_warning` 0…80% — próg wbudowanego alarmu „sucho".
+
+Wnioski:
+- **Kody do `rosliny.json` są znane.** Dzisiejsze `classify()` dałoby `env_humidity`
+  i `humidity` jako dwa razy „hum", a `illumiance` by odrzuciło. Jawne kody w
+  konfiguracji to jedyna bezpieczna droga.
+- **Baterie są dobre** („high" na wszystkich odczytanych). Wcześniejsze „Niska" było
+  domyślną wartością sprzed pierwszego raportu.
+- ~~`soil_sampling` nie zmienia tempa wysyłania.~~ Tuż po zmianie na 600 s gleba dalej
+  przychodziła co ok. 30 s (110–113 wpisów na godzinę). **Godzina spokoju to obaliła**
+  (wyżej): bez dotykania czujnik wysyła 8–10 wpisów na godzinę, glebę 1–3 razy.
+  - Kolektor roślin i tak ma krótką zakładkę (godzina, nie 6), przerzedzanie przed
+    zapisem do CSV i budżet — na wypadek, gdyby zalew wrócił po dotknięciu czujnika.
+- **`water_warning` z progiem `soil_warning`** to gotowy, liczony na samym czujniku
+  alarm „sucho". To dobra podstawa tymczasowej automatyzacji w Smart Life
+  (warunek „water_warning = alarm"). ZHA zgłaszało, że ten alarm potrafi migać, więc
+  kolektor go zapisuje, ale do decyzji nie używa.
 
 **Pierwsze odczyty (8.10, 18:09):** sparowane, wszystkie trzy obok siebie na jednym
 stoliku, w zaciemnionym pokoju, po wciśnięciu przycisków.
@@ -409,6 +452,48 @@ jedna próbka na godzinę, bez krzywej światła w ciągu dnia. Ale wcześniej �
 czujników.
 
 ### Etap 2: osobny tor danych
+
+**Stan na 8.10 wieczorem: zrobione.**
+
+Odstępstwa od projektu niżej, wymuszone pomiarem:
+- **Zakładka roślin 1 godz., nie 6**, i budżet 12 zapytań na czujnik. W godzinie
+  parowania gleba przychodziła co ok. 30 s, więc 6 godz. zakładki to było ok. 8 stron
+  na przebieg. W spokoju to 8–10 wpisów na godzinę, czyli zakładka mieści się w jednej
+  stronie i jest czytana naprawdę (uwaga recenzenta o pomijanej zakładce dotyczyła
+  tempa z parowania).
+- **Przerzedzanie w kolektorze** (`rosliny.zwin`): zostaje zmiana wartości albo jeden
+  wiersz na godzinę na serię. Działa na całym pliku miesięcznym przy każdym przebiegu,
+  bo zakładka dokłada wycięte wiersze z powrotem; jest idempotentne.
+- **Kursory i skale roślin w `stan.json`**, nie w `index.json`.
+- **Nauka zaczyna się godzinę po `od`** (wbicie sondy). Wcześniejsze odczyty, w tym
+  testy w wodzie, nie uczą progów — wbicie w wilgotną ziemię wyglądałoby jak podlanie.
+  `od` musi mieć godzinę i strefę (`2026-10-09T08:30:00+02:00`): sama data to północ
+  UTC, a godzina bez strefy liczy się w strefie maszyny. Godzinę wbicia zaokrąglamy
+  w górę.
+
+**Po przeglądzie (8.10 wieczorem):**
+- **Błąd toru** zostawia w `stan.json` kursory, skale i ostatnie werdykty (`updated`
+  sprzed błędu), dopisuje `blad` i alert dla watchdoga. Kursory zapisują się zaraz po
+  dopisaniu odczytów do CSV. Błąd obliczeń jednej rośliny nie zasłania pozostałych.
+- **Limit czasu toru: 300 s** (`SIGALRM`, wyjątek spoza `Exception`). Wolność to nie
+  wyjątek, a zabite zadanie nie zapisałoby pokoi.
+- **Wykrywanie podlań jest liniowe.** `przed` i `szczyt` to mediany 2–6 godz. przed
+  skokiem i po nim; szczyt dopiero 6 godz. po podlaniu. Podlanie uczy skali tylko wtedy,
+  gdy mediany różnią się o 10 punktów. Przerwa w danych tuż przed podlaniem go nie gubi.
+- **Nauka patrzy 60 dni wstecz** (trzy podlania fikusa zimą), więc kolektor czyta pliki
+  miesięczne z tego okresu, nie zawsze dwa ostatnie.
+- **Martwa strefa ±1 punktu dla gleby** przy przerzedzaniu — drgnięcie 10↔11 to nie
+  zmiana.
+- **Werdykt „czujnik"**: cisza, brak gleby od 12 godz. przy działającej reszcie, nagły
+  spadek gleby do poziomu powietrza po `od` (sonda wyjęta; watchdog dopiero po 2 godz.,
+  bo zanurzanie azalii trwa pół godziny). Powolne schnięcie do sucha to dalej „podlej".
+- **Do watchdoga** idzie tylko `do_zgloszenia` z każdej rośliny i błędy toru. Pusta
+  lista roślin czyści alerty.
+- **Pokój wpisany jako „czujnik"** zostaje pokojem, a tor roślin zgłasza błąd.
+- **Pierwszy przebieg** bez kursora bierze dobę, a nie 7 dni.
+- Doby światła liczone od lokalnej północy; dzisiejszą niepełną widać po `pokrycie`.
+- **Jeszcze nie ma histerezy werdyktu.** Przy szumie ±1 koło progu werdykt może skakać.
+  Wejdzie z powiadomieniami (etap 4), bo to one muszą być spokojne.
 
 ```
 rosliny.json                     konfiguracja (ręczna, jak artefakty.json): czujnik → roślina
@@ -709,10 +794,15 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
   - po etapie 0 rozszerzone „Pokaż urządzenia w Tuya" i odczyt wyniku.
 - **Właściciel, tylko jeśli poproszę:** *DP Instruction* dla produktu czujnika roślin.
 
-**Etap 2. Kolektor roślin**
+**Etap 2. Kolektor roślin** — zrobione 8.10.
 - **Claude:** `rosliny.json`, osobny tor, izolacja danych i awarii, `rosliny.py`,
-  krok watchdoga, testy.
-- Każdy test odrzuca starą wersję albo jest podpisany jako strażnik.
+  krok watchdoga (etykieta `rosliny`), testy.
+- **Testy:**
+  - 7 z 8 testów toru odrzuca wersję bez toru na zachowaniu (rośliny w pokojach,
+    brak stanu); ósmy to podpisany strażnik;
+  - testy obliczeń dotyczą nowego modułu.
+- **Do zrobienia przez właściciela:** napisać godzinę wbicia sond — trafi do pola
+  `od` w `rosliny.json`, od niej zaczyna się nauka progów.
 
 **Etap 3. Zakładka „Rośliny"**
 - **Claude:** `rosliny.html`, pasek zakładek, karty, wykres, `sw.js`.
@@ -743,9 +833,12 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
 
 - Kody, jednostki, skale i kategoria w chmurze. Czy światło i wilgotność powietrza
   przychodzą (*Standard* czy *DP Instruction*).
-- Ile wpisów na godzinę robi jeden czujnik: raport okresowy, „na zmianę", zalewanie.
-  Od tego zależy koszt w Tuya, rozmiar CSV i bateria.
-- Kolejność wpisów w logach Tuya.
+- *(Rozstrzygnięte 8.10.)* Ile wpisów na godzinę robi jeden czujnik: w spokoju 8–10,
+  gleba 1–3 razy; ok. 120 tylko w godzinie parowania i zmian ustawień. Bateria —
+  do obserwacji przez kilka tygodni.
+- *(Rozstrzygnięte 8.10.)* Kolejność wpisów w logach Tuya: najpewniej od najnowszego
+  (17 zapytań na pokój w pierwszym przebiegu, patrz KONTEKST.md). Algorytm i tak jej
+  nie zakłada.
 - Czy czujnik roślin obciąża bramkę tak, że gubi raporty pokoi.
 - W którą stronę patrzy czujnik światła i czy nasyca się przy 10 000 lx.
 - Ile pokazuje gleba w powietrzu, w wodzie i w każdej z trzech doniczek.
