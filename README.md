@@ -546,8 +546,8 @@ zgodne z wyliczeniem). Od tego dnia kolektor pyta tylko o odcinek od `pobrane_do
 token, lista urządzeń, po jednej stronie na czujnik i jedna na klimatyzator, czyli
 ok. 7 zapytań na przebieg. Ile dokładnie, wypisuje sam na końcu logu przebiegu
 („Zapytań do Tuya w tym przebiegu"). Pierwszy przebieg po wdrożeniu, bez kursora
-w manifeście, bierze jeszcze pełne 7 dni — jednorazowo ok. 26 zapytań, a jeśli Tuya
-oddaje logi od najnowszego, do ok. 70.
+w manifeście, bierze jeszcze pełne 7 dni — 8.10 kosztował 75 zapytań (ok. 17 na
+czujnik), co wskazuje, że Tuya oddaje logi od najnowszego.
 
 Na jeden odcinek przypada jedna strona (100 wpisów). Gdy odcinek się nie mieści, kolektor
 dzieli go albo przesuwa po znacznikach czasu — w obu kolejnościach, w jakich Tuya może
