@@ -49,7 +49,8 @@ się nieco różnić.
    podrzędne**.
 2. Na czujniku **przytrzymaj przycisk 5 sekund**, aż zacznie migać czerwona dioda.
 3. Poczekaj, aż aplikacja znajdzie urządzenie.
-4. **Nazwij je dokładnie:** `Fikus`, `Azalia`, `Skrzydłokwiat`. Pokój: **Salon**.
+4. **Nazwij je dokładnie:** `Fikus`, `Azalia`, `Skrzydłokwiat`. Pokój: Fikus i
+   Skrzydłokwiat → **Salon**, Azalia → **Kuchnia**.
    Z tych nazw korzystają powiadomienia.
 5. Paruj na **swoim** koncie i w tym samym domu co reszta czujników. Tylko to konto
    jest połączone z projektem Tuya.
@@ -197,7 +198,8 @@ wyłączyć.
 ## Co możesz zrobić już teraz, bez czujników
 
 - **Azalia:**
-  - Salon ma ok. 21 °C dniem i nocą, a kwitnąca azalia woli 10–18 °C. W ciepłym
+  - Kuchnia ma ok. 21 °C dniem i nocą (przez ostatnie 3 tygodnie ani razu nie zeszła
+    do 18 °C), a kwitnąca azalia woli 10–18 °C. W ciepłym
     pokoju kwitnie krócej.
   - Najchłodniejsze jasne miejsce bez słońca, z dala od kaloryfera.
   - **Nigdy nie dopuść do przesuszenia.** Jeśli ziemia zaschnie, zanurz plastikową
@@ -212,7 +214,8 @@ wyłączyć.
     Jeśli ma zmienić miejsce na jaśniejsze, to raz i na stałe, a nie kilka razy.
   - Kilka opadłych liści po przestawieniu to normalna reakcja.
 - **Wszystkie trzy:**
-  - Salon ma okno na północ. Do ok. 20 marca nie zobaczy bezpośredniego słońca.
+  - Salon i Kuchnia mają okna na północ. Do ok. 20 marca nie zobaczą
+    bezpośredniego słońca.
   - Im bliżej okna, tym lepiej, ale nie nad kaloryferem.
   - Zimą bez nawozu i z mniejszą ilością wody (poza azalią).
 
