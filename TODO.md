@@ -10,7 +10,8 @@ data wygaśnięcia triala Tuya. Zostają dwie rzeczy cykliczne, obie w kalendarz
 
 - **token GitHuba dla cron-job.org** ma datę ważności — przed nią wygenerować nowy
   i podmienić nagłówek `Authorization` (README, „Kolektor co godzinę");
-- **trial IoT Core u Tuya** — wniosek o przedłużenie z tygodniem zapasu.
+- **trial IoT Core u Tuya** — przedłużony do 13.03.2027 (panel 8.10); wniosek
+  o kolejne przedłużenie z tygodniem zapasu, czyli ok. 6.03.2027.
 
 Gdyby któreś przepadło: pierwsze objawi się powrotem do odczytów co 3–5 godz.,
 drugie zgłoszeniem „Kolektor stoi" z kodem `28841002`.
@@ -22,8 +23,9 @@ drugie zgłoszeniem „Kolektor stoi" z kodem `28841002`.
 „przestaw". Plan, pomiary i pytania do właściciela w `ROSLINY.md`. Powiadomienia push
 stały wcześniej w „świadomie odrzuconych" z powodem „brak serwera" — ten powód odpada:
 nadawcą może być przebieg GitHub Actions, a doręcza Web Push. Pierwszy krok jest
-niezależny od roślin: limit zapytań Tuya — według prognozy październik zamknie się
-na ok. 98% limitu triala, a trzy nowe czujniki przy dzisiejszym pobieraniu go przekroczą.
+zrobiony 8.10: kolektor pobiera przyrostowo (ok. 7 zapytań na przebieg zamiast 29,
+z pakietu triala 0,20 USD na miesiąc), bo czujnik w doniczce przy pełnym oknie 7 dni
+kosztowałby więcej niż wszystkie pokoje razem.
 
 ## Do sprawdzenia po kilku tygodniach grzania
 

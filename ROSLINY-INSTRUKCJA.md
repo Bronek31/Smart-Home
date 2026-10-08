@@ -15,18 +15,14 @@ osobnym torem.
 
 ---
 
-## Krok 1. Dziś: limit zapytań Tuya (na komputerze, 5 minut)
+## Krok 1. Limit zapytań Tuya — zrobione 8.10
 
-Kolektor zużywa według prognozy ok. 98% miesięcznego limitu wersji próbnej. Trzeba
-sprawdzić, ile naprawdę zostało.
+Panel: pakiet 0,20 USD na miesiąc, w październiku zużyte 0,0231 USD, wersja próbna
+przedłużona do 13.03.2027. Kolektor pobiera teraz tylko nowe odczyty, ok. 7 zapytań na
+przebieg zamiast 29.
 
-1. Zaloguj się na **iot.tuya.com**. Otwórz projekt: Cloud → Development → Smart Home.
-2. Znajdź usługę **IoT Core** i jej zużycie. Zrzut ekranu wystarczy.
-3. Przejrzyj maile od Tuya z tematem „remaining usage is X%".
-4. Napisz mi: **wykorzystane / limit / kiedy się odnawia**.
-
-**Claude:** przerabiam kolektor tak, żeby pobierał tylko nowe odczyty (etap 0).
-Nie czekaj na to z krokami 2–6.
+**Na przyszłość:** zużycie widać na iot.tuya.com → IoT Core → My Subscriptions.
+Ok. 6.03.2027 trzeba złożyć wniosek o kolejne przedłużenie.
 
 ---
 
@@ -135,8 +131,8 @@ i powód do zwrotu w terminie.
 - Porównuję liczbę raportów czujników pokojowych sprzed i po parowaniu. Sprawdzam
   w ten sposób, czy nowe czujniki nie zapychają bramki. Jest to za darmo, z danych
   w repozytorium.
-- Po wdrożeniu etapu 0 uruchamiam rozszerzone „Pokaż urządzenia w Tuya" (ok. 20
-  zapytań) i czytam wynik.
+- Rozszerzone „Pokaż urządzenia w Tuya" (ok. 20 zapytań) rusza samo po wdrożeniu
+  zmian. Wynik czytam ja.
 - Sprawdzam kody, jednostki i to, czy światło i wilgotność powietrza przychodzą.
   Przede wszystkim liczę, **ile wpisów na godzinę robi jeden czujnik**.
 
@@ -269,7 +265,7 @@ telefon jeszcze nie idą.
 |---|---|---|
 | kod, commity, wypychanie na gałąź roboczą | ✔ | — |
 | odczyt przebiegów i logów workflowów | ✔ (sprawdzone, jako Bronek31 przez aplikację GitHub) | — |
-| uruchamianie workflowów („Pokaż urządzenia w Tuya", próbne powiadomienie) | ✔ — narzędzie jest, pierwsze użycie przy kroku 6 | albo Ty: Actions → workflow → Run workflow |
+| uruchamianie workflowów („Pokaż urządzenia w Tuya", próbne powiadomienie) | ✘ — GitHub odmawia (403). Obejście: „Pokaż urządzenia w Tuya" rusza samo po każdej zmianie swojego pliku na `main` | ręcznie: Actions → workflow → Run workflow |
 | scalanie na `main`, czyli wdrożenie strony i kolektora | po Twojej zgodzie | albo Ty |
 | sekrety repozytorium (Tuya, powiadomienia) | ✘ — ani odczyt, ani zapis | ✔ |
 | panel iot.tuya.com (limit, tryb instrukcji) | ✘ — wymaga logowania | ✔ |

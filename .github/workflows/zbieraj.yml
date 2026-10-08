@@ -3,7 +3,8 @@ name: Zbieranie odczytów
 on:
   schedule:
     # Raz na godzinę, poza pełną godziną — GitHub może opóźniać scheduled runs.
-    # Opóźnienie nie gubi danych, bo fetch.py pobiera pełne okno 7 dni, ale od końca
+    # Opóźnienie nie gubi danych, bo fetch.py dociąga od miejsca, w którym skończył
+    # poprzedni udany przebieg (do 7 dni wstecz), ale od końca
     # sierpnia 2026 wynosi 3–5 godz. i strona jest przez to nieświeża. Właściwym zegarem
     # jest zewnętrzny cron wołający workflow_dispatch (README, „Kolektor co godzinę");
     # ten harmonogram zostaje jako zapas.
@@ -67,8 +68,10 @@ jobs:
           # Strefa, według której tną się doby w agregatach data/dzienne.csv
           TZ_LOCAL: 'Europe/Warsaw'
         # Pobranie i zapis w jednym kroku, bo przy przegranym wyścigu o gałąź trzeba
-        # policzyć odczyty jeszcze raz — na drzewie tego, kto zapisał pierwszy. Pełne
-        # okno 7 dni, jakie daje Tuya: przy postoju kolektora dopiero to pozwala nadrobić
-        # wszystko, co jeszcze jest do odzyskania. Logika siedzi w zapisz.sh, żeby dała
-        # się przetestować — patrz tests/test_zapisz.py.
+        # policzyć odczyty jeszcze raz — na drzewie tego, kto zapisał pierwszy. Okno
+        # zaczyna się tam, gdzie skończył poprzedni udany przebieg (`pobrane_do`
+        # w data/index.json), najdalej 7 dni wstecz, czyli tyle, ile daje Tuya: po
+        # postoju kolektora nadrabia wszystko, co jeszcze jest do odzyskania, a na co
+        # dzień kosztuje jedno zapytanie na czujnik. Logika siedzi w zapisz.sh, żeby
+        # dała się przetestować — patrz tests/test_zapisz.py.
         run: sh zapisz.sh

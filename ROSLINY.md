@@ -45,12 +45,15 @@ dla pokoi. Rośliny dostają **osobną zakładkę** w aplikacji.
    tor danych (własna konfiguracja, pliki w `data/rosliny/`) i osobną stronę
    `rosliny.html`. Na dzisiejszej stronie dochodzi tylko pasek zakładek. Izolacji
    pilnuje test.
-3. **Najpierw limit Tuya (etap 0).**
-   - Dzisiejsze zbieranie zużyje w październiku ok. **98% limitu** triala.
-   - Zapas to ok. 560 zapytań, czyli ok. 19 dodatkowych przebiegów **[do sprawdzenia
-     na iot.tuya.com]**.
-   - Trzy czujniki dopisane przy dzisiejszym sposobie pobierania przekroczyłyby limit,
-     a po jego wyczerpaniu staje także zbieranie z pokoi.
+3. **Limit Tuya: najpierw pobieranie przyrostowe (etap 0, zrobione 8.10).**
+   - Trial to pakiet **0,20 USD na miesiąc**. Nasze zapytania Tuya liczy jako
+     zagraniczne, po 3,71 USD za milion, więc pakiet to ok. 54 000 zapytań. Tak wynika
+     z panelu, który właściciel sprawdził 8.10.
+   - Przy dawnym pobieraniu pełnych 7 dni październik zamknąłby się na ok. **47%**.
+   - Czujnik w doniczce przy pełnym oknie kosztowałby więcej niż wszystkie pokoje
+     razem, a przy zalewie wyczerpałby pakiet w dwa dni. Po wyczerpaniu staje także
+     zbieranie z pokoi.
+   - Po etapie 0 przebieg kosztuje ok. 7 zapytań zamiast 29.
 4. **Czujnik może być wadliwą wersją.**
    - Model z naklejki to „C3007". Zigbee2MQTT ostrzega przed nim: lawina komunikatów,
      baterie na kilka dni.
@@ -282,7 +285,7 @@ Wiersz `diagnose()` pochodzi z symulacji w Pythonie.
 | wykresy temperatury i wilgotności | pokoje spadają do ok. 1/5 wysokości osi; gleba na wykresie wilgotności powietrza |
 | rada o wietrzeniu | średnia mieszkania z roślinami: werdykt zmienił się z „Najlepszy moment na wietrzenie" na „Otwarte okno schłodzi mieszkanie" |
 | rzut, rytm doby, strefa komfortu, kalendarz | skale barw rozjechane; rytm doby domyślnie pokazuje „Fikusa" |
-| koszt w Tuya | pełne okno 7 dni przy raporcie co 600 s to ok. 51 stron logów na czujnik na przebieg. Przy zalewaniu 3 × 300 stron to ok. 930 zapytań na przebieg: miesięczny limit znika w niecałą dobę, a przebieg (ok. 19 min) ociera się o `timeout-minutes: 20` |
+| koszt w Tuya | pełne okno 7 dni przy raporcie co 600 s to ok. 51 stron logów na czujnik na przebieg. Przy zalewaniu 3 × 300 stron to ok. 930 zapytań na przebieg: miesięczny pakiet znika w dwie doby, a przebieg (ok. 19 min) ociera się o `timeout-minutes: 20` |
 
 Wniosek: rośliny nie mogą trafić do `data/index.json` ani do `data/RRRR-MM.csv`.
 
@@ -290,56 +293,46 @@ Wniosek: rośliny nie mogą trafić do `data/index.json` ani do `data/RRRR-MM.cs
 
 ## Jak to zbudować
 
-### Etap 0: limit Tuya (przed wszystkim innym)
+### Etap 0: pobieranie przyrostowe (zrobione 8.10)
 
-**Dziś:** ok. 29 zapytań na przebieg.
+**Do 8.10:** 29 zapytań na przebieg.
 - Token i lista urządzeń.
 - Pełne 7 dni logów dla czterech pokoi: 6–7 stron po 100 wpisów każdy.
 - Klimatyzator.
-- Najpewniej nieudana próba API v2. Wynika to z czasów w logu; potwierdzi wypisanie
-  `client.log_api`.
+- Najpewniej nieudana próba API v2.
+
+Panel Tuya 8.10 po południu: 6229 zapytań = 0,0231 USD, co do kilku zgodne z 29 ×
+liczba przebiegów. Liczy się więc każde zapytanie, także o token i nieudane.
 
 Przebiegów jest ok. 28 na dobę: 24 z cron-job.org i zwykle 4 z zapasowego
-harmonogramu GitHuba. Każdy push na `main` — także samego `.md` — odpala dodatkowy
-przebieg, więc zmiany trzeba wdrażać zbiorczo.
+harmonogramu GitHuba. Każdy push na `main` z czymś poza `data/` (także samym `.md`)
+odpala dodatkowy przebieg.
 
-**Pobieranie przyrostowe, niezależne od kolejności logów:**
-- Okno dzielimy na kawałki czasu (np. po 6 godz.), od najstarszego. Kawałek, który
-  zmieścił się w limicie stron, jest „domknięty".
-- Kursor `pobrane_do` urządzenia przesuwa się **tylko** do końca ostatniego
-  domkniętego kawałka. Nigdy do najnowszego widzianego wpisu, nigdy po odpowiedzi
-  uciętej błędem i nigdy dalej niż „teraz".
-- Zakładka 2–3 godz. liczy się od `pobrane_do`. Podłoga 7 dni zostaje, więc
-  nadrabianie po awarii działa jak dziś. Klimatyzator dalej najwyżej 12 godz.
-  (`SPRZET_OKNO`).
-- Limit stron na kawałek: pokoje co najmniej 10, rośliny 5. Każde trafienie w limit
-  to ostrzeżenie w logu, a nie cisza jak dziś.
-- Kursor pokoi trzymamy w `data/index.json` (`last_log` już tam jest dla
-  klimatyzatora).
+**Jak działa teraz** (szczegóły w `KONTEKST.md`, sekcja z 8.10):
+- Kursor `pobrane_do` w `data/index.json`, zakładka 6 godz., podłoga 7 dni.
+  Klimatyzator bez zmian (12 godz., `last_log`).
+- Okno czytane odcinkami po jednej stronie:
+  - zmieścił się → następny dwa razy dłuższy;
+  - nie zmieścił się, a wpisy przyszły rosnąco → przesunięcie po znacznikach czasu;
+  - inaczej → o połowę krótszy.
+- Kursor nigdy się nie cofa i nie przeskakuje za „najnowszy widziany wpis".
+- Budżet 30 zapytań na czujnik na przebieg, z ostrzeżeniem w logu.
+- Najpierw API v1, licznik zapytań na końcu logu.
+- 13 nowych testów na atrapie Tuya, w obu kolejnościach logów. 11 z nich odrzuca
+  starą wersję na zachowaniu, 2 to podpisani strażnicy.
 
-**Kolejność wpisów w logach Tuya** (od najstarszego czy od najnowszego) jest nieznana.
-Etap 0 sprawdza ją jednym wywołaniem, a projekt powyżej działa w obu przypadkach.
+**Szacunek** (pakiet ok. 54 000 zapytań na miesiąc):
 
-**Testy:**
-- `main()`, `_logs` i `fetch_logs` nie mają dziś testów. Najpierw dostają podstawkę
-  klienta Tuya z ustawialną kolejnością stron.
-- Zalew 1 wpis/s przy limicie stron → kursor rusza się w każdym przebiegu.
-- Błąd na 3. stronie → następny przebieg pobiera brakujący kawałek.
+| Wariant | Zapytań na przebieg | Na miesiąc | Pakietu |
+|---|---|---|---|
+| do 8.10, pełne okno | 29 | ok. 25 400 | 47% |
+| bez roślin | ok. 7 | ok. 6 100 | 11% |
+| z roślinami, bez zalewania | ok. 10 | ok. 8 800 | 16% |
+| zalew wszystkich trzech roślin (budżet 30 na każdą) | do ok. 97 | do ok. 85 000 | ponad 100% |
 
-**Szacunek:**
-
-| Wariant | Zapytań na przebieg | Zapytań na miesiąc |
-|---|---|---|
-| bez roślin | ok. 7 | — |
-| z roślinami, bez zalewania | 10–13 | 8 800–11 400 |
-| przy zalewaniu z limitem 5 stron | ok. 22 | ok. 19 300 |
-
-**Gotowe, gdy:**
-- testy odrzucają starą wersję;
-- liczba zapytań jest zmierzona licznikiem w logu przebiegu;
-- dokumentacja nie twierdzi już, że każdy przebieg bierze pełne 7 dni ani że
-  skasowane wiersze wracają (README, KONTEKST, docstring `fetch.py`, komentarze
-  w `zbieraj.yml` i `zapisz.sh`).
+Ostatni wiersz to powód, dla którego zalewający czujnik nie może iść przez logi.
+Etap 2 da roślinom mniejszy budżet, a przy potwierdzonym zalewie — zapytanie o status
+zamiast logów.
 
 ### Etap 1: rozpoznanie czujników
 
@@ -349,11 +342,12 @@ Etap 0 sprawdza ją jednym wywołaniem, a projekt powyżej działa w obu przypad
 - **tempo wpisów z ostatniej godziny**, tylko dla urządzeń spoza `TUYA_DEVICE_IDS`,
   najwyżej 3 strony na urządzenie, z przeliczeniem na dobę po znacznikach czasu;
 - licznik zapytań w logu;
-- przy czujniku roślin podpowiedź „dopisz do `rosliny.json`" zamiast dzisiejszej
-  „dopisz do `TUYA_DEVICE_IDS`";
+- przy czujniku roślin ostrzeżenie „NIE dopisuj do `TUYA_DEVICE_IDS`";
 - `timeout-minutes: 10` w `odkryj.yml`, jedynym workflowie bez limitu czasu.
 
-Uruchamiam go ja, **dopiero po wdrożeniu etapu 0**. Koszt: ok. 15–25 zapytań.
+Zrobione 8.10 razem z etapem 0. Integracja Claude'a z GitHubem nie może uruchamiać
+workflowów (403), więc `odkryj.yml` rusza też sam po każdej zmianie swojego pliku na
+`main`. Koszt: ok. 15–25 zapytań.
 
 **Jeśli potwierdzi się zalewanie**, logi roślin odpadają. Stan bierzemy wtedy jednym
 zapytaniem o status dla wszystkich trzech (`/v1.0/devices?device_ids=…`). Może być
@@ -645,11 +639,10 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
 
 ## Plan wdrożenia
 
-**Etap 0. Limit Tuya**
-- **Właściciel:** iot.tuya.com → IoT Core: zużycie w tym miesiącu, limit i data
-  odnowienia.
-- **Claude:** pobieranie przyrostowe, limity stron, bez próby API v2, podpowiedź przy
-  kodzie wyczerpanego limitu, poprawiona dokumentacja.
+**Etap 0. Limit Tuya** — zrobione 8.10.
+- **Właściciel:** sprawdził zużycie na iot.tuya.com.
+- **Claude:** pobieranie przyrostowe, budżet zapytań, najpierw API v1, licznik
+  zapytań, rozszerzone „Pokaż urządzenia w Tuya", dokumentacja.
 
 **Etap 1. Parowanie i pomiar** — od razu, równolegle z etapem 0, w terminie zwrotu.
 - **Właściciel:**
@@ -684,13 +677,14 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
 
 ---
 
-## Otwarte pytania do właściciela
+## Decyzje właściciela (8.10)
 
-1. Jak dostawać powiadomienia: Android i iPhone w naszej aplikacji, czy przez ntfy?
-2. Jak podlewasz skrzydłokwiat: z góry na ziemię, czy do zbiorniczka w spodzie? Od tego
-   zależy, czy podlanie widać jako skok, czy jako powolny wzrost.
-3. Czy Claude może sam scalać zmiany na `main`? To wdraża stronę i kolektor, a każde
-   scalenie kosztuje jeden przebieg kolektora.
+1. **Powiadomienia:** Android i iPhone, w naszej aplikacji (Web Push).
+2. **Skrzydłokwiat:** zwykła doniczka z otworami w dnie, na podstawce z nóżkami. Właściciel
+   podlewa z góry, więc podlanie będzie widać jako skok.
+3. **Wdrożenia:** Claude sam scala na `main`, zbiorczo, po zielonych testach.
+4. **Doniczki:** nic nie kupować przed wiosną. Wiosną azalia do kwaśnej ziemi; sprawdzić,
+   czy doniczka fikusa ma otwór w dnie.
 
 ## Niewiadome, które rozstrzygnie pomiar
 
@@ -706,9 +700,9 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
   konto.
 - Czy Smart Life przyjmuje glebę jako warunek automatyzacji i czy powiadomienie
   dostaje też drugi domownik.
-- Rzeczywisty limit i zużycie zapytań Tuya; czy zapytanie o token wlicza się do limitu.
-- Czy uruchamianie workflowów przez Claude'a działa (odczyt przebiegów działa,
-  uruchomienia jeszcze nie próbowano).
+- *(Rozstrzygnięte 8.10.)* Limit: pakiet 0,20 USD, zapytania zagraniczne po 3,71 USD
+  za milion, liczy się każde. Workflowów Claude uruchamiać nie może (403), czytać
+  przebiegi — tak.
 
 ---
 
@@ -730,10 +724,8 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
   - https://github.com/jasonacox/tinytuya/discussions/284
 
 **Tuya:**
-- limit triala — https://www.tuya.com/vas/commodity/IOT_CORE_V2 (widziane tylko
-  w wynikach wyszukiwania)
-- użytkownik w styczniu 2026 potwierdza 26 000 —
-  https://github.com/azerty9971/xtend_tuya/issues/718
+- limit triala — panel iot.tuya.com właściciela, 8.10.2026 (IoT Core → My
+  Subscriptions). Wyszukiwarka podawała „26 000 zapytań" — dla tego konta nieprawda
 - przedłużanie triala — https://github.com/tuya/tuya-home-assistant/blob/main/docs/faq.md
 
 **Rośliny** (wszystkie przez wyciągi wyszukiwarki, strony zablokowane):
