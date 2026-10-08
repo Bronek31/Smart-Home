@@ -181,12 +181,47 @@ punkt danych (112). Etykieta „4 in 1" wskazuje na zwykłą wersję. Rozstrzygn
   ustawionym próbkowaniu 600 s.
 - **Bateria:** Skrzydłokwiat wysłał już `battery_state=high`. Fikus i Azalia jeszcze nic,
   więc aplikacja pokazuje domyślne „low" — to brak pierwszego raportu, nie stan baterii.
-- **Brakuje światła i wilgotności powietrza.** W trybie *Standard Instruction* chmura
-  pokazuje tylko pola ze standardu kategorii `zwjcy` — dokładnie to, przed czym
-  ostrzegał tinytuya. Bez przełączenia produktu na *DP Instruction* nie ma reguły
-  „przestaw", bo nie ma światła.
+- **Brakowało światła i wilgotności powietrza.** W trybie *Standard Instruction* chmura
+  pokazywała tylko pola ze standardu kategorii `zwjcy` — dokładnie to, przed czym
+  ostrzegał tinytuya. Rozwiązane przełączeniem na *DP Instruction* (niżej).
 - Dzisiejsze `classify()` wzięłoby `humidity` za wilgotność powietrza — potwierdzone
   na żywo.
+
+**Po przełączeniu na *DP Instruction*** (8.10 ok. 16:45 UTC; przebieg 37812052768,
+zadziałało od razu, bez czekania godzinami):
+
+| Kod w chmurze | Co to jest | Typ, zakres | Odczyt 16:52 UTC (Fikus) |
+|---|---|---|---|
+| `humidity` | wilgotność gleby | Integer, %, 0…100 | 10 |
+| `temp_current` | temperatura powietrza | Integer, ℃, scale 1 | 22,5 °C |
+| `env_humidity` | wilgotność powietrza | Integer, %, 0…100 | 51 |
+| `illumiance` (sic, z literówką) | światło | Integer, 0…10 000, bez jednostki | 160 |
+| `battery_state` | bateria | low / middle / high | high |
+| `water_warning` | wbudowany alarm „sucho" | Boolean | True (sonda w powietrzu) |
+
+Ustawienia (`functions`):
+- `soil_sampling` 5…1200 s;
+- `soil_calibration` ±30;
+- `humidity_calibration` ±30%;
+- `illumiance_calibration` ±1000 lx;
+- `temperature_calibration` ±2,0 °C;
+- `soil_warning` 0…80% — próg wbudowanego alarmu „sucho".
+
+Wnioski:
+- **Kody do `rosliny.json` są znane.** Dzisiejsze `classify()` dałoby `env_humidity`
+  i `humidity` jako dwa razy „hum", a `illumiance` by odrzuciło. Jawne kody w
+  konfiguracji to jedyna bezpieczna droga.
+- **Baterie są dobre** („high" na wszystkich odczytanych). Wcześniejsze „Niska" było
+  domyślną wartością sprzed pierwszego raportu.
+- **`soil_sampling` nie zmienia tempa wysyłania.** Przy ustawionych 600 s gleba dalej
+  przychodzi co ok. 30 s (110–113 wpisów na godzinę), a światło 1–2 razy na godzinę.
+  - Dla kolektora roślin: krótka zakładka (godzina, nie 6), przerzedzanie przed
+    zapisem do CSV i budżet, inaczej każdy przebieg czytałby ok. 8 stron na czujnik.
+  - Godzina 16:12–17:12 UTC bez dotykania czujników rozstrzygnie to ostatecznie.
+- **`water_warning` z progiem `soil_warning`** to gotowy, liczony na samym czujniku
+  alarm „sucho". To dobra podstawa tymczasowej automatyzacji w Smart Life
+  (warunek „water_warning = alarm"). ZHA zgłaszało, że ten alarm potrafi migać, więc
+  kolektor go zapisuje, ale do decyzji nie używa.
 
 **Pierwsze odczyty (8.10, 18:09):** sparowane, wszystkie trzy obok siebie na jednym
 stoliku, w zaciemnionym pokoju, po wciśnięciu przycisków.
