@@ -138,6 +138,11 @@ class Tuya:
         # Każde zapytanie HTTP, także o token i ponowione przy limicie — tyle zjada
         # z miesięcznego limitu triala. Wypisywane na końcu przebiegu.
         self.zapytan = 0
+        # Ile z nich to zapytania o token. 8.10 o 17:01 przebieg policzył 12 zapytań przy
+        # czasach pasujących do 7 — wygląda na token odświeżany przed każdym zapytaniem
+        # (Tuya potrafi oddać token na chwilę przed wygaśnięciem). Mierzymy, zanim cokolwiek
+        # z tym zrobimy.
+        self.tokenow = 0
 
     def _headers(self, method: str, path: str, with_token: bool) -> dict:
         t = str(int(time.time() * 1000))
@@ -160,6 +165,7 @@ class Tuya:
     def _refresh_token(self) -> None:
         path = "/v1.0/token?grant_type=1"
         self.zapytan += 1
+        self.tokenow += 1
         resp = self.session.get(
             self.base + path, headers=self._headers("GET", path, False), timeout=30
         )
@@ -169,6 +175,7 @@ class Tuya:
         result = data["result"]
         self.token = result["access_token"]
         self.token_expires = time.time() + int(result.get("expire_time", 7200))
+        self.token_wazny_s = int(result.get("expire_time", 7200))
 
     def _throttle(self) -> None:
         wait = self.min_gap - (time.monotonic() - self.last_call)
@@ -1659,7 +1666,9 @@ def main() -> int:
     if failed:
         print(f"Pominięte czujniki: {', '.join(failed)}.")
         print("Dane pozostałych zostały zapisane. Następny przebieg nadrobi resztę — okno 7 dni jeszcze się nie zamknęło.")
-    print(f"Zapytań do Tuya w tym przebiegu: {client.zapytan}.")
+    print(f"Zapytań do Tuya w tym przebiegu: {client.zapytan} "
+          f"(w tym o token: {getattr(client, 'tokenow', '?')}, "
+          f"ostatni ważny {getattr(client, 'token_wazny_s', '?')} s).")
     return 0
 
 
