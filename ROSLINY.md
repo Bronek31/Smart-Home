@@ -179,6 +179,14 @@ punkt danych (112). Etykieta „4 in 1" wskazuje na zwykłą wersję. Rozstrzygn
   Przez logi to ok. 2 strony na czujnik na przebieg, więc pakiet to zniesie. Bateria
   przy raporcie co 30 s — niekoniecznie. Pomiar do powtórzenia po godzinie spokoju przy
   ustawionym próbkowaniu 600 s.
+- **Godzina spokoju** (16:15–17:15 UTC, nikt nie dotykał czujników; przebieg 37815058708):
+  - Fikus 10, Skrzydłokwiat 8, Azalia 10 wpisów na godzinę, czyli ok. 240 na dobę;
+  - gleba 1–3 razy na godzinę, temperatura 1–3, wilgotność powietrza 1–2, światło 1–2,
+    bateria 2.
+
+  Raport co 30 s był więc skutkiem parowania i zmian ustawień, a nie pracy czujnika.
+  Zalewania komunikatami nie ma. Godzinna zakładka w kolektorze roślin to zwykle jedna
+  strona, a tydzień historii to ok. 17 stron na czujnik.
 - **Bateria:** Skrzydłokwiat wysłał już `battery_state=high`. Fikus i Azalia jeszcze nic,
   więc aplikacja pokazuje domyślne „low" — to brak pierwszego raportu, nie stan baterii.
 - **Brakowało światła i wilgotności powietrza.** W trybie *Standard Instruction* chmura
@@ -213,11 +221,11 @@ Wnioski:
   konfiguracji to jedyna bezpieczna droga.
 - **Baterie są dobre** („high" na wszystkich odczytanych). Wcześniejsze „Niska" było
   domyślną wartością sprzed pierwszego raportu.
-- **`soil_sampling` nie zmienia tempa wysyłania.** Przy ustawionych 600 s gleba dalej
-  przychodzi co ok. 30 s (110–113 wpisów na godzinę), a światło 1–2 razy na godzinę.
-  - Dla kolektora roślin: krótka zakładka (godzina, nie 6), przerzedzanie przed
-    zapisem do CSV i budżet, inaczej każdy przebieg czytałby ok. 8 stron na czujnik.
-  - Godzina 16:12–17:12 UTC bez dotykania czujników rozstrzygnie to ostatecznie.
+- ~~`soil_sampling` nie zmienia tempa wysyłania.~~ Tuż po zmianie na 600 s gleba dalej
+  przychodziła co ok. 30 s (110–113 wpisów na godzinę). **Godzina spokoju to obaliła**
+  (wyżej): bez dotykania czujnik wysyła 8–10 wpisów na godzinę, glebę 1–3 razy.
+  - Kolektor roślin i tak ma krótką zakładkę (godzina, nie 6), przerzedzanie przed
+    zapisem do CSV i budżet — na wypadek, gdyby zalew wrócił po dotknięciu czujnika.
 - **`water_warning` z progiem `soil_warning`** to gotowy, liczony na samym czujniku
   alarm „sucho". To dobra podstawa tymczasowej automatyzacji w Smart Life
   (warunek „water_warning = alarm"). ZHA zgłaszało, że ten alarm potrafi migać, więc
@@ -795,9 +803,12 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
 
 - Kody, jednostki, skale i kategoria w chmurze. Czy światło i wilgotność powietrza
   przychodzą (*Standard* czy *DP Instruction*).
-- Ile wpisów na godzinę robi jeden czujnik: raport okresowy, „na zmianę", zalewanie.
-  Od tego zależy koszt w Tuya, rozmiar CSV i bateria.
-- Kolejność wpisów w logach Tuya.
+- *(Rozstrzygnięte 8.10.)* Ile wpisów na godzinę robi jeden czujnik: w spokoju 8–10,
+  gleba 1–3 razy; ok. 120 tylko w godzinie parowania i zmian ustawień. Bateria —
+  do obserwacji przez kilka tygodni.
+- *(Rozstrzygnięte 8.10.)* Kolejność wpisów w logach Tuya: najpewniej od najnowszego
+  (17 zapytań na pokój w pierwszym przebiegu, patrz KONTEKST.md). Algorytm i tak jej
+  nie zakłada.
 - Czy czujnik roślin obciąża bramkę tak, że gubi raporty pokoi.
 - W którą stronę patrzy czujnik światła i czy nasyca się przy 10 000 lx.
 - Ile pokazuje gleba w powietrzu, w wodzie i w każdej z trzech doniczek.
