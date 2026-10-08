@@ -10,10 +10,22 @@ data wygaśnięcia triala Tuya. Zostają dwie rzeczy cykliczne, obie w kalendarz
 
 - **token GitHuba dla cron-job.org** ma datę ważności — przed nią wygenerować nowy
   i podmienić nagłówek `Authorization` (README, „Kolektor co godzinę");
-- **trial IoT Core u Tuya** — wniosek o przedłużenie z tygodniem zapasu.
+- **trial IoT Core u Tuya** — przedłużony do 13.03.2027 (panel 8.10); wniosek
+  o kolejne przedłużenie z tygodniem zapasu, czyli ok. 6.03.2027.
 
 Gdyby któreś przepadło: pierwsze objawi się powrotem do odczytów co 3–5 godz.,
 drugie zgłoszeniem „Kolektor stoi" z kodem `28841002`.
+
+## W przygotowaniu
+
+**Czujniki w doniczkach i powiadomienia na telefon** (8.10) — trzy czujniki Tuya
+(fikus, azalia, skrzydłokwiat), osobna zakładka „Rośliny" i powiadomienia „podlej" /
+„przestaw". Plan, pomiary i pytania do właściciela w `ROSLINY.md`. Powiadomienia push
+stały wcześniej w „świadomie odrzuconych" z powodem „brak serwera" — ten powód odpada:
+nadawcą może być przebieg GitHub Actions, a doręcza Web Push. Pierwszy krok jest
+zrobiony 8.10: kolektor pobiera przyrostowo (ok. 7 zapytań na przebieg zamiast 29,
+z pakietu triala 0,20 USD na miesiąc), bo czujnik w doniczce przy pełnym oknie 7 dni
+kosztowałby więcej niż wszystkie pokoje razem.
 
 ## Do sprawdzenia po kilku tygodniach grzania
 
@@ -43,7 +55,6 @@ dobrane są na danych bez ogrzewania — w listopadzie przyłożyć je do nowych
 | Sterowanie urządzeniami ze strony | Tuya ma API do komend, ale strona jest statyczna i nie ma gdzie schować sekretu. Token w przeglądarce albo `workflow_dispatch` z frontendu to klucz do konta Tuya w publicznym kodzie |
 | Wykrywanie wietrzenia i wszystko, co na nim stoi | Usunięte 27.09. Przy raportach co godzinę nie da się go dostroić; 7 epizodów w 44 dobach, zero od 8.09. Z nim odpadły „skutek wietrzenia" i plik z godzinami otwarcia okien |
 | Pomiar fRsi czujnikiem w narożniku ściany | Właściciel nie przestawia czujników (27.09). Próg pleśni zostaje na wartości z normy, 0,70 |
-| Powiadomienia push | Brak serwera. Rolę powiadomień pełnią zgłoszenia zakładane przez watchdoga — GitHub wysyła o nich maila |
 
 ## Zrobione
 

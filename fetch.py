@@ -2,14 +2,16 @@
 """
 Pobiera historyczne odczyty czujników z chmury Tuya i dopisuje je do plików CSV.
 
-Tuya trzyma 7 dni logów za darmo, więc każde uruchomienie pobiera okno 7-dniowe
-i dokłada tylko te odczyty, których jeszcze nie ma. Dzięki temu nieudany albo
-pominięty przebieg niczego nie kosztuje — następny nadrobi zaległości.
+Tuya trzyma 7 dni logów za darmo. Każde uruchomienie pobiera odcinek od chwili, do
+której poprzednie pobrało wszystko (pole `pobrane_do` w manifeście), z kilkugodzinną
+zakładką, i dokłada tylko te odczyty, których jeszcze nie ma. Nieudany albo pominięty
+przebieg niczego nie kosztuje — kursor stoi, więc następny nadrobi zaległości, dopóki
+nie minie 7 dni.
 
 Użycie:
     python fetch.py --discover     # wypisz urządzenia widoczne na koncie
-    python fetch.py                # pobierz ostatnie 7 dni i zapisz do data/
-    python fetch.py --days 3       # węższe okno
+    python fetch.py                # dociągnij nowe odczyty (najdalej 7 dni wstecz) do data/
+    python fetch.py --days 3       # bliższa granica wstecz
     python fetch.py --dry-run      # policz, ale nie zapisuj
 """
 
@@ -54,6 +56,24 @@ DAILY_FIELDS = ["date", "device_id", "code", "min", "avg", "max", "n"]
 # w zupełności starcza. Po dłuższym postoju historia włączeń sprzed tego okna przepada —
 # odczyty czujników nie, bo one nadal lecą z pełnym oknem.
 SPRZET_OKNO = 12 * 3600 * 1000
+# Pobieranie przyrostowe czujników. Do 8.10.2026 każdy przebieg ciągnął pełne 7 dni:
+# 29 zapytań na przebieg. Trial IoT Core to pakiet 0,20 USD na miesiąc kalendarzowy,
+# a zapytania z runnerów GitHuba Tuya liczy jako zagraniczne (CLOUD_API_FOREIGN,
+# 3,71 USD za milion), czyli ok. 54 000 zapytań. Panel 8.10 po południu: 6229 zapytań,
+# 0,0231 USD — co do kilku zgodne z 29 × liczba przebiegów, więc liczy się każde
+# zapytanie, także o token i nieudane. Przy 28 przebiegach na dobę to ok. 47% pakietu,
+# a czujnik w doniczce, który raportuje co 10 minut, kosztowałby przy pełnym oknie
+# ok. 50 stron na przebieg — więcej niż wszystkie pokoje razem. Teraz pytamy tylko
+# o odcinek od `pobrane_do` z manifestu, cofnięty o zakładkę. Zakładka łapie odczyty,
+# które dotarły do chmury z opóźnieniem; sześć godzin czujnika pokojowego to kilkanaście
+# wierszy, czyli wciąż jedna strona.
+ZAKLADKA_MS = 6 * 3600 * 1000
+# Twardy sufit zapytań na urządzenie w jednym przebiegu. Gdy czujnik zaleje logi,
+# dostaje tyle, a resztę dociąga następny przebieg — pakiet miesięczny jest wspólny.
+BUDZET_URZADZENIA = 30
+# Odcinka krótszego niż to już nie połowimy: ponad sto wpisów w dwie minuty to zalew,
+# którego i tak nie da się przeczytać w całości, więc bierzemy, co przyszło.
+NAJKROTSZY_ODCINEK_MS = 2 * 60 * 1000
 OUTDOOR_ID = "zewnatrz"
 OUTDOOR_URL = "https://api.open-meteo.com/v1/forecast"
 AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -104,6 +124,9 @@ class Tuya:
         self.min_gap = float(os.environ.get("TUYA_MIN_GAP", "1.2"))
         self.last_call = 0.0
         self.log_api = None
+        # Każde zapytanie HTTP, także o token i ponowione przy limicie — tyle zjada
+        # z miesięcznego limitu triala. Wypisywane na końcu przebiegu.
+        self.zapytan = 0
 
     def _headers(self, method: str, path: str, with_token: bool) -> dict:
         t = str(int(time.time() * 1000))
@@ -125,6 +148,7 @@ class Tuya:
 
     def _refresh_token(self) -> None:
         path = "/v1.0/token?grant_type=1"
+        self.zapytan += 1
         resp = self.session.get(
             self.base + path, headers=self._headers("GET", path, False), timeout=30
         )
@@ -152,6 +176,7 @@ class Tuya:
             full = f"{path}?{query}"
         for attempt in range(5):
             self._throttle()
+            self.zapytan += 1
             resp = self.session.get(
                 self.base + full, headers=self._headers("GET", full, True), timeout=30
             )
@@ -182,6 +207,11 @@ def explain(data: dict) -> str:
             "Wygasł trial IoT Core. Wejdź na iot.tuya.com → Cloud → Development, "
             "otwórz projekt i złóż wniosek o przedłużenie. Zatwierdzają w 1-2 dni robocze."
         ),
+        28841004: (
+            "Wyczerpany miesięczny pakiet triala IoT Core (0,20 USD). Zużycie widać na "
+            "iot.tuya.com → IoT Core → My Subscriptions; pakiet odnawia się 1. dnia miesiąca. "
+            "Do tego czasu kolektor stoi, a logi starsze niż 7 dni przepadają."
+        ),
     }
     hint = hints.get(code, "")
     return f"Tuya odrzuciła zapytanie (kod {code}): {msg}. {hint}".strip()
@@ -206,17 +236,35 @@ def list_devices(client: Tuya) -> list[dict]:
     return devices
 
 
-def describe_codes(client: Tuya, device_id: str) -> dict:
+def specyfikacja(client: Tuya, device_id: str) -> dict:
+    """Surowa specyfikacja urządzenia (pola `status` i `functions`); {} przy odmowie."""
     data = client.get(f"/v1.0/devices/{device_id}/specifications")
     if not data.get("success"):
         return {}
-    codes = {}
-    for item in (data.get("result") or {}).get("status", []):
-        code = item.get("code", "")
+    wynik = data.get("result")
+    return wynik if isinstance(wynik, dict) else {}
+
+
+def _wartosci(item: dict) -> dict:
+    """Pole `values` ze specyfikacji jako słownik. Tuya podaje je jako tekst JSON,
+    czasem jako gotowy obiekt; wszystko inne (lista, liczba, śmieci) to pusty słownik."""
+    wartosci = item.get("values")
+    if isinstance(wartosci, str):
         try:
-            spec = json.loads(item.get("values") or "{}")
+            wartosci = json.loads(wartosci or "{}")
         except (ValueError, TypeError):
-            spec = {}
+            wartosci = {}
+    return wartosci if isinstance(wartosci, dict) else {}
+
+
+def describe_codes(client: Tuya, device_id: str, spec: dict | None = None) -> dict:
+    pola = (specyfikacja(client, device_id) if spec is None else spec).get("status") or []
+    codes = {}
+    for item in pola:
+        if not isinstance(item, dict):
+            continue
+        code = item.get("code", "")
+        spec = _wartosci(item)
         unit = spec.get("unit") or ""
         kind = classify(code, unit)
         if kind is None:
@@ -229,46 +277,95 @@ def describe_codes(client: Tuya, device_id: str) -> dict:
     return codes
 
 
-def all_codes(client: Tuya, device_id: str) -> list[tuple[str, str, str]]:
+def all_codes(client: Tuya, device_id: str, spec: dict | None = None,
+              sekcja: str = "status") -> list[tuple[str, str, str]]:
     """Wszystkie pola urządzenia, także te, których kolektor nie zbiera.
 
     Potrzebne przy --discover: żeby podpiąć cokolwiek poza czujnikiem klimatu —
-    klimatyzator, czajnik, kontaktron — trzeba najpierw zobaczyć, jak nazywa się
-    jego pole włącznika i jakiego jest typu.
+    klimatyzator, czajnik, kontaktron, czujnik w doniczce — trzeba najpierw zobaczyć,
+    jak nazywają się jego pola, jakiego są typu i w jakiej skali przychodzą.
+    `sekcja` "functions" to pola do ustawiania (kalibracja, odstęp próbkowania).
     """
-    data = client.get(f"/v1.0/devices/{device_id}/specifications")
-    if not data.get("success"):
-        return []
+    pola = (specyfikacja(client, device_id) if spec is None else spec).get(sekcja) or []
     out = []
-    for item in (data.get("result") or {}).get("status", []):
+    for item in pola:
+        if not isinstance(item, dict):
+            continue
         code = item.get("code", "")
-        try:
-            spec = json.loads(item.get("values") or "{}")
-        except (ValueError, TypeError):
-            spec = {}
-        opis = spec.get("unit") or spec.get("range") or ""
-        out.append((code, item.get("type", "?"), str(opis)))
+        spec = _wartosci(item)
+        opis = str(spec.get("unit") or spec.get("range") or "")
+        if "min" in spec and "max" in spec:
+            opis = f"{opis} {spec['min']}…{spec['max']}".strip()
+        if "scale" in spec:
+            opis = f"{opis} scale={spec['scale']}".strip()
+        out.append((code, item.get("type", "?"), opis))
     return out
 
 
+def tempo_wpisow(client: Tuya, device_id: str, teraz_ms: int, okno_ms: int = 3600 * 1000,
+                 strony: int = 3) -> str:
+    """Ile wpisów zrobiło urządzenie w ostatnim oknie — do --discover.
+
+    Zigbee2MQTT ostrzega, że czujnik w doniczce C3007 potrafi wysyłać ok. 1 komunikat na
+    sekundę. Zanim kolektor zacznie go zbierać, trzeba wiedzieć, ile stron logów
+    kosztowałby na przebieg. Najwyżej `strony` zapytań, żeby sam pomiar nie zjadł pakietu.
+    """
+    logi, stan = _strony(client, "v1", device_id, teraz_ms - okno_ms, teraz_ms, strony)
+    if logi is None:
+        return "logi niedostępne (Tuya odmówiła)"
+    if not logi:
+        return f"0 wpisów w ostatnich {okno_ms // 60000} min"
+    kody: dict[str, int] = {}
+    for e in logi:
+        kody[e.get("code", "?")] = kody.get(e.get("code", "?"), 0) + 1
+    rozbicie = ", ".join(f"{k}: {n}" for k, n in sorted(kody.items()))
+    if stan == "limit":
+        czasy = [int(e["event_time"]) for e in logi if e.get("event_time") is not None]
+        rozpietosc = max(1, (max(czasy) - min(czasy)) // 60000) if czasy else 0
+        return (f"ponad {len(logi)} wpisów — tyle zmieściło się w {rozpietosc} min; "
+                f"ZALEW, kolektor nie powinien czytać jego logów ({rozbicie})")
+    na_dobe = len(logi) * (24 * 3600 * 1000 // okno_ms)
+    return (f"{len(logi)} wpisów w ostatnich {okno_ms // 60000} min, ok. {na_dobe} na dobę, "
+            f"ok. {na_dobe * 7 // 100 + 1} stron na tydzień ({rozbicie})")
+
+
 def fetch_logs(client: Tuya, device_id: str, start_ms: int, end_ms: int) -> list[dict]:
-    if client.log_api is None:
-        probe = _logs(client, "v2", device_id, start_ms, end_ms)
-        if probe is not None:
-            client.log_api = "v2"
-            return probe
-        client.log_api = "v1"
-    rows = _logs(client, client.log_api, device_id, start_ms, end_ms)
+    """Całe okno naraz, do 300 stron. Zostało dla urządzeń z włącznikiem, które mają
+    własne, dwunastogodzinne okno; czujniki idą przez pobierz_przyrostowo()."""
+    rows, stan = _strony_z_wyborem(client, device_id, start_ms, end_ms, 300)
     if rows is None:
         raise TuyaError(
-            f"Endpoint logów ({client.log_api}) odmówił dla urządzenia {device_id}."
+            f"Endpoint logów ({client.log_api or 'v1 ani v2'}) odmówił dla urządzenia {device_id}."
         )
+    if stan == "blad":
+        print(f"  uwaga: {device_id} — błąd w trakcie stronicowania, biorę to, co przyszło", flush=True)
     return rows
 
 
-def _logs(client, version, device_id, start_ms, end_ms) -> list[dict] | None:
+def _strony_z_wyborem(client, device_id, start_ms, end_ms, limit):
+    """Logi przez v1, a v2 tylko jako zapas dla sprzętu (fetch_logs).
+
+    Kolektor czyta v1 od początku: dawna próba v2 przed v1 kosztowała zapytanie w każdym
+    przebiegu (v2 wymaga parametru `codes`, którego nie wysyłamy), co potwierdził panel
+    Tuya — 6229 zapytań to dokładnie 29, a nie 28, na przebieg. Zamek na v2 nie powstaje
+    nigdy: gdyby v2 odpowiedziało „sukces, zero wpisów", pobieranie przyrostowe uznałoby
+    okno za domknięte i przesunęło kursor ponad wszystko, czego nie przeczytało.
+    """
+    rows, stan = _strony(client, "v1", device_id, start_ms, end_ms, limit)
+    if rows is not None:
+        client.log_api = "v1"
+        return rows, stan
+    if client.log_api == "v1":
+        return None, "blad"          # v1 działa w tym przebiegu, odmówiło tylko temu urządzeniu
+    return _strony(client, "v2", device_id, start_ms, end_ms, limit)
+
+
+def _strony(client, version, device_id, start_ms, end_ms, limit) -> tuple[list[dict] | None, str]:
+    """Stronicuje jedno okno. Stan: „komplet" — przyszło wszystko; „limit" — po `limit`
+    stronach były jeszcze następne; „blad" — Tuya odmówiła w trakcie. Przy odmowie na
+    pierwszej stronie zamiast listy jest None."""
     out, cursor = [], None
-    for _ in range(300):
+    for _ in range(limit):
         params = {"start_time": start_ms, "end_time": end_ms, "size": 100}
         if version == "v2":
             path = f"/v2.0/cloud/thing/{device_id}/report-logs"
@@ -283,16 +380,120 @@ def _logs(client, version, device_id, start_ms, end_ms) -> list[dict] | None:
         if not data.get("success"):
             if out:
                 print(f"  uwaga: {explain(data)}", flush=True)
-                return out
-            return None
+                return out, "blad"
+            return None, "blad"
         result = data.get("result") or {}
         out.extend(result.get("logs", []))
         if not (result.get("has_more") or result.get("has_next")):
-            break
+            return out, "komplet"
         cursor = result.get("last_row_key") or result.get("next_row_key")
         if not cursor:
+            # Tuya mówi „jest dalej", ale nie mówi skąd. Dawniej liczone jako komplet;
+            # przy pobieraniu przyrostowym to by przesunęło kursor ponad niepobrane wpisy.
+            return out, "limit"
+    return out, "limit"
+
+
+def pobierz_przyrostowo(client, device_id: str, od_ms: int, do_ms: int,
+                        pewne_do: int | None = None,
+                        budzet: int | None = None) -> tuple[list[dict], int | None]:
+    """Logi z okna [od_ms, do_ms] i chwila, do której pobrano je na pewno w całości.
+
+    `pewne_do` to kursor z poprzedniego przebiegu: wszystko sprzed niego już leży
+    w CSV, a odcinek [od_ms, pewne_do] to tylko zakładka na spóźnione odczyty.
+
+    Kolejność, w jakiej Tuya oddaje wpisy (od najstarszego czy od najnowszego), nie jest
+    nigdzie opisana, a od niej zależy, która część okna przepada, gdy skończą się strony.
+    Dlatego okno czytamy odcinkami, od najstarszego, po jednej stronie (100 wpisów) na
+    zapytanie — tyle samo wpisów na zapytanie co przy zwykłym stronicowaniu:
+
+    - odcinek zmieścił się na stronie: domknięty, następny może być dwa razy dłuższy;
+    - nie zmieścił się, a sięga przed `pewne_do`: najpierw sama zakładka; jeśli i ona
+      się nie mieści, porzucamy ją i idziemy od kursora — przy takim zalewie nie stać
+      nas na sprawdzanie tego, co już mamy, a bez tego przebieg mógłby nie dojść dalej
+      niż do kursora, ani razu;
+    - nie zmieścił się, a wpisy przyszły rosnąco w czasie: wszystko sprzed najpóźniejszego
+      z nich jest pobrane, więc domykamy do niego i czytamy dalej od tej chwili;
+    - nie zmieścił się, a wpisy przyszły od najnowszego: ten sam początek, odcinek
+      o połowę krótszy. Strona, która nie domknęła odcinka, kosztuje jedno zapytanie,
+      a nie dziesięć — dlatego jedna strona, a nie pełne stronicowanie.
+
+    Kursor dochodzi tylko do końca ostatniego odcinka, który przyszedł w całości i bez
+    przerwy od początku — nigdy do „najnowszego widzianego wpisu". Wpisy z odcinków
+    niedomkniętych też oddajemy: są prawdziwe, a merge() i tak odrzuca powtórki.
+
+    Zwraca (logi, domknięte_do). domknięte_do to None, gdy nie udało się domknąć
+    niczego — wtedy kursor zostaje, gdzie był. Odmowa Tuya albo błąd sieci na pierwszym
+    zapytaniu to wyjątek, tak jak wcześniej w fetch_logs(); późniejsze kończą pobieranie
+    tego urządzenia z tym, co już przyszło.
+    """
+    budzet = BUDZET_URZADZENIA if budzet is None else budzet
+    if od_ms >= do_ms:
+        return [], None
+    logi: list[dict] = []
+    domkniete = None
+    pozycja, dlugosc = od_ms, do_ms - od_ms
+    poczatek = client.zapytan
+    while pozycja < do_ms:
+        if client.zapytan - poczatek >= budzet:
+            print(f"  {device_id}: wykorzystane {budzet} zapytań na ten przebieg, "
+                  f"resztę od {iso(pozycja)} dociągnie następny", flush=True)
             break
-    return out
+        koniec = min(do_ms, pozycja + dlugosc)
+        try:
+            porcja, stan = _strony(client, "v1", device_id, pozycja, koniec, 1)
+        except requests.RequestException as err:
+            if not logi and domkniete is None:
+                raise
+            # To, co już przyszło, zostaje razem z kursorem — następny przebieg zacznie
+            # od miejsca, w którym sieć się urwała, a nie od początku okna.
+            print(f"  {device_id}: sieć urwała się w odcinku od {iso(pozycja)} "
+                  f"({type(err).__name__}), kursor zostaje", flush=True)
+            break
+        if porcja is None:
+            if not logi and domkniete is None:
+                raise TuyaError(f"Endpoint logów (v1) odmówił dla urządzenia {device_id}.")
+            print(f"  {device_id}: odmowa w odcinku od {iso(pozycja)}, kursor zostaje", flush=True)
+            break
+        client.log_api = "v1"
+        logi.extend(porcja)
+        if stan == "komplet":
+            pozycja = domkniete = koniec
+            dlugosc *= 2
+            continue
+        czasy = [int(e["event_time"]) for e in porcja if e.get("event_time") is not None]
+        # „Rosnąco" tylko wtedy, gdy strona naprawdę obejmuje różne chwile: jeden wiersz
+        # albo strona z jednym znacznikiem czasu pasują do obu kolejności, a przy
+        # kolejności od najnowszego przeskok do czasy[-1] zgubiłby starsze wpisy.
+        rosnaco = len(czasy) > 1 and czasy[0] < czasy[-1] and czasy == sorted(czasy)
+        if pewne_do and pozycja < pewne_do:
+            if koniec > pewne_do:
+                # Najpierw sama zakładka, osobno — po długiej przerwie to nowa część okna
+                # się nie mieści, a spóźnione odczyty sprzed kursora nadal da się złapać.
+                dlugosc = pewne_do - pozycja
+            else:
+                print(f"  {device_id}: sama zakładka ma ponad 100 wpisów — pomijam ją, "
+                      f"idę od kursora {iso(pewne_do)}", flush=True)
+                pozycja = domkniete = pewne_do
+        elif rosnaco and pozycja < czasy[-1] - 1 < koniec:
+            # Od milisekundy przed ostatnim wpisem, a nie od niego: nikt nie sprawdził,
+            # czy start_time u Tuya jest domknięty. Strona po 100 wpisów kończy się
+            # zwykle w środku trójki odczytów z jednej chwili, więc przy otwartym
+            # początku reszta tej trójki by przepadła.
+            pozycja = domkniete = czasy[-1] - 1
+        elif koniec - pozycja > NAJKROTSZY_ODCINEK_MS:
+            dlugosc = max(NAJKROTSZY_ODCINEK_MS, (koniec - pozycja) // 2)
+        else:
+            # Ponad 100 wpisów w dwie minuty. Krótszego odcinka nie ma sensu ciąć, więc
+            # tu jedyny raz idziemy za `next_row_key` — kilka stron domyka takie okno
+            # w obu kolejnościach. Co się nie zmieści, przepada, i mówimy to w logu.
+            reszta, stan = _strony(client, "v1", device_id, pozycja, koniec, 5)
+            logi.extend(reszta or [])
+            if stan != "komplet":
+                print(f"  {device_id}: zalew — ponad 500 wpisów w {(koniec - pozycja) // 1000} s "
+                      f"od {iso(pozycja)}, reszta z tego odcinka przepada", flush=True)
+            pozycja = domkniete = koniec
+    return logi, domkniete
 
 
 def parse_since(text: str) -> int:
@@ -1063,6 +1264,66 @@ def write_manifest(devices: dict, alerty: list[str] | None = None) -> None:
     )
 
 
+def _odkryj_urzadzenie(client: Tuya, dev: dict, nowe: bool, teraz_ms: int) -> bool:
+    """Wypisuje jedno urządzenie dla --discover. Zwraca True dla czujnika w doniczce."""
+    spec = specyfikacja(client, dev["id"])
+    codes = describe_codes(client, dev["id"], spec)
+    roslina = dev.get("category") == "zwjcy"
+    marker = "czujnik w doniczce" if roslina else ("czujnik klimatu" if codes else "inne urządzenie")
+    produkt = str(dev.get("product_name") or "")
+    if dev.get("product_id"):
+        produkt = f"{produkt} ({dev['product_id']})".strip()
+    print(f"  {dev['id']}   {dev.get('name') or '?'}" + ("" if nowe else "   [już zbierane]"))
+    print(f"      kategoria: {dev.get('category', '?')}   rola: {marker}"
+          + (f"   produkt: {produkt}" if produkt else "")
+          + ("   OFFLINE" if dev.get("online") is False else ""))
+    for code, typ, opis in all_codes(client, dev["id"], spec):
+        meta = codes.get(code)
+        ocena = f"zbierane jako {meta['kind']}, scale={meta['scale']}" if meta else "pomijane"
+        print(f"      pole: {code:<22} typ={typ:<8} {opis:<26} {ocena}")
+    if nowe:
+        for code, typ, opis in all_codes(client, dev["id"], spec, "functions"):
+            print(f"      ustawienie: {code:<16} typ={typ:<8} {opis}")
+        stan = [s for s in (dev.get("status") or []) if isinstance(s, dict)]
+        if stan:
+            print("      teraz: " + ", ".join(f"{s.get('code')}={s.get('value')}" for s in stan))
+        print(f"      wpisy: {tempo_wpisow(client, dev['id'], teraz_ms)}")
+    print()
+    return roslina
+
+
+def odkryj(client: Tuya, all_devices: list[dict], region: str) -> int:
+    """--discover: wszystko, czego trzeba, żeby podpiąć nowe urządzenie, w jednym przebiegu.
+
+    Jedna specyfikacja na urządzenie (dawniej dwie). Dla urządzeń, których kolektor
+    jeszcze nie zbiera, także pola do ustawiania, bieżące wartości z listy urządzeń
+    (bez dodatkowych zapytań) i tempo wpisów z ostatniej godziny — od niego zależy,
+    ile zbieranie będzie kosztować z miesięcznego pakietu.
+    """
+    znane = set()
+    if MANIFEST.exists():
+        try:
+            znane = set(json.loads(MANIFEST.read_text(encoding="utf-8")).get("devices") or {})
+        except (ValueError, OSError):
+            pass
+    teraz_ms = int(time.time() * 1000)
+    rosliny = []
+    print(f"Znaleziono {len(all_devices)} urządzeń w regionie {region}:\n")
+    for dev in all_devices:
+        try:
+            if _odkryj_urzadzenie(client, dev, dev["id"] not in znane, teraz_ms):
+                rosliny.append(dev.get("name") or dev["id"])
+        except Exception as err:  # jedno dziwne urządzenie nie może zmarnować całego przebiegu
+            print(f"  {dev.get('id')}: nie udało się opisać — {type(err).__name__}: {err}\n")
+    if rosliny:
+        print(f"Czujniki w doniczkach ({', '.join(rosliny)}) idą osobnym torem — NIE dopisuj ich")
+        print("do TUYA_DEVICE_IDS: kolektor wziąłby glebę za wilgotność powietrza (patrz ROSLINY.md).")
+    print("Żeby zbierać nowy czujnik klimatu, dopisz jego identyfikator do TUYA_DEVICE_IDS")
+    print("w .github/workflows/zbieraj.yml.")
+    print(f"\nZapytań do Tuya: {client.zapytan}.")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Kolektor odczytów z chmury Tuya")
     parser.add_argument("--discover", action="store_true", help="wypisz urządzenia i zakończ")
@@ -1081,20 +1342,7 @@ def main() -> int:
     client = Tuya(client_id, secret, region)
     all_devices = list_devices(client)
     if args.discover:
-        print(f"Znaleziono {len(all_devices)} urządzeń w regionie {region}:\n")
-        for dev in all_devices:
-            codes = describe_codes(client, dev["id"])
-            marker = "czujnik klimatu" if codes else "inne urządzenie"
-            print(f"  {dev['id']}   {dev.get('name', '?')}")
-            print(f"      kategoria: {dev.get('category', '?')}   rola: {marker}")
-            for code, typ, opis in all_codes(client, dev["id"]):
-                meta = codes.get(code)
-                znane = f"zbierane jako {meta['kind']}, scale={meta['scale']}" if meta else "pomijane"
-                print(f"      pole: {code:<22} typ={typ:<8} {opis:<26} {znane}")
-            print()
-        print("Żeby zbierać nowe urządzenie, dopisz jego identyfikator do TUYA_DEVICE_IDS")
-        print("w .github/workflows/zbieraj.yml.")
-        return 0
+        return odkryj(client, all_devices, region)
 
     wanted = [d.strip() for d in os.environ.get("TUYA_DEVICE_IDS", "").split(",") if d.strip()]
     if wanted:
@@ -1115,21 +1363,22 @@ def main() -> int:
         print(f"Usunięto {removed} starych odczytów sprzed TUYA_SINCE.", flush=True)
 
     manifest_devices, collected = {}, []
-    cached, ostatni_log = {}, {}
+    cached, ostatni_log, pobrane = {}, {}, {}
     if MANIFEST.exists():
         try:
             for dev_id, entry in json.loads(MANIFEST.read_text(encoding="utf-8")).get("devices", {}).items():
                 known = entry.get("codes") or {}
                 if all("scale" in meta for meta in known.values()) and known:
                     cached[dev_id] = {c: dict(m) for c, m in known.items()}
-                stamp = entry.get("last_log")
-                if stamp:
-                    try:
-                        ostatni_log[dev_id] = int(
-                            datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp() * 1000
-                        )
-                    except ValueError:
-                        pass
+                for pole, dokad in (("last_log", ostatni_log), ("pobrane_do", pobrane)):
+                    stamp = entry.get(pole)
+                    if stamp:
+                        try:
+                            dokad[dev_id] = int(
+                                datetime.fromisoformat(stamp.replace("Z", "+00:00")).timestamp() * 1000
+                            )
+                        except ValueError:
+                            pass
         except (ValueError, OSError):
             pass
 
@@ -1154,10 +1403,10 @@ def main() -> int:
         # Sprzęt raportuje swój stan co kilka sekund, więc ciągnięcie całego tygodnia
         # przy każdym przebiegu to tysiące stron: przebieg puchł z 27 sekund do 10 minut
         # i dobijał do limitu stron, przez co najnowsze zmiany bywały ucinane. Wystarczy
-        # dociągać od ostatniego widzianego wpisu — stąd last_log w manifeście. Czujniki
-        # klimatu zostają przy pełnym oknie, bo u nich to kilkaset wierszy na tydzień
-        # i daje odporność na przerwy w zbieraniu.
-        od_kiedy = start_ms
+        # dociągać od ostatniego widzianego wpisu — stąd last_log w manifeście, z oknem
+        # najwyżej 12 godz. Czujniki klimatu mają własny kursor `pobrane_do` i zakładkę,
+        # ale nadrabiają do pełnych 7 dni, bo u nich przerwa w zbieraniu to dziura
+        # w wykresach.
         if sprzet:
             od_kiedy = max(start_ms, end_ms - SPRZET_OKNO)
             if ostatni_log.get(device_id):
@@ -1165,8 +1414,22 @@ def main() -> int:
                 # Znacznik przepisujemy od razu: gdyby pobranie poniżej się wywaliło,
                 # wypadnie z manifestu i następny przebieg znów ciągnąłby pełne 12 godz.
                 manifest_devices[device_id]["last_log"] = iso(ostatni_log[device_id])
+        else:
+            kursor = min(pobrane[device_id], end_ms) if pobrane.get(device_id) else None
+            od_kiedy = max(start_ms, kursor - ZAKLADKA_MS) if kursor else start_ms
+            if kursor:
+                # Jak przy last_log: kursor przepisany zawczasu przeżyje nieudane pobranie,
+                # więc następny przebieg nadrobi od tego samego miejsca, a nie od 7 dni.
+                manifest_devices[device_id]["pobrane_do"] = iso(kursor)
         try:
-            logs = fetch_logs(client, device_id, od_kiedy, end_ms)
+            if sprzet:
+                logs = fetch_logs(client, device_id, od_kiedy, end_ms)
+            else:
+                logs, domkniete = pobierz_przyrostowo(client, device_id, od_kiedy, end_ms, pewne_do=kursor)
+                # Kursor nigdy nie cofa się: to, co przed nim, jest już w CSV.
+                nowy = max(x for x in (kursor, domkniete, 0) if x is not None)
+                if nowy:
+                    manifest_devices[device_id]["pobrane_do"] = iso(nowy)
         except (TuyaError, requests.RequestException) as err:
             failed.append(name)
             print(f"{name}: pominięty — {err}", flush=True)
@@ -1199,7 +1462,7 @@ def main() -> int:
                 continue
             collected.append({"ts": iso(when), "device_id": device_id, "code": code, "value": value})
             kept += 1
-        print(f"{name}: {kept} odczytów z ostatnich {args.days} dni", flush=True)
+        print(f"{name}: {kept} odczytów od {iso(od_kiedy)}", flush=True)
 
     if not manifest_devices:
         print("\nŻadne urządzenie nie zgłosiło temperatury ani wilgotności.", file=sys.stderr)
@@ -1207,7 +1470,8 @@ def main() -> int:
         return 1
     if args.dry_run:
         extra, _ = fetch_outdoor(args.days)
-        print(f"\n[dry-run] {len(collected) + len(extra)} odczytów, nic nie zapisano.")
+        print(f"\n[dry-run] {len(collected) + len(extra)} odczytów, nic nie zapisano. "
+              f"Zapytań do Tuya: {client.zapytan}.")
         return 0
 
     outdoor_rows, outdoor_entry = fetch_outdoor(args.days)
@@ -1233,6 +1497,7 @@ def main() -> int:
     if failed:
         print(f"Pominięte czujniki: {', '.join(failed)}.")
         print("Dane pozostałych zostały zapisane. Następny przebieg nadrobi resztę — okno 7 dni jeszcze się nie zamknęło.")
+    print(f"Zapytań do Tuya w tym przebiegu: {client.zapytan}.")
     return 0
 
 

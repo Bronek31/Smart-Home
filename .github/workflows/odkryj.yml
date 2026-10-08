@@ -1,18 +1,27 @@
 name: Pokaż urządzenia w Tuya
 
 # Wypisuje wszystkie urządzenia widoczne na koncie Tuya wraz z ich polami (DP).
-# Potrzebne, gdy chcesz podpiąć coś poza czujnikami klimatu — na przykład
-# klimatyzator, żeby dashboard wiedział, kiedy był włączony.
+# Potrzebne, gdy chcesz podpiąć coś nowego — klimatyzator, czujnik w doniczce.
+# Dla urządzeń, których kolektor jeszcze nie zbiera, dochodzą pola do ustawiania,
+# bieżące wartości i liczba wpisów w logach z ostatniej godziny: od niej zależy,
+# ile zbieranie będzie kosztować z miesięcznego pakietu Tuya. Cały przebieg to
+# ok. 20 zapytań.
 #
 # Uruchamiasz ręcznie, nic nie zapisuje do repozytorium: Actions -> Pokaż
-# urządzenia w Tuya -> Run workflow, a potem czytasz log kroku.
+# urządzenia w Tuya -> Run workflow, a potem czytasz log kroku. Rusza też sam po
+# każdej zmianie tego pliku na main — tak może go odpalić Claude, którego
+# integracja z GitHubem czyta przebiegi, ale nie może ich uruchamiać (403).
 #
 # Uwaga: log przebiegu w publicznym repozytorium jest publiczny. Wypisywane są
-# identyfikatory i nazwy urządzeń — te same, które i tak leżą już w zbieraj.yml
-# i w data/index.json. Sekrety nie są wypisywane.
+# identyfikatory, nazwy i bieżące odczyty urządzeń — identyfikatory i tak leżą
+# już w zbieraj.yml i w data/index.json. Sekrety nie są wypisywane.
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/odkryj.yml'
 
 permissions:
   contents: read
@@ -20,6 +29,8 @@ permissions:
 jobs:
   pokaz:
     runs-on: ubuntu-latest
+    # Jedyny workflow, który go nie miał — bez limitu zawieszony przebieg wisi 6 godz.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 

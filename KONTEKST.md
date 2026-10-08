@@ -5,8 +5,9 @@ wiedzieć, zanim ruszy się ten projekt dalej. `README.md` opisuje, **jak to dzi
 ten plik mówi, **dlaczego tak** i **na co uważać**. Pomysły na przyszłość siedzą
 w `TODO.md`.
 
-Stan na 27.09.2026, po przeglądzie wrześniowym: wykrywanie wietrzenia usunięte, strona
-przygotowana na sezon grzewczy. Sekcje z sierpnia zostają niżej jako historia decyzji.
+Stan na 8.10.2026: pobieranie przyrostowe w kolektorze, czujniki w doniczkach
+w przygotowaniu (`ROSLINY.md`). Przegląd wrześniowy niżej, sekcje z sierpnia jako historia
+decyzji.
 
 ---
 
@@ -36,6 +37,72 @@ prywatnej osoby. Bez bypassu kolektor przestałby zapisywać dane (jego commity 
 checków" odrzuca commit bez checków). Alternatywa to deploy key z bypassem „Deploy keys"
 — rozważona, nie wdrożona. Do tego czasu jedyną bramką jest hook lokalny plus zaglądanie
 do Actions.
+
+---
+
+## 8.10 — rośliny w przygotowaniu, kolektor pobiera przyrostowo
+
+Właściciel kupił trzy czujniki Tuya do doniczek (fikus i skrzydłokwiat w Salonie,
+azalia w Kuchni) i chce powiadomień „podlej" / „przestaw" na Androida i iPhone'a.
+Warunek wprost: **odczyty z doniczek nie mieszają się z dzisiejszą stroną**, rośliny
+dostają osobną zakładkę. Plan, pomiary i otwarte pytania są w `ROSLINY.md`, czynności
+właściciela w `ROSLINY-INSTRUKCJA.md`.
+
+**Limit Tuya to dolary, nie liczba zapytań.** Wyszukiwarka podawała „26 000 zapytań na
+miesiąc" i plan zaczynał się od alarmu „98% limitu". Zrzut z panelu, który przysłał
+właściciel, pokazał coś innego:
+- trial to pakiet 0,20 USD na miesiąc kalendarzowy;
+- zapytania z runnerów GitHuba idą jako `CLOUD_API_FOREIGN`, 3,71 USD za milion,
+  czyli pakiet starcza na ok. 54 000 zapytań;
+- 6229 zapytań od 1.10 = 0,0231 USD, co do kilku zgodne z wyliczeniem 29 zapytań ×
+  liczba przebiegów. Liczy się więc każde zapytanie, także o token i nieudane;
+- prognoza na październik przy dawnym pobieraniu to ok. 47%; po zmianie 8.10 ok. 20%.
+  **Znowu: najpierw zmierz.**
+
+**Dlaczego mimo to pobieranie przyrostowe.** Czujnik w doniczce przy pełnym oknie 7 dni
+kosztowałby ok. 50 stron na przebieg, czyli więcej niż wszystkie pokoje razem. Model
+z naklejki (C3007) według Zigbee2MQTT potrafi zalewać logi.
+
+Kursor `pobrane_do` w manifeście, zakładka 6 godz., okno czytane odcinkami po jednej
+stronie:
+- odcinek zmieścił się na stronie: następny dwa razy dłuższy;
+- nie zmieścił się, a wpisy przyszły rosnąco: przesunięcie po znacznikach czasu;
+- inaczej: odcinek o połowę krótszy;
+- zakładkę porzuca się, gdy sama się nie mieści.
+
+Kursor nigdy się nie cofa i nie przeskakuje za „najnowszy widziany wpis". Pierwsza wersja
+dzieliła okno na pół przy 10 stronach na odcinek i przy kolejności od najnowszego utykała
+na zawsze: każdy przebieg zjadał budżet na te same podziały. Wyłapał to test
+`test_kolejnosc_malejaca`, zanim kod trafił na main. Symulacja przy domyślnym budżecie
+(30 zapytań na czujnik): zalew co 2 s przez 3 godz. domyka się w 2 przebiegach przy
+kolejności rosnącej i w 7 przy malejącej.
+
+Przegląd przed wdrożeniem (dwóch recenzentów, każde znalezisko odtworzone na atrapie)
+znalazł jeszcze sześć dróg do zgubienia wpisów. Każda ma teraz test, który odrzuca
+pierwszą wersję:
+- **krótka strona z jedną chwilą** (jeden wiersz albo trójka z jednego znacznika) przy
+  kolejności od najnowszego wyglądała na „rosnąco" i kursor przeskakiwał starsze wpisy;
+- **otwarty `start_time`**: strona po 100 wpisów kończy się w środku trójki odczytów,
+  więc wznawiamy od milisekundy przed ostatnim wpisem, a nie od niego;
+- **zakładka po długiej przerwie** jest teraz czytana osobno, zamiast porzucana razem
+  z przepełnionym oknem;
+- **zerwana sieć w połowie** nie wyrzuca już tego, co przyszło, ani postępu kursora;
+- **v2 „sukces, zero wpisów"** nie zostaje zamkiem na cały przebieg: przyrostowe idzie
+  tylko przez v1;
+- **ponad 100 wpisów w dwie minuty**: tu jedyny raz stronicujemy (do 5 stron).
+
+Do tego `--discover` przeżywa dziwne specyfikacje (`null`, `values` niebędące
+obiektem) — każde urządzenie osobno, jedno nie przerwie przebiegu.
+
+Przy okazji:
+- **Najpierw v1, potem v2.** Dawna próba v2 kosztowała najpewniej zapytanie w każdym
+  przebiegu: v2 wymaga parametru `codes`, którego nie wysyłamy.
+- **Licznik zapytań na końcu logu przebiegu.**
+- **`--discover` czyta specyfikację raz, nie dwa razy.** Dla urządzeń spoza manifestu
+  dochodzą pola do ustawiania, bieżące wartości i tempo wpisów z ostatniej godziny (do
+  3 stron).
+- **Integracja Claude'a z GitHubem czyta przebiegi, ale nie może ich uruchamiać (403).**
+  Dlatego `odkryj.yml` rusza też po zmianie własnego pliku na main.
 
 ---
 
@@ -660,10 +727,12 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
   W kontenerze z gotowym katalogiem przeglądarek numer bywa inny i wszystkie testy padają
   na „Executable doesn't exist". Hook `pre-push` sam podstawia to, co leży na dysku;
   ręcznie: `PLAYWRIGHT_CHROMIUM_PATH=/opt/pw-browsers/chromium-*/chrome-linux/chrome`.
-- **Skasowanie wierszy z `data/*.csv` nic nie daje.** Każdy przebieg pobiera z Tuya
-  pełne okno 7 dni i dopisuje wszystko, czego nie ma w pliku — usunięte wracają w ciągu
-  godziny. Zmiana **wartości** przy zachowanym znaczniku jest trwała, bo `merge()`
-  kluczuje po `(ts, device_id, code)`.
+- **Skasowanie wierszy z `data/*.csv` nie jest sposobem na ukrycie odczytu.** Do 8.10
+  każdy przebieg pobierał pełne okno 7 dni, więc usunięte wracały w ciągu godziny. Od
+  pobierania przyrostowego wracają tylko te z ostatnich ok. 6 godz. (zakładka), a po
+  usunięciu kursora `pobrane_do` z manifestu — wszystkie z 7 dni. Do chowania artefaktów
+  jest `artefakty.json`. Zmiana **wartości** przy zachowanym znaczniku jest trwała, bo
+  `merge()` kluczuje po `(ts, device_id, code)`.
 - *(Nieaktualne od 27.09 — wykrywanie wietrzenia usunięte.)* `policzWietrzenia(od)` zwracało `{wietrz, klima, nazwy}`, a nie mapę po identyfikatorze.
 - **Piąty raz ten sam wzorzec: próg kontra liczba na jego krawędzi.** Test „wygładzenie
   nie odsuwa linii dalej niż o krok czujnika" wychodził dokładnie na 0,100 przy progu
@@ -694,9 +763,9 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **84** (`python -m unittest discover -s tests`) |
+| Testy kolektora | **104** (`python -m unittest discover -s tests`) |
 | Testy strony | **130** (`cd tests/frontend && npx playwright test`) |
-| Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 30 zapytań Tuya na przebieg · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie. Akcje na wersjach z Node 24 |
+| Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 7 zapytań Tuya na przebieg (do 8.10: 29) z pakietu 0,20 USD na miesiąc · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie i po każdej zmianie swojego pliku na main. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
 

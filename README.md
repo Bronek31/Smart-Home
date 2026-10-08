@@ -21,9 +21,11 @@ czujniki Zigbee → bramka → chmura Tuya → fetch.py (GitHub Actions, co godz
                                     index.html (GitHub Pages)
 ```
 
-Tuya udostępnia **7 dni logów wstecz**, więc każdy przebieg pobiera całe to okno
-i dokłada tylko to, czego jeszcze nie ma. Pominięty albo nieudany przebieg
-niczego nie kosztuje — następny nadrabia zaległości. Dziura w danych powstaje
+Tuya udostępnia **7 dni logów wstecz**. Każdy przebieg pobiera odcinek od miejsca,
+w którym skończył poprzedni udany (`pobrane_do` w manifeście), z sześciogodzinną
+zakładką na spóźnione odczyty, i dokłada tylko to, czego jeszcze nie ma. Pominięty
+albo nieudany przebieg niczego nie kosztuje — kursor stoi, więc następny nadrabia
+zaległości. Dziura w danych powstaje
 dopiero wtedy, gdy kolektor milczy dłużej niż tydzień. Właśnie po to jest watchdog.
 
 Czujniki raportują **przy zmianie temperatury o 0,5 °C** albo **raz na godzinę**,
@@ -46,11 +48,13 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
 | `artefakty.json` | znane artefakty: przedziały, w których czujnik mierzył coś innego niż pokój. Ręczna lista |
 | `KONTEKST.md` | notatka przekazania: dlaczego jest tak, jak jest, i na co uważać przy dalszej pracy |
+| `ROSLINY.md` | plan czujników w doniczkach i powiadomień na telefon — w przygotowaniu |
+| `ROSLINY-INSTRUKCJA.md` | co zrobić z czujnikami w doniczkach krok po kroku — dla właściciela |
 | `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
 | `.github/workflows/zbieraj.yml` | zbieranie; zapasowy harmonogram co godzinę o :19, właściwym zegarem jest zewnętrzny cron co godzinę (patrz „Kolektor co godzinę") |
 | `.github/workflows/watchdog.yml` | co 6 godzin sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
-| `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
+| `.github/workflows/odkryj.yml` | wypisuje urządzenia w Tuya i ich pola, a dla nowych także bieżące wartości i liczbę wpisów z ostatniej godziny (ok. 20 zapytań). Na żądanie i sam po każdej zmianie swojego pliku na `main` |
 | `.github/workflows/testy.yml` | testy przy każdej zmianie kodu i raz na dobę na żywych danych |
 | `manifest.json`, `sw.js`, `ikona*` | instalacja na ekranie głównym telefonu i tryb offline |
 | `.nojekyll` | pusty plik, który mówi Pages: serwuj repozytorium jak jest, bez Jekylla |
@@ -530,11 +534,28 @@ chodził co 30 minut — zmienione, bo czujniki same raportują mniej więcej ra
 godzinę, więc częstsze pobieranie dawało dane świeższe średnio o kwadrans za cenę
 dwa razy większej liczby zapytań do Tuya.
 
-**Limit zapytań Tuya.** Każdy przebieg pobiera pełne 7 dni logów, czyli ok. 30 zapytań
-(ok. 24 strony logów po 100 wpisów dla czterech czujników, plus token i specyfikacje).
-Co godzinę to ok. 750 zapytań na dobę, do tego przebiegi z zapasowego harmonogramu
-GitHuba. Trial IoT Core ma miesięczny limit zapytań — jego wykorzystanie widać na
-iot.tuya.com w projekcie, przy usłudze IoT Core.
+**Limit zapytań Tuya.** Trial IoT Core to pakiet **0,20 USD na miesiąc kalendarzowy**
+(iot.tuya.com → IoT Core → My Subscriptions, „Cloud Develop Base Resource Trial").
+Zapytania z runnerów GitHuba Tuya liczy jako zagraniczne (`CLOUD_API_FOREIGN`,
+3,71 USD za milion), więc pakiet to ok. 54 000 zapytań. Liczy się każde: token,
+lista urządzeń, każda strona logów, także nieudane.
+
+Do 8.10.2026 przebieg pobierał pełne 7 dni logów — 29 zapytań, a przy ok. 28
+przebiegach na dobę ok. 47% pakietu (panel 8.10 po południu: 6229 zapytań, co do kilku
+zgodne z wyliczeniem). Od tego dnia kolektor pyta tylko o odcinek od `pobrane_do`:
+token, lista urządzeń, po jednej stronie na czujnik i jedna na klimatyzator, czyli
+ok. 7 zapytań na przebieg. Ile dokładnie, wypisuje sam na końcu logu przebiegu
+(„Zapytań do Tuya w tym przebiegu"). Pierwszy przebieg po wdrożeniu, bez kursora
+w manifeście, bierze jeszcze pełne 7 dni — jednorazowo ok. 26 zapytań, a jeśli Tuya
+oddaje logi od najnowszego, do ok. 70.
+
+Na jeden odcinek przypada jedna strona (100 wpisów). Gdy odcinek się nie mieści, kolektor
+dzieli go albo przesuwa po znacznikach czasu — w obu kolejnościach, w jakich Tuya może
+oddawać logi — i nigdy nie przekracza ok. 30 zapytań na czujnik w jednym przebiegu
+(`BUDZET_URZADZENIA`). To zabezpieczenie przed czujnikiem, który zalewa logi. Jedyna
+świadoma strata: ponad 500 wpisów w dwie minuty przy kolejności od najnowszego — reszta
+z tych dwóch minut przepada, z ostrzeżeniem w logu (`NAJKROTSZY_ODCINEK_MS`). Czujniki
+pokojowe robią kilka wpisów na godzinę.
 
 ## Na ekranie telefonu
 
@@ -556,12 +577,13 @@ samego dnia — zainstalowana strona wystarcza.
 |---|---|
 | Strona: „Nie ma jeszcze żadnych odczytów" | Kolektor nie zrobił jeszcze udanego przebiegu. Zakładka Actions |
 | Zamiast wykresów: „Nie udało się wczytać biblioteki wykresów" | Sieć blokuje `cdn.jsdelivr.net` albo CDN ma awarię. Kafle, tabele i rzut działają dalej; wykresy wrócą same |
-| „Zbieranie odczytów" na czerwono z „Push odrzucony" | Dwa przebiegi kolektora weszły sobie w drogę. `zapisz.sh` liczy wtedy odczyty jeszcze raz na drzewie zwycięzcy i próbuje trzy razy; czerwień znaczy, że nie udało się ani razu. Odczyty nie giną — następny przebieg i tak bierze okno 7 dni |
+| „Zbieranie odczytów" na czerwono z „Push odrzucony" | Dwa przebiegi kolektora weszły sobie w drogę. `zapisz.sh` liczy wtedy odczyty jeszcze raz na drzewie zwycięzcy i próbuje trzy razy; czerwień znaczy, że nie udało się ani razu. Odczyty nie giną — kursor stoi, więc następny przebieg dociąga od tego samego miejsca |
 | Zgłoszenie „brak nowej pogody od… , Open-Meteo nie odpowiada" | Dwór milczy dłużej niż zwykle. Czujniki i wykresy mieszkania działają dalej; rada o wietrzeniu i łuk doby czekają na świeżą prognozę |
 | Na stronie zniknął dwór, choć czujniki działają | Przebieg nie dostał odpowiedzi z Open-Meteo. Historia leży dalej w CSV, a `keep_known` w `fetch.py` trzyma urządzenie w manifeście, dopóki ma odczyty — linia wróci przy najbliższym udanym przebiegu. Jeśli mimo to zniknęła, w logu przebiegu szukaj „Pogoda: pominięta" |
 | Pulpit: „Kolektor nie zapisał nic od…" | Problem po stronie Actions albo Tuya, nie czujników. Czujniki oceniane są do chwili ostatniej zbiórki, więc przy spóźnionym kolektorze nie świecą się na pomarańczowo |
-| Dane przychodzą co 3–5 godz. zamiast co godzinę, przebiegi zielone | GitHub opóźnia harmonogram (od końca sierpnia 2026 to norma). Odczyty nie giną — każdy przebieg bierze 7 dni wstecz — ale strona jest nieświeża, a watchdog potrafi zgłosić fałszywe „Kolektor stoi". Lekarstwo: zewnętrzny zegar, patrz „Kolektor co godzinę" |
-| Błąd `28841002` w logu | Wygasł trial IoT Core. Wniosek o przedłużenie na iot.tuya.com, 1-2 dni robocze. Pierwszy trial wygasł **po miesiącu** (12.09.2026) — datę kolejnego sprawdzać na iot.tuya.com |
+| Dane przychodzą co 3–5 godz. zamiast co godzinę, przebiegi zielone | GitHub opóźnia harmonogram (od końca sierpnia 2026 to norma). Odczyty nie giną — każdy przebieg dociąga od miejsca, w którym skończył poprzedni (do 7 dni wstecz) — ale strona jest nieświeża, a watchdog potrafi zgłosić fałszywe „Kolektor stoi". Lekarstwo: zewnętrzny zegar, patrz „Kolektor co godzinę" |
+| Błąd `28841002` w logu | Wygasł trial IoT Core. Wniosek o przedłużenie na iot.tuya.com, 1-2 dni robocze. Pierwszy trial wygasł **po miesiącu** (12.09.2026). Obecny jest przedłużony do 13.03.2027 (panel 8.10) — wniosek ok. 6.03.2027 |
+| Błąd `28841004` w logu | Najpewniej wyczerpany miesięczny pakiet triala (0,20 USD) — znaczenie kodu znane z wyszukiwarki, niepotwierdzone. Zużycie: iot.tuya.com → IoT Core → My Subscriptions. Pakiet odnawia się 1. dnia miesiąca; do tego czasu kolektor stoi, a odczyty starsze niż 7 dni przepadają |
 | Błąd `1004` | Access Secret przepisany z ucięciem znaku |
 | Błąd `1114` albo `2007` | Zły region w `TUYA_REGION` |
 | Pusta lista przy `--discover` | Konto Smart Life podpięte do innego data center |
