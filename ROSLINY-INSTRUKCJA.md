@@ -138,7 +138,11 @@ i powód do zwrotu w terminie.
 
 ---
 
-## Krok 7. Tylko jeśli poproszę: tryb „DP Instruction" w Tuya (na komputerze)
+## Krok 7. Tryb „DP Instruction" w Tuya (na komputerze) — POTRZEBNY
+
+8.10 „Pokaż urządzenia w Tuya" pokazało, że chmura widzi z czujników w doniczkach
+tylko glebę, temperaturę i baterię. Światła i wilgotności powietrza nie ma, a bez
+światła nie będzie powiadomień „przestaw".
 
 Chmura Tuya potrafi ukrywać niestandardowe pola czujnika (światło, wilgotność
 powietrza). Naprawia się to przełączeniem trybu instrukcji **tylko dla produktu

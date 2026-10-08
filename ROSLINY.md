@@ -154,6 +154,40 @@ punkt danych (112). Etykieta „4 in 1" wskazuje na zwykłą wersję. Rozstrzygn
   tygodnia — czujniki zwrócić, a nie łatać w kolektorze. Oprogramowanie nie naprawi
   baterii, a pobieranie takich logów zjadłoby limit Tuya.
 
+**Co widzi chmura (8.10, „Pokaż urządzenia w Tuya", przebiegi 37807246328 i 37807716662):**
+
+| Roślina | Identyfikator | Kategoria | Pola w specyfikacji |
+|---|---|---|---|
+| Fikus | `bfe5bdf2b91c53dfd1eaiy` | `zwjcy` | `humidity` (%, gleba), `temp_current` (℃, 0…1000, scale 1), `temp_unit_convert`, `battery_state` |
+| Skrzydłokwiat | `bfa2be765aa6176805rhly` | `zwjcy` | jw. |
+| Azalia | `bf262a90fc72e1aef65arq` | `zwjcy` | jw. |
+
+- **Produkt `0ints6wl` („土壤温湿度")**, czyli w Zigbee2MQTT rodzina **ZS-300Z / ZS-304Z**
+  (`_TZE284_0ints6wl`), a nie ZS-301Z.
+  - Ostrzeżenie o „C3007 / ZSSF01" dotyczy ZS-301Z, więc tu nie musi obowiązywać.
+  - Ta rodzina ma te same pola 3, 5, 14, 101 (wilgotność powietrza) i 102 (światło).
+  - Do tego ustawienia: 103 próbkowanie gleby 5–3600 s, 104 kalibracja gleby,
+    105 wilgotności, 106 światła (±1000 lx) i 107 temperatury (±2 °C), 110 próg suchej
+    gleby i 111 alarm „sucho". ZHA zgłaszało, że ten alarm miga co ok. 10 minut.
+- Nowe urządzenia pojawiły się w projekcie same, bez ponownego łączenia konta.
+- **Tempo wpisów** w godzinie parowania i testów (15:18–16:18 UTC):
+  - Fikus 134, Skrzydłokwiat 121, Azalia 111;
+  - prawie same `humidity` (gleba): 105–125 na godzinę, czyli co ok. 30 s, choć wartość
+    stała;
+  - temperatura 6–9 na godzinę.
+
+  Przez logi to ok. 2 strony na czujnik na przebieg, więc pakiet to zniesie. Bateria
+  przy raporcie co 30 s — niekoniecznie. Pomiar do powtórzenia po godzinie spokoju przy
+  ustawionym próbkowaniu 600 s.
+- **Bateria:** Skrzydłokwiat wysłał już `battery_state=high`. Fikus i Azalia jeszcze nic,
+  więc aplikacja pokazuje domyślne „low" — to brak pierwszego raportu, nie stan baterii.
+- **Brakuje światła i wilgotności powietrza.** W trybie *Standard Instruction* chmura
+  pokazuje tylko pola ze standardu kategorii `zwjcy` — dokładnie to, przed czym
+  ostrzegał tinytuya. Bez przełączenia produktu na *DP Instruction* nie ma reguły
+  „przestaw", bo nie ma światła.
+- Dzisiejsze `classify()` wzięłoby `humidity` za wilgotność powietrza — potwierdzone
+  na żywo.
+
 **Pierwsze odczyty (8.10, 18:09):** sparowane, wszystkie trzy obok siebie na jednym
 stoliku, w zaciemnionym pokoju, po wciśnięciu przycisków.
 
