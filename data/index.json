@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-08T16:01:57Z",
+  "updated": "2026-10-08T16:21:01Z",
   "months": [
     "2026-08",
     "2026-09",
@@ -59,7 +59,8 @@
           "unit": "%",
           "scale": 0
         }
-      }
+      },
+      "pobrane_do": "2026-10-08T16:19:31Z"
     },
     "bf7e2a70935af7de78mjqt": {
       "name": "Sypialnia",
@@ -79,7 +80,8 @@
           "unit": "%",
           "scale": 0
         }
-      }
+      },
+      "pobrane_do": "2026-10-08T16:19:31Z"
     },
     "bf5741c97c96fa85b1d7do": {
       "name": "Kuchnia",
@@ -99,7 +101,8 @@
           "unit": "%",
           "scale": 0
         }
-      }
+      },
+      "pobrane_do": "2026-10-08T16:19:31Z"
     },
     "bf43cf664d6644420axva3": {
       "name": "Salon",
@@ -119,7 +122,8 @@
           "unit": "%",
           "scale": 0
         }
-      }
+      },
+      "pobrane_do": "2026-10-08T16:19:31Z"
     },
     "zewnatrz": {
       "name": "Na zewnątrz",
