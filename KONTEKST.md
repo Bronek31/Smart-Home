@@ -118,13 +118,37 @@ Przy okazji:
 osobno: do `data/rosliny/`, z kursorami i skalami w `data/rosliny/stan.json`.
 - Tor pokoi pomija je zawsze — także przy pustym `TUYA_DEVICE_IDS` i także wtedy, gdy
   `rosliny.json` jest zepsuty (kategoria Tuya `zwjcy`).
-- Tor roślin rusza po zapisaniu manifestu pokoi, w `try/except Exception`. Literówka
-  w ręcznym pliku, wyjątek w obliczeniach czy odmowa Tuya kończą się wpisem `blad`
-  w stanie, a nie czerwonym kolektorem.
+- Tor roślin rusza po zapisaniu manifestu pokoi, w `try/except` i z limitem 300 s
+  (`SIGALRM`). Literówka w ręcznym pliku, wyjątek w obliczeniach czy odmowa Tuya
+  kończą się wpisem `blad` i alertem w stanie, a nie czerwonym kolektorem. Kursory
+  i skale przy tym zostają.
 - Obliczenia (`rosliny.py`) są czyste i to one wydają werdykt. Strona będzie go tylko
   wyświetlać, więc nie powstaje nowa para bliźniaczych stałych JS/Python.
-- Gleba przychodzi co ok. 30 s ze stałą wartością, niezależnie od ustawionego
-  próbkowania. Stąd zakładka 1 godz. i przerzedzanie do zmian plus wiersza na godzinę.
+- W godzinie parowania gleba przychodziła co ok. 30 s, w spokoju 1–3 razy na godzinę.
+  Zakładka 1 godz. i przerzedzanie do zmian plus wiersza na godzinę i tak zostają.
+
+**Przegląd toru roślin (8.10 wieczorem)** — dwóch recenzentów, wszystko odtworzone
+na atrapach. Przed scaleniem na main poprawione:
+- **Błąd toru gubił kursory i nie docierał do watchdoga.** Stan nadpisywało samo
+  `{updated, blad}`, więc następny przebieg ciągnął logi od nowa, a watchdog bez
+  `alerty` zamykał zgłoszenie. Teraz stan zostaje, dochodzi `blad` i alert; kursory
+  zapisują się zaraz po dopisaniu CSV.
+- **`podlania()` było kwadratowe.** Przy glebie co 30 s 60 dni to dziesiątki minut,
+  czyli zabite zadanie przed commitem pokoi. Teraz liniowe (kolejka monotoniczna),
+  plus limit czasu toru i martwa strefa ±1 dla gleby w przerzedzaniu.
+- **Pokój wpisany jako „czujnik" wyłączał się po cichu.** Teraz zostaje pokojem,
+  a tor roślin zgłasza błąd konfiguracji.
+- **Wbicie sondy uczyło się jako podlanie,** gdy „od" było choć trochę za wcześnie
+  albo bez strefy. Teraz „od" musi mieć godzinę i strefę, a nauka startuje godzinę
+  później.
+- **„Przed" brało najniższy odczyt tuż przed skokiem.** Przy zanurzaniu azalii to
+  sonda w powietrzu. Teraz to mediana 2–6 godz. przed skokiem, a podlanie uczy tylko
+  wtedy, gdy mediany różnią się o 10 punktów (poprawienie sondy 30 → 18 → 30 nie
+  uczy).
+- Drobniejsze: szczyt dopiero 6 godz. po podlaniu, werdykt „czujnik" przy wyjętej
+  sondzie i przy starej glebie, „nauka" bez `sucho`, doby światła od lokalnej
+  północy, brak `Infinity` w stanie, pusta lista czyści alerty, pierwszy przebieg
+  bierze dobę, a nie 7 dni.
 
 ---
 
@@ -785,7 +809,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **129** (`python -m unittest discover -s tests`) |
+| Testy kolektora | **154** (`python -m unittest discover -s tests`) |
 | Testy strony | **130** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 7 zapytań Tuya na przebieg (do 8.10: 29) z pakietu 0,20 USD na miesiąc · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie i po każdej zmianie swojego pliku na main. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |

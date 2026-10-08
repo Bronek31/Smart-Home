@@ -456,14 +456,44 @@ czujników.
 **Stan na 8.10 wieczorem: zrobione.**
 
 Odstępstwa od projektu niżej, wymuszone pomiarem:
-- **Zakładka roślin 1 godz., nie 6**, i budżet 12 zapytań na czujnik. Gleba przychodzi
-  co ok. 30 s, więc 6 godz. zakładki to ok. 8 stron na przebieg.
+- **Zakładka roślin 1 godz., nie 6**, i budżet 12 zapytań na czujnik. W godzinie
+  parowania gleba przychodziła co ok. 30 s, więc 6 godz. zakładki to było ok. 8 stron
+  na przebieg. W spokoju to 8–10 wpisów na godzinę, czyli zakładka mieści się w jednej
+  stronie i jest czytana naprawdę (uwaga recenzenta o pomijanej zakładce dotyczyła
+  tempa z parowania).
 - **Przerzedzanie w kolektorze** (`rosliny.zwin`): zostaje zmiana wartości albo jeden
   wiersz na godzinę na serię. Działa na całym pliku miesięcznym przy każdym przebiegu,
   bo zakładka dokłada wycięte wiersze z powrotem; jest idempotentne.
 - **Kursory i skale roślin w `stan.json`**, nie w `index.json`.
-- **Nauka zaczyna się od daty `od`** (wbicie sondy). Wcześniejsze odczyty, w tym testy
-  w wodzie, nie uczą progów — wbicie w wilgotną ziemię wyglądałoby jak podlanie.
+- **Nauka zaczyna się godzinę po `od`** (wbicie sondy). Wcześniejsze odczyty, w tym
+  testy w wodzie, nie uczą progów — wbicie w wilgotną ziemię wyglądałoby jak podlanie.
+  `od` musi mieć godzinę i strefę (`2026-10-09T08:30:00+02:00`): sama data to północ
+  UTC, a godzina bez strefy liczy się w strefie maszyny. Godzinę wbicia zaokrąglamy
+  w górę.
+
+**Po przeglądzie (8.10 wieczorem):**
+- **Błąd toru** zostawia w `stan.json` kursory, skale i ostatnie werdykty (`updated`
+  sprzed błędu), dopisuje `blad` i alert dla watchdoga. Kursory zapisują się zaraz po
+  dopisaniu odczytów do CSV. Błąd obliczeń jednej rośliny nie zasłania pozostałych.
+- **Limit czasu toru: 300 s** (`SIGALRM`, wyjątek spoza `Exception`). Wolność to nie
+  wyjątek, a zabite zadanie nie zapisałoby pokoi.
+- **Wykrywanie podlań jest liniowe.** `przed` i `szczyt` to mediany 2–6 godz. przed
+  skokiem i po nim; szczyt dopiero 6 godz. po podlaniu. Podlanie uczy skali tylko wtedy,
+  gdy mediany różnią się o 10 punktów. Przerwa w danych tuż przed podlaniem go nie gubi.
+- **Nauka patrzy 60 dni wstecz** (trzy podlania fikusa zimą), więc kolektor czyta pliki
+  miesięczne z tego okresu, nie zawsze dwa ostatnie.
+- **Martwa strefa ±1 punktu dla gleby** przy przerzedzaniu — drgnięcie 10↔11 to nie
+  zmiana.
+- **Werdykt „czujnik"**: cisza, brak gleby od 12 godz. przy działającej reszcie, nagły
+  spadek gleby do poziomu powietrza po `od` (sonda wyjęta; watchdog dopiero po 2 godz.,
+  bo zanurzanie azalii trwa pół godziny). Powolne schnięcie do sucha to dalej „podlej".
+- **Do watchdoga** idzie tylko `do_zgloszenia` z każdej rośliny i błędy toru. Pusta
+  lista roślin czyści alerty.
+- **Pokój wpisany jako „czujnik"** zostaje pokojem, a tor roślin zgłasza błąd.
+- **Pierwszy przebieg** bez kursora bierze dobę, a nie 7 dni.
+- Doby światła liczone od lokalnej północy; dzisiejszą niepełną widać po `pokrycie`.
+- **Jeszcze nie ma histerezy werdyktu.** Przy szumie ±1 koło progu werdykt może skakać.
+  Wejdzie z powiadomieniami (etap 4), bo to one muszą być spokojne.
 
 ```
 rosliny.json                     konfiguracja (ręczna, jak artefakty.json): czujnik → roślina

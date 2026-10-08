@@ -13,8 +13,11 @@ Plan, pomiary i powody progów: ROSLINY.md.
 
 from __future__ import annotations
 
+import bisect
 import json
+import math
 import statistics
+from collections import deque
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -42,11 +45,14 @@ GATUNKI = {
 }
 ZIMA = {10, 11, 12, 1, 2}
 
-# Ile czasu po ostatnim kept odczycie trzymamy wiersz, nawet jeśli wartość się nie
-# zmieniła. Gleba przychodzi co ok. 30 s ze stałą wartością (pomiar 8.10), więc bez
-# przerzedzania byłoby ok. 3000 wierszy na dobę na czujnik, a godzinny wiersz wystarcza,
-# żeby odróżnić „stoi" od „milczy".
+# Ile czasu po ostatnim zostawionym odczycie trzymamy wiersz, nawet jeśli wartość się nie
+# zmieniła. W godzinie parowania gleba przychodziła co ok. 30 s ze stałą wartością
+# (pomiar 8.10), więc bez przerzedzania byłoby do 3000 wierszy na dobę na czujnik,
+# a godzinny wiersz wystarcza, żeby odróżnić „stoi" od „milczy".
 PRZERZEDZENIE_MS = GODZ
+# Gleba skacząca 10↔11 to nie zmiana: bez tego każde drgnięcie zostawałoby w CSV
+# (przegląd 8.10: ok. 900 wierszy na dobę zamiast 25). Tylko dla gleby — alarm to 1/0.
+MARTWA_STREFA_GLEBY = 1.0
 # Dłużej niż tyle bez odczytu to cisza, a nie stan trwający — w szeregu godzinowym
 # i w sumie światła nie przeciągamy ostatniej wartości dalej.
 MAKS_PRZERWA_MS = 2 * GODZ
@@ -56,9 +62,22 @@ OKNO_PODLANIA_MS = 2 * GODZ
 # Szczyt po podlaniu: mediana odczytów w tym oknie po wykrytym podlaniu, kiedy woda już
 # spłynęła, a ziemia jeszcze nie zaczęła schnąć.
 SZCZYT_OD_MS, SZCZYT_DO_MS = 2 * GODZ, 6 * GODZ
+# Przed podlaniem: mediana z tego okna przed wykrytym skokiem — nie najniższy odczyt
+# tuż przed nim, bo przy zanurzaniu azalii sonda leży wtedy w powietrzu.
+PRZED_OD_MS, PRZED_DO_MS = 2 * GODZ, 6 * GODZ
+# Nauka startuje godzinę po wbiciu sondy: wbicie (z powietrza do wilgotnej ziemi) to
+# skok jak przy podlaniu, a godzina wbicia podana z pamięci bywa o kilka minut za wczesna.
+ZAPAS_PO_WBICIU_MS = GODZ
+# Gleba najwyżej tyle nad „sucho" to sonda w powietrzu albo ziemia sucha jak pieprz;
+# rozstrzyga, czy spadek był nagły (sonda wyjęta), czy powolny (schnięcie).
+ZAPAS_SUCHO = 3.0
+# Sonda wyjęta na krótko (zanurzanie azalii trwa ok. 30 min) to nie sprawa dla watchdoga.
+ZGLOS_WYJETA_MS = 2 * GODZ
 # Cisza dłuższa niż to — czujnik wymaga uwagi.
 CISZA_MS = 12 * GODZ
 DNI_HISTORII = 30
+# Nauka patrzy tyle dni wstecz: trzy podlania fikusa zimą to 6–8 tygodni.
+DNI_NAUKI = 60
 
 
 def _ms(ts: str) -> int | None:
@@ -77,7 +96,25 @@ def _liczba(tekst) -> float | None:
         wartosc = float(tekst)
     except (TypeError, ValueError):
         return None
-    return wartosc if wartosc == wartosc else None          # NaN to brak
+    # NaN to brak, a nieskończoność też: JSON.parse w przeglądarce odrzuca Infinity
+    return wartosc if math.isfinite(wartosc) else None
+
+
+def _ms_ze_strefa(ts) -> int | None:
+    """Data z godziną i jawną strefą. Sama data albo godzina bez strefy to None:
+    pierwszą czyta się jako północ UTC, drugą w strefie maszyny (w Actions to UTC,
+    a nie Warszawa) — i jedno, i drugie po cichu przesuwa wbicie sondy."""
+    try:
+        chwila = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+    if chwila.tzinfo is None or "T" not in str(ts):
+        return None
+    return int(chwila.timestamp() * 1000)
+
+
+def _lokalnie(ms: int, strefa: ZoneInfo) -> str:
+    return datetime.fromtimestamp(ms / 1000, strefa).strftime("%d.%m %H:%M")
 
 
 def wczytaj_konfiguracje(tekst: str) -> list[dict]:
@@ -99,54 +136,75 @@ def wczytaj_konfiguracje(tekst: str) -> list[dict]:
         if not isinstance(r, dict):
             raise ValueError(f"rosliny.json: wpis {i} nie jest obiektem")
         czujnik, nazwa, gatunek = r.get("czujnik"), r.get("nazwa"), r.get("gatunek")
-        if not czujnik or not nazwa:
-            raise ValueError(f"rosliny.json: wpis {i} bez „czujnik\" albo „nazwa\"")
+        if not czujnik or not nazwa or not isinstance(czujnik, str) or not isinstance(nazwa, str):
+            raise ValueError(f"rosliny.json: wpis {i} bez „czujnik\" albo „nazwa\" (tekstem)")
         if czujnik in widziane:
             raise ValueError(f"rosliny.json: czujnik {czujnik} wpisany dwa razy")
         widziane.add(czujnik)
-        if gatunek not in GATUNKI:
+        if not isinstance(gatunek, str) or gatunek not in GATUNKI:
             raise ValueError(f"rosliny.json: {nazwa} — nieznany gatunek {gatunek!r} "
                              f"(znane: {', '.join(GATUNKI)})")
         kody = r.get("kody")
         if not isinstance(kody, dict) or not kody.get("gleba"):
             raise ValueError(f"rosliny.json: {nazwa} — brak „kody\" z kodem gleby")
+        if not all(isinstance(v, str) and v for v in kody.values()):
+            raise ValueError(f"rosliny.json: {nazwa} — kody chmury muszą być niepustym tekstem")
         obce = set(kody) - set(RODZAJE)
         if obce:
             raise ValueError(f"rosliny.json: {nazwa} — nieznane rodzaje kodów: {', '.join(sorted(obce))}")
         if len(set(kody.values())) != len(kody):
             raise ValueError(f"rosliny.json: {nazwa} — jeden kod chmury wpisany pod dwa rodzaje")
         sucho = r.get("sucho")
-        if sucho is not None and _liczba(sucho) is None:
-            raise ValueError(f"rosliny.json: {nazwa} — „sucho\" musi być liczbą")
+        if sucho is not None and (isinstance(sucho, bool) or _liczba(sucho) is None):
+            raise ValueError(f"rosliny.json: {nazwa} — „sucho\" musi być skończoną liczbą")
         od = r.get("od")
-        if od is not None and _ms(od) is None:
-            raise ValueError(f"rosliny.json: {nazwa} — „od\" to nie data ISO")
+        if od is not None and _ms_ze_strefa(od) is None:
+            raise ValueError(f"rosliny.json: {nazwa} — „od\" to nie data ISO z godziną i strefą "
+                             f"(np. 2026-10-09T08:30:00+02:00)")
+        pokoj = r.get("pokoj")
+        if pokoj is not None and not isinstance(pokoj, str):
+            raise ValueError(f"rosliny.json: {nazwa} — „pokoj\" to identyfikator tekstem")
         out.append({
             "czujnik": str(czujnik), "nazwa": str(nazwa), "gatunek": gatunek,
-            "pokoj": r.get("pokoj"), "kody": {k: str(v) for k, v in kody.items()},
+            "pokoj": pokoj, "kody": {k: str(v) for k, v in kody.items()},
             "sucho": _liczba(sucho), "od": od,
         })
     return out
 
 
-def zwin(wiersze: list[dict], co_ile_ms: int = PRZERZEDZENIE_MS) -> list[dict]:
+def _inna(wartosc: str, poprzednia: str, strefa: float | None) -> bool:
+    if wartosc == poprzednia:
+        return False
+    if strefa is None:
+        return True
+    a, b = _liczba(wartosc), _liczba(poprzednia)
+    return a is None or b is None or abs(a - b) > strefa
+
+
+def zwin(wiersze: list[dict], co_ile_ms: int = PRZERZEDZENIE_MS,
+         martwa_strefa: dict[tuple[str, str], float] | None = None) -> list[dict]:
     """Przerzedza odczyty: z każdej serii (czujnik, kod) zostaje wiersz, gdy wartość się
-    zmieniła albo od ostatniego zostawionego minęło `co_ile_ms`.
+    zmieniła albo od ostatniego zostawionego minęło `co_ile_ms`. W seriach z
+    `martwa_strefa` ({(czujnik, kod): punkty}) zmiana o tyle lub mniej względem ostatniego
+    zostawionego wiersza nie jest zmianą.
 
     Idempotentne: przerzedzenie przerzedzonego niczego nie zmienia — kolektor może więc
     przerzedzać cały plik miesięczny przy każdym przebiegu, także gdy zakładka dołożyła
-    z powrotem wiersze wycięte w poprzednim.
+    z powrotem wiersze wycięte w poprzednim. Każdy zostawiony wiersz porównuje się
+    z poprzednim zostawionym, więc drugi przebieg podejmuje te same decyzje.
     """
     def klucz(w):
         return (w["device_id"], w["code"], w["ts"])
 
+    martwa_strefa = martwa_strefa or {}
     out, ostatni = [], {}
     for w in sorted(wiersze, key=klucz):
         seria = (w["device_id"], w["code"])
         teraz = _ms(w["ts"])
         poprzedni = ostatni.get(seria)
         if (poprzedni is None or teraz is None or poprzedni[1] is None
-                or str(w["value"]) != poprzedni[0] or teraz - poprzedni[1] >= co_ile_ms):
+                or teraz - poprzedni[1] >= co_ile_ms
+                or _inna(str(w["value"]), poprzedni[0], martwa_strefa.get(seria))):
             out.append(w)
             ostatni[seria] = (str(w["value"]), teraz)
     out.sort(key=lambda w: (w["ts"], w["device_id"], w["code"]))
@@ -236,36 +294,88 @@ def luksogodziny(pkt: list[tuple[int, float]], strefa: ZoneInfo, od_ms: int, do_
     return out
 
 
-def podlania(gleba: list[tuple[int, float]], skok: float = SKOK_PODLANIA,
-             okno_ms: int = OKNO_PODLANIA_MS) -> list[dict]:
-    """Wykryte podlania: wzrost gleby o co najmniej `skok` punktów względem najniższego
-    odczytu z ostatnich `okno_ms`. Znacznik to pierwszy odczyt, który przekroczył próg;
-    `przed` to ten najniższy odczyt, `szczyt` — mediana odczytów 2–6 godz. później (None,
-    dopóki tyle czasu nie minęło albo brak odczytów)."""
-    wydarzenia: list[dict] = []
+def _mediana(pkt: list[tuple[int, float]], czasy: list[int], od: int, do: int) -> float | None:
+    i, j = bisect.bisect_left(czasy, od), bisect.bisect_right(czasy, do)
+    return round(statistics.median(v for _, v in pkt[i:j]), 1) if j > i else None
+
+
+def podlania(gleba: list[tuple[int, float]], teraz_ms: int | None = None,
+             skok: float = SKOK_PODLANIA, okno_ms: int = OKNO_PODLANIA_MS) -> list[dict]:
+    """Wykryte podlania, rosnąco w czasie.
+
+    Podlanie to wzrost gleby o co najmniej `skok` punktów względem najniższego odczytu
+    z ostatnich `okno_ms`; gdy w oknie nic nie ma (przerwa w danych tuż przed
+    podlaniem), względem ostatniego odczytu sprzed najwyżej 6 godz. Znacznik to pierwszy
+    odczyt, który przekroczył próg. Minimum okna trzyma kolejka monotoniczna, więc całość
+    jest liniowa — nauka patrzy na 60 dni, a gleba potrafi przychodzić co 30 s
+    (dawna wersja z listą na każdy punkt to były minuty i zabity przebieg).
+
+    `przed` i `szczyt` to mediany odczytów 2–6 godz. przed skokiem i po nim:
+    - nie najniższy odczyt z okna, bo przy zanurzaniu azalii sonda leży wtedy
+      w powietrzu i „przed" wyszłoby suche jak powietrze;
+    - `szczyt` jest None, dopóki od podlania nie minie 6 godz. — wcześniej ziemia
+      jeszcze odcieka i szczyt skakałby między przebiegami.
+    `liczy` mówi, czy podlanie uczy skali: także mediany muszą się różnić o `skok`.
+    Poprawienie sondy (30 → 18 → 30) daje skok, ale nie wodę.
+    """
+    czasy = [t for t, _ in gleba]
+    wydarzenia: list[int] = []
+    okno: deque[int] = deque()            # indeksy, wartości rosnąco od lewej
     for i, (t, v) in enumerate(gleba):
-        poprzednie = [w for (tp, w) in gleba[:i] if t - tp <= okno_ms]
-        if not poprzednie:
-            continue
-        najnizej = min(poprzednie)
-        if v - najnizej >= skok and (not wydarzenia or t - wydarzenia[-1]["ms"] > okno_ms):
-            wydarzenia.append({"ms": t, "przed": najnizej})
-    for w in wydarzenia:
-        po = [v for (t, v) in gleba if w["ms"] + SZCZYT_OD_MS <= t <= w["ms"] + SZCZYT_DO_MS]
-        w["szczyt"] = round(statistics.median(po), 1) if po else None
-    return [{"ts": iso(w["ms"]), "przed": round(w["przed"], 1), "szczyt": w["szczyt"]}
-            for w in wydarzenia]
+        while okno and t - gleba[okno[0]][0] > okno_ms:
+            okno.popleft()
+        if okno:
+            najnizej = gleba[okno[0]][1]
+        elif i and t - gleba[i - 1][0] <= PRZED_DO_MS:
+            najnizej = gleba[i - 1][1]
+        else:
+            najnizej = None
+        if (najnizej is not None and v - najnizej >= skok
+                and (not wydarzenia or t - wydarzenia[-1] > okno_ms)):
+            wydarzenia.append(t)
+        while okno and gleba[okno[-1]][1] >= v:
+            okno.pop()
+        okno.append(i)
+    out = []
+    for ms in wydarzenia:
+        przed = _mediana(gleba, czasy, ms - PRZED_DO_MS, ms - PRZED_OD_MS)
+        gotowe = teraz_ms is None or teraz_ms >= ms + SZCZYT_DO_MS
+        szczyt = _mediana(gleba, czasy, ms + SZCZYT_OD_MS, ms + SZCZYT_DO_MS) if gotowe else None
+        out.append({"ts": iso(ms), "przed": przed, "szczyt": szczyt,
+                    "liczy": przed is not None and szczyt is not None and szczyt - przed >= skok})
+    return out
 
 
 def nauka(podl: list[dict], sucho: float | None) -> dict:
-    """Szczyt i punkt podlewania z trzech ostatnich podlań (mediany)."""
-    szczyty = [p["szczyt"] for p in podl if p.get("szczyt") is not None][-3:]
-    przed = [p["przed"] for p in podl][-3:]
+    """Szczyt i punkt podlewania z trzech ostatnich uczących podlań (mediany)."""
+    uczace = [p for p in podl if p.get("liczy")][-3:]
+    szczyty = [p["szczyt"] for p in uczace]
+    przed = [p["przed"] for p in uczace]
     szczyt = statistics.median(szczyty) if szczyty else None
     punkt = statistics.median(przed) if len(przed) >= 3 else None
     if szczyt is not None and sucho is not None and szczyt - sucho < SKOK_PODLANIA:
         szczyt = None          # „szczyt" ledwie nad suchym — to nie skala, tylko szum
-    return {"szczyt": szczyt, "punkt_podlewania": punkt, "podlan": len(podl)}
+    return {"szczyt": szczyt, "punkt_podlewania": punkt, "podlan": len([p for p in podl if p.get("liczy")])}
+
+
+def sonda_wyjeta(gleba: list[tuple[int, float]], sucho: float | None,
+                 skok: float = SKOK_PODLANIA, okno_ms: int = OKNO_PODLANIA_MS) -> int | None:
+    """Chwila, od której gleba stoi na poziomie powietrza po nagłym spadku — sonda wyjęta
+    z ziemi. None, jeśli tak nie jest. Schnięcie tu nie wpada: ziemia traci kilka punktów
+    na dobę, a nie `skok` w dwie godziny — więc zupełnie sucha doniczka to dalej „podlej"."""
+    if sucho is None or not gleba:
+        return None
+    i = len(gleba)
+    while i > 0 and gleba[i - 1][1] <= sucho + ZAPAS_SUCHO:
+        i -= 1
+    if i == len(gleba) or i == 0:
+        return None
+    t_spadku, v_spadku = gleba[i]
+    j, najwyzej = i - 1, None
+    while j >= 0 and t_spadku - gleba[j][0] <= okno_ms:
+        najwyzej = gleba[j][1] if najwyzej is None else max(najwyzej, gleba[j][1])
+        j -= 1
+    return t_spadku if najwyzej is not None and najwyzej - v_spadku >= skok else None
 
 
 def prog_rosliny(gatunek: str, miesiac: int, sucho: float | None, szczyt: float | None,
@@ -279,14 +389,16 @@ def prog_rosliny(gatunek: str, miesiac: int, sucho: float | None, szczyt: float 
 
 
 def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInfo) -> dict:
-    """Wszystko, co zakładka pokazuje o jednej roślinie, i werdykt."""
+    """Wszystko, co zakładka pokazuje o jednej roślinie, werdykt i to, co ma trafić do
+    watchdoga (`do_zgloszenia`: cisza, bateria, sonda długo poza ziemią)."""
     czujnik, kody = konf["czujnik"], konf["kody"]
-    od_nauki = _ms(konf["od"]) if konf.get("od") else None
+    od_wbicia = _ms_ze_strefa(konf["od"]) if konf.get("od") else None
     serie = {r: punkty(wiersze, czujnik, kod) for r, kod in kody.items() if r in LICZBOWE}
 
     ostatnie = {}
     for rodzaj, kod in kody.items():
-        moje = [w for w in wiersze if w.get("device_id") == czujnik and w.get("code") == kod]
+        moje = [w for w in wiersze if w.get("device_id") == czujnik and w.get("code") == kod
+                and (rodzaj not in LICZBOWE or _liczba(w.get("value")) is not None)]
         if moje:
             w = max(moje, key=lambda x: x["ts"])
             v = _liczba(w["value"]) if rodzaj in LICZBOWE else w["value"]
@@ -299,11 +411,13 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
             szereg[rodzaj] = szereg_godzinowy(serie[rodzaj], od_ms, teraz_ms)
 
     gleba = serie.get("gleba", [])
-    if od_nauki:
-        gleba_nauki = [(t, v) for (t, v) in gleba if t >= od_nauki]
+    od_nauki = None
+    if od_wbicia is not None:
+        od_nauki = od_wbicia + ZAPAS_PO_WBICIU_MS
+        gleba_nauki = [(t, v) for (t, v) in gleba if t >= max(od_nauki, teraz_ms - DNI_NAUKI * DOBA)]
     else:
         gleba_nauki = []          # bez daty wbicia sondy nie uczymy się niczego
-    podl = podlania(gleba_nauki)
+    podl = podlania(gleba_nauki, teraz_ms)
     sucho = konf.get("sucho")
     wynik_nauki = nauka(podl, sucho)
     miesiac = datetime.fromtimestamp(teraz_ms / 1000, strefa).month
@@ -316,20 +430,51 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
     if teraz_gleba is not None and szczyt is not None and sucho is not None:
         r = round((teraz_gleba - sucho) / (szczyt - sucho), 2)
 
-    uwagi = []
+    uwagi, zglos = [], []
     najnowszy = max((_ms(o["ts"]) or 0 for o in ostatnie.values()), default=0)
+    ts_gleby = _ms(ostatnie["gleba"]["ts"]) if "gleba" in ostatnie else None
+    # Przed wbiciem sonda z definicji nie jest w ziemi (np. test w szklance wody), więc
+    # spadek do poziomu powietrza liczy się dopiero od „od".
+    wyjeta = (sonda_wyjeta([(t, v) for (t, v) in gleba if t >= od_wbicia], sucho)
+              if od_wbicia is not None else None)
     if not ostatnie:
         werdykt = "czujnik"
         uwagi.append("Brak jakichkolwiek odczytów.")
+        zglos.append(uwagi[-1])
     elif teraz_ms - najnowszy > CISZA_MS:
         werdykt = "czujnik"
         uwagi.append(f"Czujnik milczy od {(teraz_ms - najnowszy) / GODZ:.0f} godz.")
-    elif not od_nauki:
+        zglos.append(uwagi[-1])
+    elif ts_gleby is None or teraz_ms - ts_gleby > CISZA_MS:
+        # reszta przychodzi, gleba nie — werdykt ze starej gleby byłby zmyślony
+        werdykt = "czujnik"
+        uwagi.append("Brak odczytów gleby." if ts_gleby is None else
+                     f"Gleba nie przychodzi od {(teraz_ms - ts_gleby) / GODZ:.0f} godz.")
+        zglos.append(uwagi[-1])
+    elif wyjeta is not None:
+        werdykt = "czujnik"
+        uwagi.append(f"Od {_lokalnie(wyjeta, strefa)} gleba pokazuje tyle co sonda w powietrzu "
+                     f"— sonda wyjęta z ziemi?")
+        if teraz_ms - wyjeta >= ZGLOS_WYJETA_MS:
+            zglos.append(uwagi[-1])
+    elif sucho is None:
+        werdykt = "nauka"
+        uwagi.append("Brak „sucho\" w rosliny.json — bez odczytu w powietrzu nie ma skali.")
+    elif od_wbicia is None:
         werdykt = "nauka"
         uwagi.append("Czekam na wbicie sondy do ziemi (data „od\" w rosliny.json).")
+    elif teraz_ms < od_nauki:
+        werdykt = "nauka"
+        uwagi.append(f"Uczę się od {_lokalnie(od_nauki, strefa)} — godzinę po wbiciu sondy.")
     elif szczyt is None:
         werdykt = "nauka"
-        uwagi.append("Czekam na pierwsze podlanie — z niego bierze się skala.")
+        if podl and podl[-1]["szczyt"] is None:
+            uwagi.append(f"Podlanie {_lokalnie(_ms(podl[-1]['ts']), strefa)} — skala będzie "
+                         f"znana 6 godz. po nim.")
+        elif podl:
+            uwagi.append("Ostatnie podlanie nie podniosło gleby wyraźnie — czekam na następne.")
+        else:
+            uwagi.append("Czekam na pierwsze podlanie — z niego bierze się skala.")
     else:
         pilne = GATUNKI[konf["gatunek"]]["pilne"]
         if pilne is not None and r is not None and r <= pilne:
@@ -340,13 +485,18 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
             werdykt = "ok"
     if str(ostatnie.get("bateria", {}).get("v", "")).lower() == "low":
         uwagi.append("Bateria na wyczerpaniu.")
+        zglos.append(uwagi[-1])
 
-    swiatlo = luksogodziny(serie.get("swiatlo", []), strefa, od_ms, teraz_ms)
+    # Doby od lokalnej północy: pierwsza doba liczona od „teraz − 30 dni" byłaby urwana
+    # i wyglądałaby na ciemną. Dzisiejsza jest niepełna — mówi to `pokrycie`.
+    pierwsza = datetime.fromtimestamp(teraz_ms / 1000, strefa).date() - timedelta(days=DNI_HISTORII - 1)
+    od_dob = int(datetime(pierwsza.year, pierwsza.month, pierwsza.day, tzinfo=strefa).timestamp() * 1000)
+    swiatlo = luksogodziny(serie.get("swiatlo", []), strefa, od_dob, teraz_ms)
     return {
         "czujnik": czujnik, "nazwa": konf["nazwa"], "gatunek": konf["gatunek"],
         "pokoj": konf.get("pokoj"), "sucho": sucho, "od": konf.get("od"),
         "ostatnie": ostatnie, "szereg": szereg, "swiatlo_dobowe": swiatlo,
         "swiatlo_potrzeba_lxh": GATUNKI[konf["gatunek"]]["swiatlo_lxh"],
         "podlania": podl, "szczyt": szczyt, "punkt_podlewania": wynik_nauki["punkt_podlewania"],
-        "R": r, "prog": prog, "werdykt": werdykt, "uwagi": uwagi,
+        "R": r, "prog": prog, "werdykt": werdykt, "uwagi": uwagi, "do_zgloszenia": zglos,
     }

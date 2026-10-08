@@ -25,6 +25,7 @@ import hmac
 import json
 import math
 import os
+import signal
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -80,11 +81,19 @@ BUDZET_URZADZENIA = 30
 # Odcinka krótszego niż to już nie połowimy: ponad sto wpisów w dwie minuty to zalew,
 # którego i tak nie da się przeczytać w całości, więc bierzemy, co przyszło.
 NAJKROTSZY_ODCINEK_MS = 2 * 60 * 1000
-# Czujnik w doniczce wysyła glebę co ok. 30 s (pomiar 8.10), więc sześciogodzinna
-# zakładka pokoi to u niego ok. 720 wpisów, czyli 8 stron na przebieg. Godzina wystarcza
-# na spóźnione odczyty, a budżet jest mniejszy, bo roślin jest trzy, a pakiet wspólny.
+# Czujnik w doniczce w godzinie parowania wysyłał glebę co ok. 30 s (pomiar 8.10), a
+# w spokoju 8–10 wpisów na godzinę. Godzina zakładki wystarcza na spóźnione odczyty
+# i mieści się w jednej stronie; budżet jest mniejszy niż pokoi, bo roślin jest trzy,
+# a pakiet wspólny.
 ZAKLADKA_ROSLIN_MS = 3600 * 1000
 BUDZET_ROSLINY = 12
+# Pierwszy przebieg (bez kursora) bierze tylko ostatnią dobę: historia sprzed wbicia
+# sondy niczego nie uczy, a 7 dni przy budżecie 12 zapytań nadrabiałoby się kilka dni.
+POCZATEK_ROSLIN_MS = 24 * 3600 * 1000
+# Tor roślin ma tyle sekund. Zawieszony albo zbyt wolny nie może zabić zadania przed
+# commitem pokoi (timeout-minutes w zbieraj.yml), a `except Exception` na wolność nie
+# pomaga.
+LIMIT_ROSLIN_S = 300
 OUTDOOR_ID = "zewnatrz"
 OUTDOOR_URL = "https://api.open-meteo.com/v1/forecast"
 AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -1230,11 +1239,22 @@ def ids_with_history() -> set[str]:
 def identyfikatory_roslin() -> set[str]:
     """Czujniki z rosliny.json — tor pokoi ma je pomijać zawsze, także przy pustym
     TUYA_DEVICE_IDS, kiedy kolektor bierze wszystko z konta. Zepsuty plik to pusty
-    zbiór; wtedy chroni jeszcze kategoria `zwjcy` (patrz main())."""
+    zbiór; wtedy chroni jeszcze kategoria `zwjcy` (patrz main()). Każdy wyjątek, bo to
+    ręczny plik czytany przed zapisem pokoi — nawet RecursionError z absurdalnie
+    zagnieżdżonego JSON nie może wywrócić przebiegu."""
     try:
         dane = json.loads(ROSLINY_PLIK.read_text(encoding="utf-8"))
         return {str(r["czujnik"]) for r in dane.get("rosliny", []) if isinstance(r, dict) and r.get("czujnik")}
-    except (OSError, ValueError, AttributeError, TypeError):
+    except Exception:
+        return set()
+
+
+def pokoje_z_manifestu() -> set[str]:
+    """Urządzenia, które już są pokojami w data/index.json."""
+    try:
+        urzadzenia = json.loads(MANIFEST.read_text(encoding="utf-8")).get("devices")
+        return set(urzadzenia) if isinstance(urzadzenia, dict) else set()
+    except Exception:
         return set()
 
 
@@ -1254,42 +1274,85 @@ def _wartosc_rosliny(rodzaj: str, surowa, skala: int) -> str | None:
 def _zapisz_stan_roslin(stan: dict) -> None:
     KATALOG_ROSLIN.mkdir(parents=True, exist_ok=True)
     tymczasowy = STAN_ROSLIN.with_suffix(".json.tmp")
-    tymczasowy.write_text(json.dumps(stan, ensure_ascii=False, separators=(",", ":")) + "\n",
-                          encoding="utf-8")
+    # allow_nan=False: Infinity w pliku to błąd zapisu tutaj, a nie zepsuta strona,
+    # bo JSON.parse w przeglądarce go nie przyjmie
+    tymczasowy.write_text(json.dumps(stan, ensure_ascii=False, separators=(",", ":"),
+                                     allow_nan=False) + "\n", encoding="utf-8")
     os.replace(tymczasowy, STAN_ROSLIN)
 
 
-def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int) -> None:
+def _poprzedni_stan_roslin() -> dict:
+    try:
+        stan = json.loads(STAN_ROSLIN.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return stan if isinstance(stan, dict) else {}
+
+
+def blad_toru_roslin(opis: str) -> None:
+    """Błąd całego toru roślin: stan.json zostaje (kursory, skale, ostatnie werdykty
+    z `updated` sprzed błędu), dochodzi `blad` i alert dla watchdoga.
+
+    Dawniej stan nadpisywało samo {updated, blad}: kursory przepadały, więc każdy
+    następny przebieg ciągnął logi od nowa, a watchdog bez `alerty` zamykał zgłoszenie
+    z „tor roślin bez błędów" (przegląd 8.10).
+    """
+    _zapisz_stan_roslin({**_poprzedni_stan_roslin(), "blad": opis,
+                         "alerty": [f"**Rośliny** — błąd toru: {opis}"]})
+
+
+class PrzekroczonyCzas(BaseException):
+    """Tor roślin przekroczył LIMIT_ROSLIN_S. BaseException, żeby nie złapało go po drodze
+    żadne `except Exception` ani obsługa błędów sieci w requests/urllib3."""
+
+
+def z_limitem_czasu(sekundy: float, funkcja, *argumenty):
+    if not hasattr(signal, "setitimer"):
+        return funkcja(*argumenty)
+
+    def przerwij(_numer, _ramka):
+        raise PrzekroczonyCzas(f"przekroczony limit {sekundy:g} s")
+
+    poprzednia = signal.signal(signal.SIGALRM, przerwij)
+    signal.setitimer(signal.ITIMER_REAL, sekundy)
+    try:
+        return funkcja(*argumenty)
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+        signal.signal(signal.SIGALRM, poprzednia)
+
+
+def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = frozenset()) -> None:
     """Tor roślin: logi czujników z rosliny.json → data/rosliny/RRRR-MM.csv → stan.json.
 
-    Rusza po zapisaniu manifestu pokoi, a main() woła go w try/except — żaden błąd tutaj
-    (literówka w ręcznym rosliny.json, wyjątek w obliczeniach, odmowa Tuya dla doniczki)
-    nie może zatrzymać zapisu pokoi, bo zapisz.sh ma `set -e`. Błąd ląduje w stan.json
-    i w logu. Kursory i skale roślin też siedzą w stan.json, nie w index.json.
+    Rusza po zapisaniu manifestu pokoi, a main() woła go z limitem czasu i w try/except —
+    żaden błąd tutaj (literówka w ręcznym rosliny.json, wyjątek w obliczeniach, odmowa
+    Tuya dla doniczki) nie może zatrzymać zapisu pokoi, bo zapisz.sh ma `set -e`.
+    Błąd ląduje w stan.json (`blad` i `alerty` dla watchdoga) i w logu. Kursory i skale
+    roślin też siedzą w stan.json, nie w index.json. `pokoje` to identyfikatory pokoi —
+    taki w polu „czujnik" to pomyłka przy przepisywaniu, nie roślina.
     """
     import rosliny
 
     if not ROSLINY_PLIK.exists():
         return
-    try:
-        poprzedni = json.loads(STAN_ROSLIN.read_text(encoding="utf-8")) if STAN_ROSLIN.exists() else {}
-        if not isinstance(poprzedni, dict):
-            poprzedni = {}
-    except (OSError, ValueError):
-        poprzedni = {}
-    try:
-        konfig = rosliny.wczytaj_konfiguracje(ROSLINY_PLIK.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as err:
-        print(f"Rośliny: {err}", flush=True)
-        _zapisz_stan_roslin({**poprzedni, "updated": iso(end_ms), "blad": str(err)})
-        return
+    poprzedni = _poprzedni_stan_roslin()
+    # Błąd konfiguracji idzie do main(), a stamtąd do blad_toru_roslin() — z alertem.
+    konfig = rosliny.wczytaj_konfiguracje(ROSLINY_PLIK.read_text(encoding="utf-8"))
     if not konfig:
+        _zapisz_stan_roslin({"updated": iso(end_ms), "blad": None, "alerty": [],
+                             "rosliny": [], "urzadzenia": {}})
         return
 
     urzadzenia_przed = poprzedni.get("urzadzenia") if isinstance(poprzedni.get("urzadzenia"), dict) else {}
-    urzadzenia, zebrane, bledy = {}, [], []
+    urzadzenia, zebrane, bledy, liczone = {}, [], [], []
     for k in konfig:
         dev, kody = k["czujnik"], k["kody"]
+        if dev in pokoje:
+            bledy.append(f"{k['nazwa']}: {dev} to czujnik pokojowy, nie doniczka — "
+                         f"popraw „czujnik\" w rosliny.json")
+            continue
+        liczone.append(k)
         przed = urzadzenia_przed.get(dev) if isinstance(urzadzenia_przed.get(dev), dict) else {}
         urzadzenia[dev] = dict(przed)
         skale = przed.get("skale") if przed.get("kody") == kody else None
@@ -1304,7 +1367,8 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int) -> None:
         kursor = rosliny._ms(przed.get("pobrane_do")) if przed.get("pobrane_do") else None
         if kursor:
             kursor = min(kursor, end_ms)
-        od_kiedy = max(start_ms, kursor - ZAKLADKA_ROSLIN_MS) if kursor else start_ms
+        od_kiedy = (max(start_ms, kursor - ZAKLADKA_ROSLIN_MS) if kursor
+                    else max(start_ms, end_ms - POCZATEK_ROSLIN_MS))
         urzadzenia[dev] = {"kody": kody, "skale": skale,
                            **({"pobrane_do": iso(kursor)} if kursor else {})}
         try:
@@ -1329,10 +1393,19 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int) -> None:
 
     KATALOG_ROSLIN.mkdir(parents=True, exist_ok=True)
     dopisane = merge(zebrane, KATALOG_ROSLIN)
+    # Odczyty są już w CSV, więc kursory zapisujemy od razu: gdyby niżej coś się
+    # wywracało w każdym przebiegu, nie ciągnęlibyśmy w kółko tych samych logów.
+    _zapisz_stan_roslin({**poprzedni, "urzadzenia": urzadzenia})
+
+    martwa = {(k["czujnik"], k["kody"]["gleba"]): rosliny.MARTWA_STREFA_GLEBY for k in konfig}
+    od_miesiaca = datetime.fromtimestamp((end_ms - rosliny.DNI_NAUKI * rosliny.DOBA) / 1000,
+                                         timezone.utc).strftime("%Y-%m")
     przerzedzone, wiersze = 0, []
-    for plik in sorted(KATALOG_ROSLIN.glob("[0-9]*.csv"))[-2:]:
+    for plik in sorted(KATALOG_ROSLIN.glob("[0-9]*.csv")):
+        if plik.stem < od_miesiaca:
+            continue
         miesiac = load_month(plik.stem, KATALOG_ROSLIN)
-        zwiniete = rosliny.zwin(miesiac)
+        zwiniete = rosliny.zwin(miesiac, martwa_strefa=martwa)
         if len(zwiniete) != len(miesiac):
             przerzedzone += len(miesiac) - len(zwiniete)
             save_month(plik.stem, zwiniete, KATALOG_ROSLIN)
@@ -1340,12 +1413,16 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int) -> None:
 
     strefa = ZoneInfo(os.environ.get("TZ_LOCAL", "Europe/Warsaw"))
     stany, alerty = [], []
-    for k in konfig:
+    for k in liczone:
         moje = [w for w in wiersze if w["device_id"] == k["czujnik"]]
-        stan = rosliny.stan_rosliny(k, moje, end_ms, strefa)
+        try:
+            stan = rosliny.stan_rosliny(k, moje, end_ms, strefa)
+        except Exception as err:   # jedna roślina nie zasłania dwóch pozostałych
+            bledy.append(f"{k['nazwa']}: błąd obliczeń — {type(err).__name__}: {err}")
+            print(f"{k['nazwa']}: błąd obliczeń — {type(err).__name__}: {err}", flush=True)
+            continue
         stany.append(stan)
-        if stan["werdykt"] == "czujnik" or any("Bateria" in u for u in stan["uwagi"]):
-            alerty.append(f"**{k['nazwa']}** — " + " ".join(stan["uwagi"]))
+        alerty.extend(f"**{k['nazwa']}** — {u}" for u in stan["do_zgloszenia"])
     alerty.extend(f"**Rośliny** — {b}" for b in bledy)
     _zapisz_stan_roslin({
         "updated": iso(end_ms),
@@ -1501,9 +1578,13 @@ def main() -> int:
         all_devices = [d for d in all_devices if d["id"] in wanted]
     # Czujnik w doniczce nigdy nie jest pokojem: classify() wzięłoby jego glebę za
     # wilgotność powietrza, a strona i watchdog liczyłyby z niej pleśń. Pilnuje tego lista
-    # z rosliny.json i — gdyby była zepsuta — kategoria Tuya `zwjcy`.
+    # z rosliny.json i — gdyby była zepsuta — kategoria Tuya `zwjcy`. Pokój wpisany
+    # w rosliny.json przez pomyłkę (pole „pokoj" leży tuż obok „czujnik") zostaje
+    # pokojem; tor roślin zgłosi błąd konfiguracji.
     rosliny_id = identyfikatory_roslin()
-    w_doniczkach = [d for d in all_devices if d["id"] in rosliny_id or d.get("category") == "zwjcy"]
+    pokoje = set(wanted) | pokoje_z_manifestu()
+    w_doniczkach = [d for d in all_devices if d.get("category") == "zwjcy"
+                    or (d["id"] in rosliny_id and d["id"] not in pokoje)]
     if w_doniczkach:
         print(f"Pomijam w torze pokoi czujniki w doniczkach: "
               f"{', '.join(d.get('name') or d['id'] for d in w_doniczkach)}.", flush=True)
@@ -1650,12 +1731,13 @@ def main() -> int:
     alerty = diagnose(manifest_devices)
     write_manifest(manifest_devices, alerty)
     try:
-        zbierz_rosliny(client, start_ms, end_ms)
-    except Exception as err:  # tor roślin nie może zatrzymać zapisu pokoi (zapisz.sh ma set -e)
+        z_limitem_czasu(LIMIT_ROSLIN_S, zbierz_rosliny, client, start_ms, end_ms,
+                        set(wanted) | set(manifest_devices))
+    except (Exception, PrzekroczonyCzas) as err:  # tor roślin nie może zatrzymać zapisu pokoi (zapisz.sh ma set -e)
         print(f"Rośliny: błąd toru — {type(err).__name__}: {err}", flush=True)
         try:
-            _zapisz_stan_roslin({"updated": iso(end_ms), "blad": f"{type(err).__name__}: {err}"})
-        except OSError:
+            blad_toru_roslin(f"{type(err).__name__}: {err}")
+        except Exception:
             pass
     print(f"\nDopisano {added} nowych odczytów ({len(collected) - added} już było).")
     print(f"Agregaty dobowe: {days_written} wierszy w {DAILY}.")
