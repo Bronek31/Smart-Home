@@ -144,16 +144,26 @@ i powód do zwrotu w terminie.
 tylko glebę, temperaturę i baterię. Światła i wilgotności powietrza nie ma, a bez
 światła nie będzie powiadomień „przestaw".
 
-Chmura Tuya potrafi ukrywać niestandardowe pola czujnika (światło, wilgotność
-powietrza). Naprawia się to przełączeniem trybu instrukcji **tylko dla produktu
-czujnika roślin**:
+Chmura Tuya ukrywa niestandardowe pola czujnika (światło, wilgotność powietrza),
+dopóki produkt jest w trybie „Standard Instruction". Przełącza się go **tylko dla
+produktu czujnika roślin**:
 
-- iot.tuya.com → projekt → **Devices** → przy czujniku roślin opcja zmiany
-  „Control Instruction Mode" → **DP Instruction**.
-- Zmiana działa po kilku–kilkunastu godzinach.
-- **Nie przełączaj czujników pokojowych** — kolektor zgubiłby ich historię.
+1. iot.tuya.com → **Cloud → Development** → projekt **termohigrograf** → zakładka
+   **Devices**.
+2. **All Devices** → przełącz widok na **View Devices by Product** (urządzenia
+   pogrupowane według produktu).
+3. Znajdź produkt **土壤温湿度** (identyfikator `0ints6wl`). Są w nim Fikus,
+   Skrzydłokwiat i Azalia.
+4. Kliknij przy nim **ołówek** („Change Control Instruction Mode") → wybierz
+   **DP Instruction** → zapisz.
+5. **Nie ruszaj produktu `ZTH02ZTU温湿度传感器` (`9yapgbuv`).** To czujniki pokojowe;
+   po przełączeniu zmieniłyby się ich kody i kolektor zgubiłby ich historię.
+6. Napisz mi, kiedy to zrobisz. Zmiana działa po kilku–kilkunastu godzinach; potem
+   uruchomię odkrywanie jeszcze raz i zobaczę, czy przyszło światło.
 
-Gdy będzie potrzebne, dam dokładniejsze wskazówki do ekranu, który zobaczysz.
+Menu może wyglądać trochę inaczej — wtedy wyślij zrzut ekranu zakładki Devices, a
+wskażę, gdzie kliknąć. Zmianę da się cofnąć tym samym ołówkiem. Aplikacji Smart Life
+to nie dotyczy, to tylko ustawienie dostępu przez API.
 
 ---
 
