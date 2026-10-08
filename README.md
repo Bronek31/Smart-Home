@@ -46,6 +46,7 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
 | `artefakty.json` | znane artefakty: przedziały, w których czujnik mierzył coś innego niż pokój. Ręczna lista |
 | `KONTEKST.md` | notatka przekazania: dlaczego jest tak, jak jest, i na co uważać przy dalszej pracy |
+| `ROSLINY.md` | plan czujników w doniczkach i powiadomień na telefon — w przygotowaniu |
 | `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
 | `.github/workflows/zbieraj.yml` | zbieranie; zapasowy harmonogram co godzinę o :19, właściwym zegarem jest zewnętrzny cron co godzinę (patrz „Kolektor co godzinę") |
