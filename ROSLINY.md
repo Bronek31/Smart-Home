@@ -185,8 +185,26 @@ punkt danych (112). Etykieta „4 in 1" wskazuje na zwykłą wersję. Rozstrzygn
     bateria 2.
 
   Raport co 30 s był więc skutkiem parowania i zmian ustawień, a nie pracy czujnika.
-  Zalewania komunikatami nie ma. Godzinna zakładka w kolektorze roślin to zwykle jedna
+  W spokoju zalewania nie ma. Godzinna zakładka w kolektorze roślin to zwykle jedna
   strona, a tydzień historii to ok. 17 stron na czujnik.
+- **Zalew przy parowaniu i ustawianiu jednak był** (kolektor 8.10, przebieg 37828561329,
+  pomiar „najgęstszej pełnej strony"):
+  - ok. 15:57 UTC (17:57 u właściciela, tuż przed wciśnięciem przycisków o 18:03) każdy
+    z trzech czujników wysłał 100 wpisów w 131–137 s, w 96–98% samą glebę — jeden wpis
+    co ok. 1,4 s, jak w zgłoszeniu Zigbee2MQTT #29254;
+  - minął sam; od ok. 16:15 to 8–10 wpisów na godzinę, a wciśnięcie przycisków
+    o 17:40 UTC zalewu nie wywołało.
+  - „Pokaż urządzenia" o 16:18 liczyło w oknie 15:18–16:18 tylko 134 wpisy. Te same logi
+    czytane po 18:00 mają ponad 100 wpisów w 2,5 minuty tego okna. Albo Tuya dopisuje
+    logi z opóźnieniem ponad godziny, albo przełączenie na *DP Instruction* (16:45)
+    zmieniło to, co logi pokazują wstecz. **[niewyjaśnione]** Dla roślin bez znaczenia
+    (zalew to powtórzona ta sama gleba), dla pokoi — patrz zakładka 6 godz.
+  - Kolektor to przeżył tak, jak zaprojektowano: dwa przebiegi po 12 zapytań na roślinę
+    nadrabiały te 20 minut, trzeci pominął zalaną zakładkę i doszedł do bieżącej
+    godziny. **Stan ustalony: jedno zapytanie na roślinę na przebieg** (przebieg 19:01,
+    10 zapytań na cały przebieg z pokojami).
+  - Wniosek dla baterii: zalew to minuty po parowaniu albo zmianie ustawień, nie stała
+    praca. Ustawień czujników nie zmieniać bez potrzeby; baterię obserwować tydzień.
 - **Bateria:** Skrzydłokwiat wysłał już `battery_state=high`. Fikus i Azalia jeszcze nic,
   więc aplikacja pokazuje domyślne „low" — to brak pierwszego raportu, nie stan baterii.
 - **Brakowało światła i wilgotności powietrza.** W trybie *Standard Instruction* chmura
