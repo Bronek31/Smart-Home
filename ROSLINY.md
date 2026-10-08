@@ -445,6 +445,18 @@ czujników.
 
 ### Etap 2: osobny tor danych
 
+**Stan na 8.10 wieczorem: zrobione.**
+
+Odstępstwa od projektu niżej, wymuszone pomiarem:
+- **Zakładka roślin 1 godz., nie 6**, i budżet 12 zapytań na czujnik. Gleba przychodzi
+  co ok. 30 s, więc 6 godz. zakładki to ok. 8 stron na przebieg.
+- **Przerzedzanie w kolektorze** (`rosliny.zwin`): zostaje zmiana wartości albo jeden
+  wiersz na godzinę na serię. Działa na całym pliku miesięcznym przy każdym przebiegu,
+  bo zakładka dokłada wycięte wiersze z powrotem; jest idempotentne.
+- **Kursory i skale roślin w `stan.json`**, nie w `index.json`.
+- **Nauka zaczyna się od daty `od`** (wbicie sondy). Wcześniejsze odczyty, w tym testy
+  w wodzie, nie uczą progów — wbicie w wilgotną ziemię wyglądałoby jak podlanie.
+
 ```
 rosliny.json                     konfiguracja (ręczna, jak artefakty.json): czujnik → roślina
 data/rosliny/RRRR-MM.csv         surowe odczyty doniczek, format ts,device_id,code,value
@@ -744,10 +756,15 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
   - po etapie 0 rozszerzone „Pokaż urządzenia w Tuya" i odczyt wyniku.
 - **Właściciel, tylko jeśli poproszę:** *DP Instruction* dla produktu czujnika roślin.
 
-**Etap 2. Kolektor roślin**
+**Etap 2. Kolektor roślin** — zrobione 8.10.
 - **Claude:** `rosliny.json`, osobny tor, izolacja danych i awarii, `rosliny.py`,
-  krok watchdoga, testy.
-- Każdy test odrzuca starą wersję albo jest podpisany jako strażnik.
+  krok watchdoga (etykieta `rosliny`), testy.
+- **Testy:**
+  - 7 z 8 testów toru odrzuca wersję bez toru na zachowaniu (rośliny w pokojach,
+    brak stanu); ósmy to podpisany strażnik;
+  - testy obliczeń dotyczą nowego modułu.
+- **Do zrobienia przez właściciela:** napisać godzinę wbicia sond — trafi do pola
+  `od` w `rosliny.json`, od niej zaczyna się nauka progów.
 
 **Etap 3. Zakładka „Rośliny"**
 - **Claude:** `rosliny.html`, pasek zakładek, karty, wykres, `sw.js`.

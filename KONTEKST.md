@@ -114,6 +114,18 @@ Przy okazji:
 - **Integracja Claude'a z GitHubem czyta przebiegi, ale nie może ich uruchamiać (403).**
   Dlatego `odkryj.yml` rusza też po zmianie własnego pliku na main.
 
+**Tor roślin (etap 2, wieczorem 8.10).** `fetch.py` zbiera czujniki z `rosliny.json`
+osobno: do `data/rosliny/`, z kursorami i skalami w `data/rosliny/stan.json`.
+- Tor pokoi pomija je zawsze — także przy pustym `TUYA_DEVICE_IDS` i także wtedy, gdy
+  `rosliny.json` jest zepsuty (kategoria Tuya `zwjcy`).
+- Tor roślin rusza po zapisaniu manifestu pokoi, w `try/except Exception`. Literówka
+  w ręcznym pliku, wyjątek w obliczeniach czy odmowa Tuya kończą się wpisem `blad`
+  w stanie, a nie czerwonym kolektorem.
+- Obliczenia (`rosliny.py`) są czyste i to one wydają werdykt. Strona będzie go tylko
+  wyświetlać, więc nie powstaje nowa para bliźniaczych stałych JS/Python.
+- Gleba przychodzi co ok. 30 s ze stałą wartością, niezależnie od ustawionego
+  próbkowania. Stąd zakładka 1 godz. i przerzedzanie do zmian plus wiersza na godzinę.
+
 ---
 
 ## Przegląd z 27.09 — wietrzenie odchodzi, przychodzi zima
@@ -773,7 +785,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **104** (`python -m unittest discover -s tests`) |
+| Testy kolektora | **129** (`python -m unittest discover -s tests`) |
 | Testy strony | **130** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 7 zapytań Tuya na przebieg (do 8.10: 29) z pakietu 0,20 USD na miesiąc · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie i po każdej zmianie swojego pliku na main. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |

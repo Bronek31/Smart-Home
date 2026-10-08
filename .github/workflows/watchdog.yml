@@ -158,3 +158,56 @@ jobs:
             exit 0
           fi
           gh issue close "$NUMER" --comment "Diagnostyka czysta — czujniki raportują, baterie w porządku, wilgotność w normie."
+
+      # Czujniki w doniczkach mają własną etykietę i własne zgłoszenie. Ich alarmy liczy
+      # tor roślin w kolektorze i zostawia w data/rosliny/stan.json — osobno od index.json,
+      # bo warunek właściciela jest taki, że doniczki nie mieszają się z mieszkaniem.
+      # Treść to cisza czujnika, bateria albo błąd toru (np. literówka w rosliny.json),
+      # nigdy „podlej" — to idzie powiadomieniem na telefon, nie mailem.
+      - name: Wypisz, co wymaga ręki przy roślinach
+        id: rosliny
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json, os, pathlib
+          plik = pathlib.Path("data/rosliny/stan.json")
+          try:
+              alerty = json.loads(plik.read_text(encoding="utf-8")).get("alerty") or [] if plik.exists() else []
+          except Exception as blad:
+              alerty = [f"**Rośliny** — nie da się odczytać data/rosliny/stan.json ({blad})"]
+          pathlib.Path(os.environ["RUNNER_TEMP"], "rosliny.md").write_text(
+              "\n".join(f"- {a}" for a in alerty) + "\n", encoding="utf-8")
+          print(f"sa={'tak' if alerty else 'nie'}")
+          PY
+
+      - name: Zgłoś, co wymaga ręki przy roślinach
+        if: steps.wiek.outputs.alarm == 'nie' && steps.rosliny.outputs.sa == 'tak'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create rosliny --color 2E7D32 --description "Czujnik w doniczce wymaga uwagi" 2>/dev/null || true
+          {
+            echo "Czujniki w doniczkach — do sprawdzenia:"
+            echo
+            cat "$RUNNER_TEMP/rosliny.md"
+            echo
+            echo "Treść odświeża się co kilka godzin, a zgłoszenie zamknie się samo, gdy lista opustoszeje."
+          } > "$RUNNER_TEMP/tresc-rosliny.md"
+          NUMER=$(gh issue list --label rosliny --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          if [ -n "$NUMER" ]; then
+            gh issue edit "$NUMER" --body-file "$RUNNER_TEMP/tresc-rosliny.md"
+            echo "Odświeżono zgłoszenie #$NUMER."
+          else
+            gh issue create --title "Czujniki w doniczkach wymagają uwagi" --label rosliny --body-file "$RUNNER_TEMP/tresc-rosliny.md"
+          fi
+
+      - name: Zamknij, gdy rośliny wróciły do normy
+        if: steps.wiek.outputs.alarm == 'nie' && steps.rosliny.outputs.sa == 'nie'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NUMER=$(gh issue list --label rosliny --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          if [ -z "$NUMER" ]; then
+            echo "Przy roślinach czysto, nie ma czego zamykać."
+            exit 0
+          fi
+          gh issue close "$NUMER" --comment "Czujniki w doniczkach raportują, baterie w porządku, tor roślin bez błędów."

@@ -47,6 +47,8 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `zapisz.sh` | pobiera odczyty i zapisuje je na gałąź, przeżywając wyścig dwóch przebiegów |
 | `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
 | `artefakty.json` | znane artefakty: przedziały, w których czujnik mierzył coś innego niż pokój. Ręczna lista |
+| `rosliny.json` | czujniki w doniczkach: identyfikator, roślina, gatunek, kody pól Tuya, odczyt „sucho" i data wbicia. Ręczna lista |
+| `rosliny.py` | obliczenia dla doniczek bez sieci i plików: przerzedzanie, światło dobowe, podlania, progi, werdykt |
 | `KONTEKST.md` | notatka przekazania: dlaczego jest tak, jak jest, i na co uważać przy dalszej pracy |
 | `ROSLINY.md` | plan czujników w doniczkach i powiadomień na telefon — w przygotowaniu |
 | `ROSLINY-INSTRUKCJA.md` | co zrobić z czujnikami w doniczkach krok po kroku — dla właściciela |
@@ -62,6 +64,8 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `data/dzienne.csv` | dobowe min/średnia/max — z tego rysuje się widok „całość" |
 | `data/pogoda.json` | migawka: teraz, prognoza na 3 dni i godzinowa na dobę, jakość powietrza. Nadpisywana co przebieg |
 | `data/index.json` | lista urządzeń, miesięcy, czas ostatniej zbiórki i diagnostyka dla watchdoga |
+| `data/rosliny/RRRR-MM.csv` | odczyty czujników w doniczkach, przerzedzone (zmiany plus jeden wiersz na godzinę). Osobno od pokoi |
+| `data/rosliny/stan.json` | to, co pokazuje zakładka „Rośliny": ostatnie odczyty, szereg godzinowy z 30 dni, światło dobowe, podlania, werdykty, alarmy dla watchdoga; do tego kursory i skale toru roślin |
 
 ---
 

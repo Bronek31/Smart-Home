@@ -47,8 +47,12 @@ class AtrapaTuya:
 
     def __init__(self, logi: dict[str, list[dict]], kolejnosc: str = "rosnaco", odmowa=None,
                  granica_stron: int | None = None, start_otwarty: bool = False,
-                 v2_pusto: bool = False, awaria=None):
+                 v2_pusto: bool = False, awaria=None, kategorie: dict | None = None,
+                 specyfikacje: dict | None = None):
         self.logi = logi
+        # kategoria Tuya urządzenia (domyślnie czujnik pokojowy) i specyfikacje do toru roślin
+        self.kategorie = kategorie or {}
+        self.specyfikacje = specyfikacje or {}
         self.kolejnosc = kolejnosc
         self.odmowa = odmowa or (lambda path, params: False)
         # strona nigdy nie przechodzi przez tę chwilę — krótsza strona z has_next,
@@ -72,8 +76,11 @@ class AtrapaTuya:
         if self.odmowa(path, params):
             return {"success": False, "code": 500, "msg": "atrapa: odmowa"}
         if path == "/v1.0/iot-01/associated-users/devices":
-            urzadzenia = [{"id": i, "name": i.capitalize(), "category": "wsdcg"} for i in self.logi]
+            urzadzenia = [{"id": i, "name": i.capitalize(), "category": self.kategorie.get(i, "wsdcg")}
+                          for i in self.logi]
             return {"success": True, "result": {"devices": urzadzenia, "has_more": False}}
+        if path.endswith("/specifications") and path.split("/")[3] in self.specyfikacje:
+            return {"success": True, "result": self.specyfikacje[path.split("/")[3]]}
         if path.startswith("/v2.0/"):
             if self.v2_pusto:
                 return {"success": True, "result": {"logs": [], "has_more": False}}
@@ -151,6 +158,8 @@ class PrzebiegKolektora(unittest.TestCase):
             mock.patch.object(fetch, "fetch_outdoor", return_value=([], None)),
             mock.patch.object(fetch, "fetch_weather", return_value=None),
             mock.patch.object(sys, "argv", ["fetch.py"]),
+            # bez prawdziwego rosliny.json: tor roślin rusza tylko w testach, które go piszą
+            mock.patch.object(fetch, "ROSLINY_PLIK", self.katalog / "rosliny.json", create=True),
         ]
         # create=True: na wersji sprzed zmiany tych stałych nie ma, a test ma wtedy
         # polec na zachowaniu, nie na AttributeError przy łatce

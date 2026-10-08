@@ -48,6 +48,12 @@ MANIFEST = DATA_DIR / "index.json"
 # Ścieżka od pliku, nie od katalogu roboczego — test agregatów liczy je w kopii data/
 # w katalogu tymczasowym i musi widzieć tę samą listę co kolektor.
 ARTEFAKTY_PLIK = Path(__file__).resolve().parent / "artefakty.json"
+# Czujniki w doniczkach idą osobnym torem (ROSLINY.md): ręczna lista obok fetch.py, jak
+# artefakty.json, i własny katalog w data/. Nic z toru pokoi go nie widzi — wzorzec
+# data/[0-9]*.csv nie schodzi do podkatalogów — a strona mieszkania czyta tylko index.json.
+ROSLINY_PLIK = Path(__file__).resolve().parent / "rosliny.json"
+KATALOG_ROSLIN = DATA_DIR / "rosliny"
+STAN_ROSLIN = KATALOG_ROSLIN / "stan.json"
 DAILY = DATA_DIR / "dzienne.csv"
 FIELDS = ["ts", "device_id", "code", "value"]
 DAILY_FIELDS = ["date", "device_id", "code", "min", "avg", "max", "n"]
@@ -74,6 +80,11 @@ BUDZET_URZADZENIA = 30
 # Odcinka krótszego niż to już nie połowimy: ponad sto wpisów w dwie minuty to zalew,
 # którego i tak nie da się przeczytać w całości, więc bierzemy, co przyszło.
 NAJKROTSZY_ODCINEK_MS = 2 * 60 * 1000
+# Czujnik w doniczce wysyła glebę co ok. 30 s (pomiar 8.10), więc sześciogodzinna
+# zakładka pokoi to u niego ok. 720 wpisów, czyli 8 stron na przebieg. Godzina wystarcza
+# na spóźnione odczyty, a budżet jest mniejszy, bo roślin jest trzy, a pakiet wspólny.
+ZAKLADKA_ROSLIN_MS = 3600 * 1000
+BUDZET_ROSLINY = 12
 OUTDOOR_ID = "zewnatrz"
 OUTDOOR_URL = "https://api.open-meteo.com/v1/forecast"
 AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -516,21 +527,24 @@ def iso(ms: int) -> str:
     return datetime.fromtimestamp(ms / 1000, timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def load_month(month: str) -> list[dict]:
-    path = DATA_DIR / f"{month}.csv"
+def load_month(month: str, katalog: Path | None = None) -> list[dict]:
+    path = (katalog or DATA_DIR) / f"{month}.csv"
     if not path.exists():
         return []
     with path.open(newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
 
 
-def save_month(month: str, rows: list[dict]) -> None:
+def save_month(month: str, rows: list[dict], katalog: Path | None = None) -> None:
     rows.sort(key=lambda r: (r["ts"], r["device_id"], r["code"]))
-    path = DATA_DIR / f"{month}.csv"
-    with path.open("w", newline="", encoding="utf-8") as f:
+    path = (katalog or DATA_DIR) / f"{month}.csv"
+    # Przez plik tymczasowy: przerwany zapis nie zostawi do commita połowy miesiąca.
+    tymczasowy = path.with_suffix(".csv.tmp")
+    with tymczasowy.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDS)
         writer.writeheader()
         writer.writerows(rows)
+    os.replace(tymczasowy, path)
 
 
 def purge_before(since_ms: int) -> int:
@@ -559,14 +573,15 @@ def purge_before(since_ms: int) -> int:
     return removed
 
 
-def merge(new_rows: list[dict]) -> int:
-    """Dokłada odczyty do plików miesięcznych, pomijając te już zapisane."""
+def merge(new_rows: list[dict], katalog: Path | None = None) -> int:
+    """Dokłada odczyty do plików miesięcznych, pomijając te już zapisane. Domyślnie
+    w data/ (pokoje); tor roślin podaje własny katalog."""
     by_month: dict[str, list[dict]] = {}
     for row in new_rows:
         by_month.setdefault(row["ts"][:7], []).append(row)
     added = 0
     for month, incoming in by_month.items():
-        existing = load_month(month)
+        existing = load_month(month, katalog)
         seen = {(r["ts"], r["device_id"], r["code"]) for r in existing}
         fresh = []
         for row in incoming:
@@ -576,7 +591,7 @@ def merge(new_rows: list[dict]) -> int:
             seen.add(key)
             fresh.append(row)
         if fresh:
-            save_month(month, existing + fresh)
+            save_month(month, existing + fresh, katalog)
             added += len(fresh)
     return added
 
@@ -1205,6 +1220,136 @@ def ids_with_history() -> set[str]:
     return znalezione
 
 
+def identyfikatory_roslin() -> set[str]:
+    """Czujniki z rosliny.json — tor pokoi ma je pomijać zawsze, także przy pustym
+    TUYA_DEVICE_IDS, kiedy kolektor bierze wszystko z konta. Zepsuty plik to pusty
+    zbiór; wtedy chroni jeszcze kategoria `zwjcy` (patrz main())."""
+    try:
+        dane = json.loads(ROSLINY_PLIK.read_text(encoding="utf-8"))
+        return {str(r["czujnik"]) for r in dane.get("rosliny", []) if isinstance(r, dict) and r.get("czujnik")}
+    except (OSError, ValueError, AttributeError, TypeError):
+        return set()
+
+
+def _wartosc_rosliny(rodzaj: str, surowa, skala: int) -> str | None:
+    """Wartość z logu Tuya do CSV roślin: liczby przeskalowane, alarm jako 1/0,
+    bateria tekstem — tak jak w CSV pokoi."""
+    if rodzaj == "alarm":
+        return "1" if str(surowa).strip().lower() in ("true", "1", "alarm") else "0"
+    if rodzaj == "bateria":
+        return None if surowa is None else str(surowa)
+    try:
+        return f"{float(surowa) / (10 ** skala):g}"
+    except (TypeError, ValueError):
+        return None
+
+
+def _zapisz_stan_roslin(stan: dict) -> None:
+    KATALOG_ROSLIN.mkdir(parents=True, exist_ok=True)
+    tymczasowy = STAN_ROSLIN.with_suffix(".json.tmp")
+    tymczasowy.write_text(json.dumps(stan, ensure_ascii=False, separators=(",", ":")) + "\n",
+                          encoding="utf-8")
+    os.replace(tymczasowy, STAN_ROSLIN)
+
+
+def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int) -> None:
+    """Tor roślin: logi czujników z rosliny.json → data/rosliny/RRRR-MM.csv → stan.json.
+
+    Rusza po zapisaniu manifestu pokoi, a main() woła go w try/except — żaden błąd tutaj
+    (literówka w ręcznym rosliny.json, wyjątek w obliczeniach, odmowa Tuya dla doniczki)
+    nie może zatrzymać zapisu pokoi, bo zapisz.sh ma `set -e`. Błąd ląduje w stan.json
+    i w logu. Kursory i skale roślin też siedzą w stan.json, nie w index.json.
+    """
+    import rosliny
+
+    if not ROSLINY_PLIK.exists():
+        return
+    try:
+        poprzedni = json.loads(STAN_ROSLIN.read_text(encoding="utf-8")) if STAN_ROSLIN.exists() else {}
+        if not isinstance(poprzedni, dict):
+            poprzedni = {}
+    except (OSError, ValueError):
+        poprzedni = {}
+    try:
+        konfig = rosliny.wczytaj_konfiguracje(ROSLINY_PLIK.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as err:
+        print(f"Rośliny: {err}", flush=True)
+        _zapisz_stan_roslin({**poprzedni, "updated": iso(end_ms), "blad": str(err)})
+        return
+    if not konfig:
+        return
+
+    urzadzenia_przed = poprzedni.get("urzadzenia") if isinstance(poprzedni.get("urzadzenia"), dict) else {}
+    urzadzenia, zebrane, bledy = {}, [], []
+    for k in konfig:
+        dev, kody = k["czujnik"], k["kody"]
+        przed = urzadzenia_przed.get(dev) if isinstance(urzadzenia_przed.get(dev), dict) else {}
+        urzadzenia[dev] = dict(przed)
+        skale = przed.get("skale") if przed.get("kody") == kody else None
+        if not isinstance(skale, dict):
+            pola = {item.get("code"): _wartosci(item)
+                    for item in (specyfikacja(client, dev).get("status") or []) if isinstance(item, dict)}
+            brak = [kod for kod in kody.values() if kod not in pola]
+            if brak:
+                bledy.append(f"{k['nazwa']}: Tuya nie zna pól {', '.join(brak)} — sprawdź „Pokaż urządzenia w Tuya\" i tryb DP Instruction")
+                continue
+            skale = {kod: int(pola[kod].get("scale", 0) or 0) for kod in kody.values()}
+        kursor = rosliny._ms(przed.get("pobrane_do")) if przed.get("pobrane_do") else None
+        if kursor:
+            kursor = min(kursor, end_ms)
+        od_kiedy = max(start_ms, kursor - ZAKLADKA_ROSLIN_MS) if kursor else start_ms
+        urzadzenia[dev] = {"kody": kody, "skale": skale,
+                           **({"pobrane_do": iso(kursor)} if kursor else {})}
+        try:
+            logi, domkniete = pobierz_przyrostowo(client, dev, od_kiedy, end_ms,
+                                                  pewne_do=kursor, budzet=BUDZET_ROSLINY)
+        except (TuyaError, requests.RequestException) as err:
+            bledy.append(f"{k['nazwa']}: {err}")
+            print(f"{k['nazwa']}: pominięta — {err}", flush=True)
+            continue
+        nowy = max(x for x in (kursor, domkniete, 0) if x is not None)
+        if nowy:
+            urzadzenia[dev]["pobrane_do"] = iso(nowy)
+        rodzaj_kodu = {kod: r for r, kod in kody.items()}
+        for e in logi:
+            kod = e.get("code")
+            if kod not in rodzaj_kodu or e.get("event_time") is None:
+                continue
+            wartosc = _wartosc_rosliny(rodzaj_kodu[kod], e.get("value"), skale.get(kod, 0))
+            if wartosc is not None:
+                zebrane.append({"ts": iso(int(e["event_time"])), "device_id": dev, "code": kod, "value": wartosc})
+        print(f"{k['nazwa']}: {len(logi)} wpisów od {iso(od_kiedy)}", flush=True)
+
+    KATALOG_ROSLIN.mkdir(parents=True, exist_ok=True)
+    dopisane = merge(zebrane, KATALOG_ROSLIN)
+    przerzedzone, wiersze = 0, []
+    for plik in sorted(KATALOG_ROSLIN.glob("[0-9]*.csv"))[-2:]:
+        miesiac = load_month(plik.stem, KATALOG_ROSLIN)
+        zwiniete = rosliny.zwin(miesiac)
+        if len(zwiniete) != len(miesiac):
+            przerzedzone += len(miesiac) - len(zwiniete)
+            save_month(plik.stem, zwiniete, KATALOG_ROSLIN)
+        wiersze.extend(zwiniete)
+
+    strefa = ZoneInfo(os.environ.get("TZ_LOCAL", "Europe/Warsaw"))
+    stany, alerty = [], []
+    for k in konfig:
+        moje = [w for w in wiersze if w["device_id"] == k["czujnik"]]
+        stan = rosliny.stan_rosliny(k, moje, end_ms, strefa)
+        stany.append(stan)
+        if stan["werdykt"] == "czujnik" or any("Bateria" in u for u in stan["uwagi"]):
+            alerty.append(f"**{k['nazwa']}** — " + " ".join(stan["uwagi"]))
+    alerty.extend(f"**Rośliny** — {b}" for b in bledy)
+    _zapisz_stan_roslin({
+        "updated": iso(end_ms),
+        "blad": "; ".join(bledy) or None,
+        "alerty": alerty,
+        "rosliny": stany,
+        "urzadzenia": urzadzenia,
+    })
+    print(f"Rośliny: dopisano {dopisane} odczytów, przerzedzono {przerzedzone}.", flush=True)
+
+
 def keep_known(devices: dict) -> dict:
     """Nie wyrzuca urządzenia z manifestu tylko dlatego, że ten przebieg go nie odświeżył.
 
@@ -1347,6 +1492,15 @@ def main() -> int:
     wanted = [d.strip() for d in os.environ.get("TUYA_DEVICE_IDS", "").split(",") if d.strip()]
     if wanted:
         all_devices = [d for d in all_devices if d["id"] in wanted]
+    # Czujnik w doniczce nigdy nie jest pokojem: classify() wzięłoby jego glebę za
+    # wilgotność powietrza, a strona i watchdog liczyłyby z niej pleśń. Pilnuje tego lista
+    # z rosliny.json i — gdyby była zepsuta — kategoria Tuya `zwjcy`.
+    rosliny_id = identyfikatory_roslin()
+    w_doniczkach = [d for d in all_devices if d["id"] in rosliny_id or d.get("category") == "zwjcy"]
+    if w_doniczkach:
+        print(f"Pomijam w torze pokoi czujniki w doniczkach: "
+              f"{', '.join(d.get('name') or d['id'] for d in w_doniczkach)}.", flush=True)
+        all_devices = [d for d in all_devices if d not in w_doniczkach]
 
     end_ms = int(time.time() * 1000)
     start_ms = int((datetime.now(timezone.utc) - timedelta(days=args.days)).timestamp() * 1000)
@@ -1488,6 +1642,14 @@ def main() -> int:
     days_written = write_daily(manifest_devices)
     alerty = diagnose(manifest_devices)
     write_manifest(manifest_devices, alerty)
+    try:
+        zbierz_rosliny(client, start_ms, end_ms)
+    except Exception as err:  # tor roślin nie może zatrzymać zapisu pokoi (zapisz.sh ma set -e)
+        print(f"Rośliny: błąd toru — {type(err).__name__}: {err}", flush=True)
+        try:
+            _zapisz_stan_roslin({"updated": iso(end_ms), "blad": f"{type(err).__name__}: {err}"})
+        except OSError:
+            pass
     print(f"\nDopisano {added} nowych odczytów ({len(collected) - added} już było).")
     print(f"Agregaty dobowe: {days_written} wierszy w {DAILY}.")
     if alerty:
