@@ -315,6 +315,13 @@ class TestZalewLogow(PrzebiegKolektora):
     def test_kolejnosc_rosnaca(self):
         self.sprawdz("rosnaco")
 
+    def test_log_mowi_jak_gesto(self):
+        """Gęstość zalewu z tego, co i tak przyszło: 100 wpisów co 10 s to 990 s na stronę.
+        8.10 tylko z niej dało się wyczytać, że godzina parowania nie miała 134 wpisów."""
+        wyjscie = self.przebieg(AtrapaTuya({"salon": self.zalew()}, kolejnosc="malejaco"),
+                                BUDZET_URZADZENIA=self.BUDZET)
+        self.assertRegex(wyjscie, r"salon: najgęstsza pełna strona — 100 wpisów w 990 s .*va_temperature 100")
+
     def test_kolejnosc_malejaca(self):
         self.sprawdz("malejaco")
 

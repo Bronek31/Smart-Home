@@ -461,6 +461,10 @@ def pobierz_przyrostowo(client, device_id: str, od_ms: int, do_ms: int,
     domkniete = None
     pozycja, dlugosc = od_ms, do_ms - od_ms
     poczatek = client.zapytan
+    # Najgęstsza przepełniona strona: (wpisów, rozpiętość w ms, od, do, kody). Mierzy
+    # zalew bez ani jednego dodatkowego zapytania — 8.10 przebieg roślin zjadał budżet
+    # na 21 minutach z godziny parowania, choć „Pokaż urządzenia" liczyło tam 134 wpisy.
+    najgestsza = None
     while pozycja < do_ms:
         if client.zapytan - poczatek >= budzet:
             print(f"  {device_id}: wykorzystane {budzet} zapytań na ten przebieg, "
@@ -489,6 +493,13 @@ def pobierz_przyrostowo(client, device_id: str, od_ms: int, do_ms: int,
             dlugosc *= 2
             continue
         czasy = [int(e["event_time"]) for e in porcja if e.get("event_time") is not None]
+        if len(czasy) > 1:
+            rozpietosc = max(czasy) - min(czasy)
+            if najgestsza is None or len(czasy) * (najgestsza[1] + 1) > najgestsza[0] * (rozpietosc + 1):
+                kody: dict[str, int] = {}
+                for e in porcja:
+                    kody[e.get("code", "?")] = kody.get(e.get("code", "?"), 0) + 1
+                najgestsza = (len(czasy), rozpietosc, min(czasy), max(czasy), kody)
         # „Rosnąco" tylko wtedy, gdy strona naprawdę obejmuje różne chwile: jeden wiersz
         # albo strona z jednym znacznikiem czasu pasują do obu kolejności, a przy
         # kolejności od najnowszego przeskok do czasy[-1] zgubiłby starsze wpisy.
@@ -520,6 +531,11 @@ def pobierz_przyrostowo(client, device_id: str, od_ms: int, do_ms: int,
                 print(f"  {device_id}: zalew — ponad 500 wpisów w {(koniec - pozycja) // 1000} s "
                       f"od {iso(pozycja)}, reszta z tego odcinka przepada", flush=True)
             pozycja = domkniete = koniec
+    if najgestsza:
+        ile, rozpietosc, od_t, do_t, kody = najgestsza
+        rozbicie = ", ".join(f"{k} {n}" for k, n in sorted(kody.items(), key=lambda x: -x[1])[:4])
+        print(f"  {device_id}: najgęstsza pełna strona — {ile} wpisów w {rozpietosc // 1000} s "
+              f"({iso(od_t)}–{iso(do_t)}; {rozbicie})", flush=True)
     return logi, domkniete
 
 
