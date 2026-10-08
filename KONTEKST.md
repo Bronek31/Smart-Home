@@ -94,6 +94,16 @@ pierwszą wersję:
 Do tego `--discover` przeżywa dziwne specyfikacje (`null`, `values` niebędące
 obiektem) — każde urządzenie osobno, jedno nie przerwie przebiegu.
 
+**Pierwszy przebieg na żywo** (8.10, 16:19 UTC, przebieg 37807716639): 75 zapytań,
+ok. 17 na pokój, i 9 nowych odczytów przy 6418 już zapisanych, czyli bez dziur.
+- 17 zapytań na pokój to dokładnie wariant „od najnowszego" z symulacji przeglądu
+  (od najstarszego byłoby 6–7), więc **Tuya v1 oddaje logi najpewniej od
+  najnowszego**.
+- Dawny komentarz o „ucinanych najnowszych" był mylącą poszlaką. Dobrze, że algorytm
+  nie zakładał żadnej kolejności.
+- Kursory `pobrane_do` są w manifeście; następne przebiegi pytają o jedną stronę na
+  czujnik.
+
 Przy okazji:
 - **Najpierw v1, potem v2.** Dawna próba v2 kosztowała najpewniej zapytanie w każdym
   przebiegu: v2 wymaga parametru `codes`, którego nie wysyłamy.
