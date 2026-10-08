@@ -18,8 +18,13 @@ on:
     # GitHub i tak nie odpala workflowów dla pushy zrobionych przez GITHUB_TOKEN,
     # ale gdyby ten krok kiedykolwiek dostał własny token albo deploy key, ten
     # filtr jest jedyną rzeczą stojącą między nami a pętlą bez końca.
+    #
+    # odkryj.yml też: jego zmiana na main to sposób, w jaki Claude odpala „Pokaż
+    # urządzenia w Tuya" (nie może uruchamiać workflowów), i nie ma przy tym kosztować
+    # przebiegu kolektora.
     paths-ignore:
       - 'data/**'
+      - '.github/workflows/odkryj.yml'
   workflow_dispatch:        # przycisk "Run workflow" do ręcznego odpalenia
 
 permissions:

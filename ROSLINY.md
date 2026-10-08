@@ -1,7 +1,8 @@
 # Rośliny — przygotowanie
 
 Plan przed wdrożeniem czujników w doniczkach, stan na 8.10.2026. Czujniki są kupione,
-w kodzie nic się jeszcze nie zmieniło. Ten plik zbiera to, co wiadomo o czujniku,
+w kodzie zmieniło się dotąd tylko pobieranie przyrostowe i rozszerzone `--discover`
+(etapy 0 i 1, 8.10); zbierania roślin jeszcze nie ma. Ten plik zbiera to, co wiadomo o czujniku,
 o roślinach i o tym, gdzie nowa funkcja zahacza o istniejący kod.
 
 Czynności dla właściciela, krok po kroku, są w osobnym pliku `ROSLINY-INSTRUKCJA.md`.
@@ -152,6 +153,22 @@ punkt danych (112). Etykieta „4 in 1" wskazuje na zwykłą wersję. Rozstrzygn
 - **Jeśli się potwierdzi** — tysiące wpisów na godzinę albo bateria `low` w ciągu
   tygodnia — czujniki zwrócić, a nie łatać w kolektorze. Oprogramowanie nie naprawi
   baterii, a pobieranie takich logów zjadłoby limit Tuya.
+
+**Pierwsze odczyty (8.10, 18:09):** sparowane, wszystkie trzy obok siebie na jednym
+stoliku, w zaciemnionym pokoju, po wciśnięciu przycisków.
+
+| | Fikus | Skrzydłokwiat | Azalia | Ocena |
+|---|---|---|---|---|
+| temperatura | 23,1 °C | 23,5 °C | 23,5 °C | rozrzut 0,4 °C, dokładność ±0,5 |
+| wilgotność powietrza | 51% | 49% | 48% | rozrzut 3 pkt, dokładność ±5 |
+| gleba w powietrzu („sucho") | **10%** | **11%** | **8%** | punkt zerowy skali R — do `rosliny.json` |
+| światło | 62 lx | 0 lx | 0 lx | 62 lx w ciemności do wyjaśnienia (źródło w polu widzenia albo odczyt sprzed zgaszenia) |
+| bateria | Niska | Niska | Niska | od razu po włożeniu baterii — najpewniej domyślna wartość, zanim przyszedł pierwszy raport; do obserwacji |
+
+Panel Smart Life nazywa pola „Env Temperature", „Env Humidity", „Soil Humidity"
+i „Dimmer" (światło). Pasuje to do kodów z #27956 (`env_humidity`, `dimmer`), co
+dopiero potwierdzi `--discover`. Temperatura po wciśnięciu przycisku i trzymaniu
+w dłoni jest zawyżona; porównanie z czujnikiem pokojowym — po godzinie spokoju.
 
 **Światło:**
 - Otwór jest na czole głowicy, więc przy pionowej sondzie czujnik patrzy najpewniej
@@ -318,8 +335,10 @@ odpala dodatkowy przebieg.
 - Kursor nigdy się nie cofa i nie przeskakuje za „najnowszy widziany wpis".
 - Budżet 30 zapytań na czujnik na przebieg, z ostrzeżeniem w logu.
 - Najpierw API v1, licznik zapytań na końcu logu.
-- 13 nowych testów na atrapie Tuya, w obu kolejnościach logów. 11 z nich odrzuca
-  starą wersję na zachowaniu, 2 to podpisani strażnicy.
+- 20 nowych testów na atrapie Tuya, w obu kolejnościach logów. 14 odrzuca dawne
+  pobieranie pełnego okna. Pozostałe 6 dotyczy zagrożeń, których pełne okno nie miało
+  (krótkie strony, otwarty start, zakładka po długiej przerwie, zalew w dwie minuty),
+  i każdy z nich odrzuca pierwszą wersję pobierania przyrostowego sprzed przeglądu.
 
 **Szacunek** (pakiet ok. 54 000 zapytań na miesiąc):
 
@@ -327,8 +346,8 @@ odpala dodatkowy przebieg.
 |---|---|---|---|
 | do 8.10, pełne okno | 29 | ok. 25 400 | 47% |
 | bez roślin | ok. 7 | ok. 6 100 | 11% |
-| z roślinami, bez zalewania | ok. 10 | ok. 8 800 | 16% |
-| zalew wszystkich trzech roślin (budżet 30 na każdą) | do ok. 97 | do ok. 85 000 | ponad 100% |
+| z roślinami, bez zalewania | ok. 10 | ok. 8 700 | 16% |
+| zalew wszystkich trzech roślin (budżet 30 na każdą) | do ok. 97 | do ok. 84 000 | ponad 100% |
 
 Ostatni wiersz to powód, dla którego zalewający czujnik nie może iść przez logi.
 Etap 2 da roślinom mniejszy budżet, a przy potwierdzonym zalewie — zapytanie o status
@@ -338,12 +357,12 @@ zamiast logów.
 
 `--discover` (workflow „Pokaż urządzenia w Tuya") dostaje:
 - surową specyfikację (`status` i `functions`) i bieżące wartości, po jednym zapytaniu
-  o specyfikację na urządzenie (dziś są dwa);
-- **tempo wpisów z ostatniej godziny**, tylko dla urządzeń spoza `TUYA_DEVICE_IDS`,
+  o specyfikację na urządzenie (do 8.10 były dwa);
+- **tempo wpisów z ostatniej godziny**, tylko dla urządzeń spoza manifestu (`data/index.json`),
   najwyżej 3 strony na urządzenie, z przeliczeniem na dobę po znacznikach czasu;
 - licznik zapytań w logu;
 - przy czujniku roślin ostrzeżenie „NIE dopisuj do `TUYA_DEVICE_IDS`";
-- `timeout-minutes: 10` w `odkryj.yml`, jedynym workflowie bez limitu czasu.
+- `timeout-minutes: 10` w `odkryj.yml`, dotąd jedynym workflowie bez limitu czasu.
 
 Zrobione 8.10 razem z etapem 0. Integracja Claude'a z GitHubem nie może uruchamiać
 workflowów (403), więc `odkryj.yml` rusza też sam po każdej zmianie swojego pliku na

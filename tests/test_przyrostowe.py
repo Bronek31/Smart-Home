@@ -34,6 +34,7 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
 import fetch  # noqa: E402
+import requests  # noqa: E402
 
 GODZ = 3600 * 1000
 DOBA = 24 * GODZ
@@ -44,10 +45,21 @@ KODY = {"va_temperature": {"kind": "temp", "unit": "℃", "scale": 1},
 class AtrapaTuya:
     """Chmura Tuya w pamięci: lista urządzeń i logi v1. v2 odmawia."""
 
-    def __init__(self, logi: dict[str, list[dict]], kolejnosc: str = "rosnaco", odmowa=None):
+    def __init__(self, logi: dict[str, list[dict]], kolejnosc: str = "rosnaco", odmowa=None,
+                 granica_stron: int | None = None, start_otwarty: bool = False,
+                 v2_pusto: bool = False, awaria=None):
         self.logi = logi
         self.kolejnosc = kolejnosc
         self.odmowa = odmowa or (lambda path, params: False)
+        # strona nigdy nie przechodzi przez tę chwilę — krótsza strona z has_next,
+        # jak u Tuya przy przejściu przez dobę (tak pisze się pętlę w tinytuya)
+        self.granica_stron = granica_stron
+        # start_time bez równości: nikt nie sprawdził, jak jest naprawdę
+        self.start_otwarty = start_otwarty
+        # v2 odpowiada „sukces, zero wpisów" zamiast odmowy
+        self.v2_pusto = v2_pusto
+        # wywoływane przed każdym zapytaniem; może rzucić wyjątkiem sieci
+        self.awaria = awaria or (lambda path, params, n: None)
         self.zapytan = 0
         self.log_api = None
         self.zapytania: list[tuple[str, dict]] = []
@@ -56,26 +68,34 @@ class AtrapaTuya:
         params = dict(params or {})
         self.zapytan += 1
         self.zapytania.append((path, params))
+        self.awaria(path, params, self.zapytan)
         if self.odmowa(path, params):
             return {"success": False, "code": 500, "msg": "atrapa: odmowa"}
         if path == "/v1.0/iot-01/associated-users/devices":
             urzadzenia = [{"id": i, "name": i.capitalize(), "category": "wsdcg"} for i in self.logi]
             return {"success": True, "result": {"devices": urzadzenia, "has_more": False}}
         if path.startswith("/v2.0/"):
+            if self.v2_pusto:
+                return {"success": True, "result": {"logs": [], "has_more": False}}
             return {"success": False, "code": 1108, "msg": "uri path invalid"}
         if path.startswith("/v1.0/devices/") and path.endswith("/logs"):
             ident = path.split("/")[3]
             od, do = int(params["start_time"]), int(params["end_time"])
-            wybrane = [w for w in self.logi.get(ident, []) if od <= w["event_time"] <= do]
+            wybrane = [w for w in self.logi.get(ident, [])
+                       if (od < w["event_time"] if self.start_otwarty else od <= w["event_time"])
+                       and w["event_time"] <= do]
             wybrane.sort(key=lambda w: w["event_time"], reverse=self.kolejnosc == "malejaco")
             poz = int(params.get("start_row_key") or 0)
             rozmiar = int(params["size"])
             strona = wybrane[poz:poz + rozmiar]
-            dalej = poz + rozmiar < len(wybrane)
+            if self.granica_stron is not None and strona:
+                po_tej_stronie = strona[0]["event_time"] >= self.granica_stron
+                strona = [w for w in strona if (w["event_time"] >= self.granica_stron) == po_tej_stronie]
+            dalej = poz + len(strona) < len(wybrane)
             return {"success": True, "result": {
                 "logs": [dict(w) for w in strona],
                 "has_next": dalej,
-                "next_row_key": str(poz + rozmiar) if dalej else None,
+                "next_row_key": str(poz + len(strona)) if dalej else None,
             }}
         return {"success": False, "code": 404, "msg": f"atrapa nie zna {path}"}
 
@@ -83,13 +103,18 @@ class AtrapaTuya:
         return [p for path, p in self.zapytania[od:] if path.endswith("/logs")]
 
 
-def tydzien_odczytow(teraz: int, co_ile_min: int = 60, dni: float = 7) -> list[dict]:
-    """Czujnik pokojowy: temperatura i wilgotność co godzinę, jak prawdziwe."""
+def tydzien_odczytow(teraz: int, co_ile_min: int = 60, dni: float = 7,
+                     bateria: bool = False) -> list[dict]:
+    """Czujnik pokojowy: temperatura i wilgotność co godzinę, jak prawdziwe. Z `bateria`
+    każdy raport to trójka, jak u prawdziwych czujników — strona po 100 wpisów kończy
+    się wtedy w środku trójki."""
     out = []
     t = teraz - int(dni * DOBA) + 60_000
     while t <= teraz - 60_000:
         out.append({"code": "va_temperature", "value": "215", "event_time": t})
         out.append({"code": "va_humidity", "value": "55", "event_time": t})
+        if bateria:
+            out.append({"code": "battery_state", "value": "high", "event_time": t})
         t += co_ile_min * 60_000
     return out
 
@@ -150,7 +175,25 @@ class PrzebiegKolektora(unittest.TestCase):
         return out
 
     def oczekiwane(self, logi: list[dict]) -> set[tuple[str, str]]:
-        return {(fetch.iso(w["event_time"]), w["code"]) for w in logi}
+        """Kolektor zapisuje tylko kody z manifestu — bateria w atrapie zajmuje miejsce
+        na stronach, ale do CSV nie trafia."""
+        return {(fetch.iso(w["event_time"]), w["code"]) for w in logi if w["code"] in KODY}
+
+    def kursor(self, urzadzenie: str) -> str | None:
+        return json.loads(fetch.MANIFEST.read_text(encoding="utf-8"))["devices"][urzadzenie].get("pobrane_do")
+
+    def do_skutku(self, atrapa: "AtrapaTuya", urzadzenie: str, przebiegow: int = 15) -> list:
+        kursory = []
+        for _ in range(przebiegow):
+            self.przebieg(atrapa)
+            kursory.append(self.kursor(urzadzenie))
+            if self.w_csv(urzadzenie) == self.oczekiwane(atrapa.logi[urzadzenie]):
+                break
+        brak = self.oczekiwane(atrapa.logi[urzadzenie]) - self.w_csv(urzadzenie)
+        self.assertFalse(brak, f"po {len(kursory)} przebiegach brakuje {len(brak)} wpisów, "
+                               f"np. {sorted(brak)[:3]}; kursory: {kursory}")
+        self.assertEqual(kursory, sorted(kursory), "kursor cofnął się")
+        return kursory
 
 
 class TestPobieraniePrzyrostowe(PrzebiegKolektora):
@@ -267,6 +310,73 @@ class TestZalewLogow(PrzebiegKolektora):
         self.sprawdz("malejaco")
 
 
+class TestPrzypadkiZPrzegladu(PrzebiegKolektora):
+    """Sytuacje znalezione w przeglądzie przed wdrożeniem 8.10. Każda gubiła wpisy
+    na pierwszej wersji pobierania przyrostowego, a Tuya trzyma logi tylko 7 dni."""
+
+    URZADZENIA = ("salon",)
+
+    def test_krotka_strona_z_jedna_chwila_przy_kolejnosci_od_najnowszego(self):
+        # Ostatni raport przed „teraz" jest za granicą stron, więc pierwsza strona to
+        # jedna para z jednej chwili i has_next. Dawniej czytane jako „rosnąco"
+        # i kursor przeskakiwał cały tydzień.
+        atrapa = AtrapaTuya({"salon": tydzien_odczytow(self.teraz)}, kolejnosc="malejaco",
+                            granica_stron=self.teraz - 90 * 60_000)
+        self.do_skutku(atrapa, "salon")
+
+    def test_otwarty_start_time_nie_gubi_reszty_trojki(self):
+        atrapa = AtrapaTuya({"salon": tydzien_odczytow(self.teraz, bateria=True)},
+                            start_otwarty=True)
+        self.do_skutku(atrapa, "salon")
+
+    def test_po_dlugiej_przerwie_zakladka_nadal_lapie_spoznione(self):
+        atrapa = AtrapaTuya({"salon": tydzien_odczytow(self.teraz, co_ile_min=10)},
+                            kolejnosc="malejaco")
+        self.przebieg(atrapa)
+        # udajemy, że ostatni udany przebieg był 30 godz. temu, a w zakładce przed nim
+        # dociera do chmury odczyt, którego wtedy jeszcze nie było
+        m = json.loads(fetch.MANIFEST.read_text(encoding="utf-8"))
+        m["devices"]["salon"]["pobrane_do"] = fetch.iso(self.teraz - 30 * GODZ)
+        fetch.MANIFEST.write_text(json.dumps(m), encoding="utf-8")
+        spozniony = {"code": "va_temperature", "value": "199", "event_time": self.teraz - 33 * GODZ + 7}
+        atrapa.logi["salon"].append(spozniony)
+        self.przebieg(atrapa)
+        self.assertIn((fetch.iso(spozniony["event_time"]), "va_temperature"), self.w_csv("salon"))
+
+    def test_zerwana_siec_w_polowie_nie_wyrzuca_tego_co_przyszlo(self):
+        def awaria(path, params, n):
+            if path.endswith("/logs") and params.get("start_time") and n > 3:
+                raise requests.ConnectionError("atrapa: sieć")
+        atrapa = AtrapaTuya({"salon": tydzien_odczytow(self.teraz, co_ile_min=20)}, awaria=awaria)
+        self.przebieg(atrapa)
+        self.assertGreaterEqual(len(self.w_csv("salon")), 100, "przebieg wyrzucił pobrane strony")
+        self.assertIsNotNone(self.kursor("salon"), "kursor nie zapamiętał postępu")
+        atrapa.awaria = lambda path, params, n: None
+        self.do_skutku(atrapa, "salon")
+
+    def test_puste_v2_nie_przesuwa_kursora(self):
+        # v1 odmawia raz, na samym początku; v2 odpowiada „sukces, zero wpisów".
+        # Dawniej v2 zostawało na cały przebieg, a kursor skakał na „teraz".
+        stan = {"odmowa": True}
+        def odmowa(path, params):
+            if path.startswith("/v1.0/devices/") and stan["odmowa"]:
+                stan["odmowa"] = False
+                return True
+            return False
+        atrapa = AtrapaTuya({"salon": tydzien_odczytow(self.teraz)}, odmowa=odmowa, v2_pusto=True)
+        self.przebieg(atrapa)
+        self.do_skutku(atrapa, "salon")
+
+    def test_ponad_sto_wpisow_w_dwie_minuty_od_najnowszego(self):
+        logi = tydzien_odczytow(self.teraz)
+        t = self.teraz - 40 * 60_000
+        while t < self.teraz - 30 * 60_000:
+            logi.append({"code": "va_temperature", "value": "230", "event_time": t})
+            t += 500
+        atrapa = AtrapaTuya({"salon": logi}, kolejnosc="malejaco")
+        self.do_skutku(atrapa, "salon", przebiegow=25)
+
+
 class AtrapaZeSpecyfikacja(AtrapaTuya):
     """Do --discover: lista urządzeń z kategorią i stanem oraz specyfikacje."""
 
@@ -331,6 +441,28 @@ class TestOdkryj(PrzebiegKolektora):
         self.assertIn("NIE dopisuj ich", wyjscie)
         self.assertIn("ustawienie: adjust_sample_time", wyjscie)
         self.assertIn("0…10000", wyjscie)
+
+
+class TestOdkryjDziwneOdpowiedzi(PrzebiegKolektora):
+    """Jedno urządzenie z nietypową specyfikacją nie może przerwać całego --discover."""
+
+    URZADZENIA = ("salon",)
+
+    def test_dziwna_specyfikacja_nie_przerywa(self):
+        class Dziwna(AtrapaZeSpecyfikacja):
+            SPEC = dict(AtrapaZeSpecyfikacja.SPEC, fikus={
+                "status": [{"code": "humidity", "type": "Integer", "values": "[]"}, "nie-słownik"],
+                "functions": None})
+        logi = {"salon": tydzien_odczytow(self.teraz), "fikus": []}
+        atrapa = Dziwna(logi)
+        wyjscie = io.StringIO()
+        with mock.patch.dict(os.environ, {"TUYA_CLIENT_ID": "x", "TUYA_CLIENT_SECRET": "y"}), \
+                mock.patch.object(fetch, "Tuya", lambda *a, **k: atrapa), \
+                mock.patch.object(sys, "argv", ["fetch.py", "--discover"]), \
+                redirect_stdout(wyjscie):
+            self.assertEqual(fetch.main(), 0)
+        self.assertIn("pole: humidity", wyjscie.getvalue())
+        self.assertIn("Zapytań do Tuya", wyjscie.getvalue())
 
 
 class TestPodpowiedzi(unittest.TestCase):

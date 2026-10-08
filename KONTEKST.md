@@ -56,7 +56,8 @@ właściciel, pokazał coś innego:
   czyli pakiet starcza na ok. 54 000 zapytań;
 - 6229 zapytań od 1.10 = 0,0231 USD, co do kilku zgodne z wyliczeniem 29 zapytań ×
   liczba przebiegów. Liczy się więc każde zapytanie, także o token i nieudane;
-- prognoza na październik to ok. 47%. **Znowu: najpierw zmierz.**
+- prognoza na październik przy dawnym pobieraniu to ok. 47%; po zmianie 8.10 ok. 20%.
+  **Znowu: najpierw zmierz.**
 
 **Dlaczego mimo to pobieranie przyrostowe.** Czujnik w doniczce przy pełnym oknie 7 dni
 kosztowałby ok. 50 stron na przebieg, czyli więcej niż wszystkie pokoje razem. Model
@@ -75,6 +76,23 @@ na zawsze: każdy przebieg zjadał budżet na te same podziały. Wyłapał to te
 `test_kolejnosc_malejaca`, zanim kod trafił na main. Symulacja przy domyślnym budżecie
 (30 zapytań na czujnik): zalew co 2 s przez 3 godz. domyka się w 2 przebiegach przy
 kolejności rosnącej i w 7 przy malejącej.
+
+Przegląd przed wdrożeniem (dwóch recenzentów, każde znalezisko odtworzone na atrapie)
+znalazł jeszcze sześć dróg do zgubienia wpisów. Każda ma teraz test, który odrzuca
+pierwszą wersję:
+- **krótka strona z jedną chwilą** (jeden wiersz albo trójka z jednego znacznika) przy
+  kolejności od najnowszego wyglądała na „rosnąco" i kursor przeskakiwał starsze wpisy;
+- **otwarty `start_time`**: strona po 100 wpisów kończy się w środku trójki odczytów,
+  więc wznawiamy od milisekundy przed ostatnim wpisem, a nie od niego;
+- **zakładka po długiej przerwie** jest teraz czytana osobno, zamiast porzucana razem
+  z przepełnionym oknem;
+- **zerwana sieć w połowie** nie wyrzuca już tego, co przyszło, ani postępu kursora;
+- **v2 „sukces, zero wpisów"** nie zostaje zamkiem na cały przebieg: przyrostowe idzie
+  tylko przez v1;
+- **ponad 100 wpisów w dwie minuty**: tu jedyny raz stronicujemy (do 5 stron).
+
+Do tego `--discover` przeżywa dziwne specyfikacje (`null`, `values` niebędące
+obiektem) — każde urządzenie osobno, jedno nie przerwie przebiegu.
 
 Przy okazji:
 - **Najpierw v1, potem v2.** Dawna próba v2 kosztowała najpewniej zapytanie w każdym
@@ -745,7 +763,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **97** (`python -m unittest discover -s tests`) |
+| Testy kolektora | **104** (`python -m unittest discover -s tests`) |
 | Testy strony | **130** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 7 zapytań Tuya na przebieg (do 8.10: 29) z pakietu 0,20 USD na miesiąc · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie i po każdej zmianie swojego pliku na main. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |

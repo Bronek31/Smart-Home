@@ -54,7 +54,7 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
 | `.github/workflows/zbieraj.yml` | zbieranie; zapasowy harmonogram co godzinę o :19, właściwym zegarem jest zewnętrzny cron co godzinę (patrz „Kolektor co godzinę") |
 | `.github/workflows/watchdog.yml` | co 6 godzin sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
-| `.github/workflows/odkryj.yml` | na żądanie wypisuje urządzenia w Tuya i ich pola |
+| `.github/workflows/odkryj.yml` | wypisuje urządzenia w Tuya i ich pola, a dla nowych także bieżące wartości i liczbę wpisów z ostatniej godziny (ok. 20 zapytań). Na żądanie i sam po każdej zmianie swojego pliku na `main` |
 | `.github/workflows/testy.yml` | testy przy każdej zmianie kodu i raz na dobę na żywych danych |
 | `manifest.json`, `sw.js`, `ikona*` | instalacja na ekranie głównym telefonu i tryb offline |
 | `.nojekyll` | pusty plik, który mówi Pages: serwuj repozytorium jak jest, bez Jekylla |
@@ -546,12 +546,16 @@ zgodne z wyliczeniem). Od tego dnia kolektor pyta tylko o odcinek od `pobrane_do
 token, lista urządzeń, po jednej stronie na czujnik i jedna na klimatyzator, czyli
 ok. 7 zapytań na przebieg. Ile dokładnie, wypisuje sam na końcu logu przebiegu
 („Zapytań do Tuya w tym przebiegu"). Pierwszy przebieg po wdrożeniu, bez kursora
-w manifeście, bierze jeszcze pełne 7 dni.
+w manifeście, bierze jeszcze pełne 7 dni — jednorazowo ok. 26 zapytań, a jeśli Tuya
+oddaje logi od najnowszego, do ok. 70.
 
 Na jeden odcinek przypada jedna strona (100 wpisów). Gdy odcinek się nie mieści, kolektor
 dzieli go albo przesuwa po znacznikach czasu — w obu kolejnościach, w jakich Tuya może
-oddawać logi — i nigdy nie przekracza 30 zapytań na czujnik w jednym przebiegu
-(`BUDZET_URZADZENIA`). To zabezpieczenie przed czujnikiem, który zalewa logi.
+oddawać logi — i nigdy nie przekracza ok. 30 zapytań na czujnik w jednym przebiegu
+(`BUDZET_URZADZENIA`). To zabezpieczenie przed czujnikiem, który zalewa logi. Jedyna
+świadoma strata: ponad 500 wpisów w dwie minuty przy kolejności od najnowszego — reszta
+z tych dwóch minut przepada, z ostrzeżeniem w logu (`NAJKROTSZY_ODCINEK_MS`). Czujniki
+pokojowe robią kilka wpisów na godzinę.
 
 ## Na ekranie telefonu
 
@@ -578,7 +582,8 @@ samego dnia — zainstalowana strona wystarcza.
 | Na stronie zniknął dwór, choć czujniki działają | Przebieg nie dostał odpowiedzi z Open-Meteo. Historia leży dalej w CSV, a `keep_known` w `fetch.py` trzyma urządzenie w manifeście, dopóki ma odczyty — linia wróci przy najbliższym udanym przebiegu. Jeśli mimo to zniknęła, w logu przebiegu szukaj „Pogoda: pominięta" |
 | Pulpit: „Kolektor nie zapisał nic od…" | Problem po stronie Actions albo Tuya, nie czujników. Czujniki oceniane są do chwili ostatniej zbiórki, więc przy spóźnionym kolektorze nie świecą się na pomarańczowo |
 | Dane przychodzą co 3–5 godz. zamiast co godzinę, przebiegi zielone | GitHub opóźnia harmonogram (od końca sierpnia 2026 to norma). Odczyty nie giną — każdy przebieg dociąga od miejsca, w którym skończył poprzedni (do 7 dni wstecz) — ale strona jest nieświeża, a watchdog potrafi zgłosić fałszywe „Kolektor stoi". Lekarstwo: zewnętrzny zegar, patrz „Kolektor co godzinę" |
-| Błąd `28841002` w logu | Wygasł trial IoT Core. Wniosek o przedłużenie na iot.tuya.com, 1-2 dni robocze. Pierwszy trial wygasł **po miesiącu** (12.09.2026) — datę kolejnego sprawdzać na iot.tuya.com |
+| Błąd `28841002` w logu | Wygasł trial IoT Core. Wniosek o przedłużenie na iot.tuya.com, 1-2 dni robocze. Pierwszy trial wygasł **po miesiącu** (12.09.2026). Obecny jest przedłużony do 13.03.2027 (panel 8.10) — wniosek ok. 6.03.2027 |
+| Błąd `28841004` w logu | Najpewniej wyczerpany miesięczny pakiet triala (0,20 USD) — znaczenie kodu znane z wyszukiwarki, niepotwierdzone. Zużycie: iot.tuya.com → IoT Core → My Subscriptions. Pakiet odnawia się 1. dnia miesiąca; do tego czasu kolektor stoi, a odczyty starsze niż 7 dni przepadają |
 | Błąd `1004` | Access Secret przepisany z ucięciem znaku |
 | Błąd `1114` albo `2007` | Zły region w `TUYA_REGION` |
 | Pusta lista przy `--discover` | Konto Smart Life podpięte do innego data center |

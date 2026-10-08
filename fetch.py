@@ -241,18 +241,30 @@ def specyfikacja(client: Tuya, device_id: str) -> dict:
     data = client.get(f"/v1.0/devices/{device_id}/specifications")
     if not data.get("success"):
         return {}
-    return data.get("result") or {}
+    wynik = data.get("result")
+    return wynik if isinstance(wynik, dict) else {}
+
+
+def _wartosci(item: dict) -> dict:
+    """Pole `values` ze specyfikacji jako słownik. Tuya podaje je jako tekst JSON,
+    czasem jako gotowy obiekt; wszystko inne (lista, liczba, śmieci) to pusty słownik."""
+    wartosci = item.get("values")
+    if isinstance(wartosci, str):
+        try:
+            wartosci = json.loads(wartosci or "{}")
+        except (ValueError, TypeError):
+            wartosci = {}
+    return wartosci if isinstance(wartosci, dict) else {}
 
 
 def describe_codes(client: Tuya, device_id: str, spec: dict | None = None) -> dict:
-    pola = (specyfikacja(client, device_id) if spec is None else spec).get("status", [])
+    pola = (specyfikacja(client, device_id) if spec is None else spec).get("status") or []
     codes = {}
     for item in pola:
+        if not isinstance(item, dict):
+            continue
         code = item.get("code", "")
-        try:
-            spec = json.loads(item.get("values") or "{}")
-        except (ValueError, TypeError):
-            spec = {}
+        spec = _wartosci(item)
         unit = spec.get("unit") or ""
         kind = classify(code, unit)
         if kind is None:
@@ -274,14 +286,13 @@ def all_codes(client: Tuya, device_id: str, spec: dict | None = None,
     jak nazywają się jego pola, jakiego są typu i w jakiej skali przychodzą.
     `sekcja` "functions" to pola do ustawiania (kalibracja, odstęp próbkowania).
     """
-    pola = (specyfikacja(client, device_id) if spec is None else spec).get(sekcja, [])
+    pola = (specyfikacja(client, device_id) if spec is None else spec).get(sekcja) or []
     out = []
     for item in pola:
+        if not isinstance(item, dict):
+            continue
         code = item.get("code", "")
-        try:
-            spec = json.loads(item.get("values") or "{}")
-        except (ValueError, TypeError):
-            spec = {}
+        spec = _wartosci(item)
         opis = str(spec.get("unit") or spec.get("range") or "")
         if "min" in spec and "max" in spec:
             opis = f"{opis} {spec['min']}…{spec['max']}".strip()
@@ -299,7 +310,7 @@ def tempo_wpisow(client: Tuya, device_id: str, teraz_ms: int, okno_ms: int = 360
     sekundę. Zanim kolektor zacznie go zbierać, trzeba wiedzieć, ile stron logów
     kosztowałby na przebieg. Najwyżej `strony` zapytań, żeby sam pomiar nie zjadł pakietu.
     """
-    logi, stan = _strony_z_wyborem(client, device_id, teraz_ms - okno_ms, teraz_ms, strony)
+    logi, stan = _strony(client, "v1", device_id, teraz_ms - okno_ms, teraz_ms, strony)
     if logi is None:
         return "logi niedostępne (Tuya odmówiła)"
     if not logi:
@@ -332,26 +343,21 @@ def fetch_logs(client: Tuya, device_id: str, start_ms: int, end_ms: int) -> list
 
 
 def _strony_z_wyborem(client, device_id, start_ms, end_ms, limit):
-    """Pierwsze zapytanie przebiegu wybiera endpoint logów. Najpierw v1, bo z niego
-    kolektor korzysta od początku: v2 wymaga parametru `codes`, którego nie wysyłamy,
-    więc dawna próba v2 przed v1 kosztowała najpewniej jedno zmarnowane zapytanie
-    w każdym przebiegu (wynika z czasów w logach Actions)."""
-    if client.log_api:
-        return _strony(client, client.log_api, device_id, start_ms, end_ms, limit)
-    for wersja in ("v1", "v2"):
-        rows, stan = _strony(client, wersja, device_id, start_ms, end_ms, limit)
-        if rows is not None:
-            client.log_api = wersja
-            print(f"Logi z API {wersja}.", flush=True)
-            return rows, stan
-    return None, "blad"
+    """Logi przez v1, a v2 tylko jako zapas dla sprzętu (fetch_logs).
 
-
-def _logs(client, version, device_id, start_ms, end_ms) -> list[dict] | None:
-    rows, stan = _strony(client, version, device_id, start_ms, end_ms, 300)
-    if stan == "blad" and rows:
-        print(f"  uwaga: {device_id} — błąd w trakcie stronicowania, biorę to, co przyszło", flush=True)
-    return rows
+    Kolektor czyta v1 od początku: dawna próba v2 przed v1 kosztowała zapytanie w każdym
+    przebiegu (v2 wymaga parametru `codes`, którego nie wysyłamy), co potwierdził panel
+    Tuya — 6229 zapytań to dokładnie 29, a nie 28, na przebieg. Zamek na v2 nie powstaje
+    nigdy: gdyby v2 odpowiedziało „sukces, zero wpisów", pobieranie przyrostowe uznałoby
+    okno za domknięte i przesunęło kursor ponad wszystko, czego nie przeczytało.
+    """
+    rows, stan = _strony(client, "v1", device_id, start_ms, end_ms, limit)
+    if rows is not None:
+        client.log_api = "v1"
+        return rows, stan
+    if client.log_api == "v1":
+        return None, "blad"          # v1 działa w tym przebiegu, odmówiło tylko temu urządzeniu
+    return _strony(client, "v2", device_id, start_ms, end_ms, limit)
 
 
 def _strony(client, version, device_id, start_ms, end_ms, limit) -> tuple[list[dict] | None, str]:
@@ -402,9 +408,10 @@ def pobierz_przyrostowo(client, device_id: str, od_ms: int, do_ms: int,
     zapytanie — tyle samo wpisów na zapytanie co przy zwykłym stronicowaniu:
 
     - odcinek zmieścił się na stronie: domknięty, następny może być dwa razy dłuższy;
-    - nie zmieścił się, a to jeszcze zakładka sprzed `pewne_do`: zakładkę porzucamy
-      i idziemy od kursora — przy takim zalewie nie stać nas na sprawdzanie tego, co
-      już mamy, a bez tego przebieg mógłby nie dojść dalej niż do kursora, ani razu;
+    - nie zmieścił się, a sięga przed `pewne_do`: najpierw sama zakładka; jeśli i ona
+      się nie mieści, porzucamy ją i idziemy od kursora — przy takim zalewie nie stać
+      nas na sprawdzanie tego, co już mamy, a bez tego przebieg mógłby nie dojść dalej
+      niż do kursora, ani razu;
     - nie zmieścił się, a wpisy przyszły rosnąco w czasie: wszystko sprzed najpóźniejszego
       z nich jest pobrane, więc domykamy do niego i czytamy dalej od tej chwili;
     - nie zmieścił się, a wpisy przyszły od najnowszego: ten sam początek, odcinek
@@ -416,8 +423,9 @@ def pobierz_przyrostowo(client, device_id: str, od_ms: int, do_ms: int,
     niedomkniętych też oddajemy: są prawdziwe, a merge() i tak odrzuca powtórki.
 
     Zwraca (logi, domknięte_do). domknięte_do to None, gdy nie udało się domknąć
-    niczego — wtedy kursor zostaje, gdzie był. Odmowa Tuya na pierwszym zapytaniu
-    to TuyaError, tak jak wcześniej w fetch_logs().
+    niczego — wtedy kursor zostaje, gdzie był. Odmowa Tuya albo błąd sieci na pierwszym
+    zapytaniu to wyjątek, tak jak wcześniej w fetch_logs(); późniejsze kończą pobieranie
+    tego urządzenia z tym, co już przyszło.
     """
     budzet = BUDZET_URZADZENIA if budzet is None else budzet
     if od_ms >= do_ms:
@@ -432,31 +440,58 @@ def pobierz_przyrostowo(client, device_id: str, od_ms: int, do_ms: int,
                   f"resztę od {iso(pozycja)} dociągnie następny", flush=True)
             break
         koniec = min(do_ms, pozycja + dlugosc)
-        porcja, stan = _strony_z_wyborem(client, device_id, pozycja, koniec, 1)
+        try:
+            porcja, stan = _strony(client, "v1", device_id, pozycja, koniec, 1)
+        except requests.RequestException as err:
+            if not logi and domkniete is None:
+                raise
+            # To, co już przyszło, zostaje razem z kursorem — następny przebieg zacznie
+            # od miejsca, w którym sieć się urwała, a nie od początku okna.
+            print(f"  {device_id}: sieć urwała się w odcinku od {iso(pozycja)} "
+                  f"({type(err).__name__}), kursor zostaje", flush=True)
+            break
         if porcja is None:
             if not logi and domkniete is None:
-                raise TuyaError(
-                    f"Endpoint logów ({client.log_api or 'v1 ani v2'}) odmówił dla urządzenia {device_id}."
-                )
+                raise TuyaError(f"Endpoint logów (v1) odmówił dla urządzenia {device_id}.")
             print(f"  {device_id}: odmowa w odcinku od {iso(pozycja)}, kursor zostaje", flush=True)
             break
+        client.log_api = "v1"
         logi.extend(porcja)
         if stan == "komplet":
             pozycja = domkniete = koniec
             dlugosc *= 2
             continue
         czasy = [int(e["event_time"]) for e in porcja if e.get("event_time") is not None]
-        if pewne_do and pozycja < pewne_do < koniec:
-            pozycja = domkniete = pewne_do
-        elif czasy and czasy == sorted(czasy) and pozycja < czasy[-1] < koniec:
-            # Wpisy z chwili czasy[-1] mogą ciągnąć się na następną stronę, więc ta
-            # chwila idzie jeszcze raz — jako początek kolejnego odcinka.
-            pozycja = domkniete = czasy[-1]
+        # „Rosnąco" tylko wtedy, gdy strona naprawdę obejmuje różne chwile: jeden wiersz
+        # albo strona z jednym znacznikiem czasu pasują do obu kolejności, a przy
+        # kolejności od najnowszego przeskok do czasy[-1] zgubiłby starsze wpisy.
+        rosnaco = len(czasy) > 1 and czasy[0] < czasy[-1] and czasy == sorted(czasy)
+        if pewne_do and pozycja < pewne_do:
+            if koniec > pewne_do:
+                # Najpierw sama zakładka, osobno — po długiej przerwie to nowa część okna
+                # się nie mieści, a spóźnione odczyty sprzed kursora nadal da się złapać.
+                dlugosc = pewne_do - pozycja
+            else:
+                print(f"  {device_id}: sama zakładka ma ponad 100 wpisów — pomijam ją, "
+                      f"idę od kursora {iso(pewne_do)}", flush=True)
+                pozycja = domkniete = pewne_do
+        elif rosnaco and pozycja < czasy[-1] - 1 < koniec:
+            # Od milisekundy przed ostatnim wpisem, a nie od niego: nikt nie sprawdził,
+            # czy start_time u Tuya jest domknięty. Strona po 100 wpisów kończy się
+            # zwykle w środku trójki odczytów z jednej chwili, więc przy otwartym
+            # początku reszta tej trójki by przepadła.
+            pozycja = domkniete = czasy[-1] - 1
         elif koniec - pozycja > NAJKROTSZY_ODCINEK_MS:
             dlugosc = max(NAJKROTSZY_ODCINEK_MS, (koniec - pozycja) // 2)
         else:
-            print(f"  {device_id}: ponad 100 wpisów w {(koniec - pozycja) // 1000} s "
-                  f"od {iso(pozycja)} — biorę, co przyszło", flush=True)
+            # Ponad 100 wpisów w dwie minuty. Krótszego odcinka nie ma sensu ciąć, więc
+            # tu jedyny raz idziemy za `next_row_key` — kilka stron domyka takie okno
+            # w obu kolejnościach. Co się nie zmieści, przepada, i mówimy to w logu.
+            reszta, stan = _strony(client, "v1", device_id, pozycja, koniec, 5)
+            logi.extend(reszta or [])
+            if stan != "komplet":
+                print(f"  {device_id}: zalew — ponad 500 wpisów w {(koniec - pozycja) // 1000} s "
+                      f"od {iso(pozycja)}, reszta z tego odcinka przepada", flush=True)
             pozycja = domkniete = koniec
     return logi, domkniete
 
@@ -1229,6 +1264,34 @@ def write_manifest(devices: dict, alerty: list[str] | None = None) -> None:
     )
 
 
+def _odkryj_urzadzenie(client: Tuya, dev: dict, nowe: bool, teraz_ms: int) -> bool:
+    """Wypisuje jedno urządzenie dla --discover. Zwraca True dla czujnika w doniczce."""
+    spec = specyfikacja(client, dev["id"])
+    codes = describe_codes(client, dev["id"], spec)
+    roslina = dev.get("category") == "zwjcy"
+    marker = "czujnik w doniczce" if roslina else ("czujnik klimatu" if codes else "inne urządzenie")
+    produkt = str(dev.get("product_name") or "")
+    if dev.get("product_id"):
+        produkt = f"{produkt} ({dev['product_id']})".strip()
+    print(f"  {dev['id']}   {dev.get('name') or '?'}" + ("" if nowe else "   [już zbierane]"))
+    print(f"      kategoria: {dev.get('category', '?')}   rola: {marker}"
+          + (f"   produkt: {produkt}" if produkt else "")
+          + ("   OFFLINE" if dev.get("online") is False else ""))
+    for code, typ, opis in all_codes(client, dev["id"], spec):
+        meta = codes.get(code)
+        ocena = f"zbierane jako {meta['kind']}, scale={meta['scale']}" if meta else "pomijane"
+        print(f"      pole: {code:<22} typ={typ:<8} {opis:<26} {ocena}")
+    if nowe:
+        for code, typ, opis in all_codes(client, dev["id"], spec, "functions"):
+            print(f"      ustawienie: {code:<16} typ={typ:<8} {opis}")
+        stan = [s for s in (dev.get("status") or []) if isinstance(s, dict)]
+        if stan:
+            print("      teraz: " + ", ".join(f"{s.get('code')}={s.get('value')}" for s in stan))
+        print(f"      wpisy: {tempo_wpisow(client, dev['id'], teraz_ms)}")
+    print()
+    return roslina
+
+
 def odkryj(client: Tuya, all_devices: list[dict], region: str) -> int:
     """--discover: wszystko, czego trzeba, żeby podpiąć nowe urządzenie, w jednym przebiegu.
 
@@ -1247,32 +1310,11 @@ def odkryj(client: Tuya, all_devices: list[dict], region: str) -> int:
     rosliny = []
     print(f"Znaleziono {len(all_devices)} urządzeń w regionie {region}:\n")
     for dev in all_devices:
-        spec = specyfikacja(client, dev["id"])
-        codes = describe_codes(client, dev["id"], spec)
-        nowe = dev["id"] not in znane
-        marker = "czujnik klimatu" if codes else "inne urządzenie"
-        if dev.get("category") == "zwjcy":
-            marker = "czujnik w doniczce"
-            rosliny.append(dev.get("name") or dev["id"])
-        produkt = dev.get("product_name") or ""
-        if dev.get("product_id"):
-            produkt = f"{produkt} ({dev['product_id']})".strip()
-        print(f"  {dev['id']}   {dev.get('name', '?')}" + ("" if nowe else "   [już zbierane]"))
-        print(f"      kategoria: {dev.get('category', '?')}   rola: {marker}"
-              + (f"   produkt: {produkt}" if produkt else "")
-              + ("" if dev.get("online", True) else "   OFFLINE"))
-        for code, typ, opis in all_codes(client, dev["id"], spec):
-            meta = codes.get(code)
-            ocena = f"zbierane jako {meta['kind']}, scale={meta['scale']}" if meta else "pomijane"
-            print(f"      pole: {code:<22} typ={typ:<8} {opis:<26} {ocena}")
-        if nowe:
-            for code, typ, opis in all_codes(client, dev["id"], spec, "functions"):
-                print(f"      ustawienie: {code:<16} typ={typ:<8} {opis}")
-            stan = dev.get("status") or []
-            if stan:
-                print("      teraz: " + ", ".join(f"{s.get('code')}={s.get('value')}" for s in stan))
-            print(f"      wpisy: {tempo_wpisow(client, dev['id'], teraz_ms)}")
-        print()
+        try:
+            if _odkryj_urzadzenie(client, dev, dev["id"] not in znane, teraz_ms):
+                rosliny.append(dev.get("name") or dev["id"])
+        except Exception as err:  # jedno dziwne urządzenie nie może zmarnować całego przebiegu
+            print(f"  {dev.get('id')}: nie udało się opisać — {type(err).__name__}: {err}\n")
     if rosliny:
         print(f"Czujniki w doniczkach ({', '.join(rosliny)}) idą osobnym torem — NIE dopisuj ich")
         print("do TUYA_DEVICE_IDS: kolektor wziąłby glebę za wilgotność powietrza (patrz ROSLINY.md).")
