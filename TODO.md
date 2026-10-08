@@ -22,8 +22,8 @@ drugie zgłoszeniem „Kolektor stoi" z kodem `28841002`.
 „przestaw". Plan, pomiary i pytania do właściciela w `ROSLINY.md`. Powiadomienia push
 stały wcześniej w „świadomie odrzuconych" z powodem „brak serwera" — ten powód odpada:
 nadawcą może być przebieg GitHub Actions, a doręcza Web Push. Pierwszy krok jest
-niezależny od roślin: limit zapytań Tuya, który według prognozy kończy się pod koniec
-października.
+niezależny od roślin: limit zapytań Tuya — według prognozy październik zamknie się
+na ok. 98% limitu triala, a trzy nowe czujniki przy dzisiejszym pobieraniu go przekroczą.
 
 ## Do sprawdzenia po kilku tygodniach grzania
 

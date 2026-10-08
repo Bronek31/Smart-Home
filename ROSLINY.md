@@ -1,75 +1,100 @@
 # Rośliny — przygotowanie
 
-Plan przed wdrożeniem czujników w doniczkach. Stan na 8.10.2026. Czujniki są kupione,
-ale jeszcze nie zbierają danych, a w kodzie nic się nie zmieniło. Ten plik zbiera to,
-co wiadomo o czujniku, o roślinach i o tym, gdzie nowa funkcja zahacza o istniejący
-kod. Liczby oznaczone **[do sprawdzenia]** pochodzą z wyszukiwarki albo z cudzych
-pomiarów. Przed wpisaniem do kodu trzeba je zmierzyć u nas.
+Plan przed wdrożeniem czujników w doniczkach, stan na 8.10.2026. Czujniki są kupione,
+w kodzie nic się jeszcze nie zmieniło. Ten plik zbiera to, co wiadomo o czujniku,
+o roślinach i o tym, gdzie nowa funkcja zahacza o istniejący kod.
 
-**Czego chce właściciel:** trzy czujniki w trzech doniczkach (mały fikus, azalia,
-skrzydłokwiat). Na telefon mają przychodzić powiadomienia, gdy roślinę trzeba
-**podlać** albo **przestawić**, bo ma za mało światła. Telefon to Android (strona
-zainstalowana z Chrome jako aplikacja) i iPhone.
+Czynności dla właściciela, krok po kroku, są w osobnym pliku `ROSLINY-INSTRUKCJA.md`.
 
-**Warunek właściciela (8.10):** odczyty z doniczek **nie mieszają się** z tym, co
-strona pokazuje dziś. Wykresy, kafle, rzut, strefa komfortu i alarmy pleśni zostają
-wyłącznie dla pokoi. Rośliny dostają **osobną zakładkę** w aplikacji.
+Oznaczenia:
+- **[do sprawdzenia]** — liczba pochodzi z wyszukiwarki albo z cudzych pomiarów.
+  Strony źródłowe były w tej sesji zablokowane, więc przed wpisaniem do kodu trzeba
+  ją zmierzyć u nas.
+- **[zgadnięte]** — punkt wyjścia ułożony pod zalecenia z literatury, a nie liczba
+  z literatury.
+
+**Czego chce właściciel:**
+- trzy czujniki w trzech doniczkach;
+- powiadomienia na telefon, gdy roślinę trzeba **podlać** albo **przestawić**, bo ma
+  za mało światła;
+- telefony: Android (strona zainstalowana z Chrome jako aplikacja) i iPhone.
+
+**Gdzie stoją rośliny (8.10):**
+
+| Roślina | Pokój | Okno pokoju |
+|---|---|---|
+| fikus | Salon | północ |
+| skrzydłokwiat (do niedawna w Kuchni) | Salon | północ |
+| azalia | Kuchnia | północ |
+
+**Warunek właściciela (8.10):** odczyty z doniczek **nie mieszają się** z tym, co strona
+pokazuje dziś. Wykresy, kafle, rzut, strefa komfortu i alarmy pleśni zostają wyłącznie
+dla pokoi. Rośliny dostają **osobną zakładkę** w aplikacji.
 
 ---
 
 ## W skrócie
 
-1. **Limit zapytań Tuya jest prawie wyczerpany już dziś, jeszcze bez roślin.**
-   - Przebieg kosztuje ok. 29 zapytań. Liczba wynika z czasów w logach Actions.
-   - Przebiegów jest ok. 28 na dobę: 24 z cron-job.org i 4–5 z zapasowego harmonogramu.
-   - Prognoza na październik to ok. 25 400 zapytań przy limicie triala 26 000 na
-     miesiąc **[do sprawdzenia na iot.tuya.com]**.
-   - Trzy nowe czujniki przy dzisiejszym sposobie pobierania przekroczą limit
-     kilkukrotnie.
-   - Dlatego pierwszym krokiem, niezależnym od roślin, jest pobieranie tylko tego,
-     co nowe (etap 0).
-2. **Czujnik ma model „C3007" i to jest ta wersja, przed którą ostrzega Zigbee2MQTT.**
-   - Według Zigbee2MQTT wysyła lawinę komunikatów, wyczerpuje baterie w kilka dni
-     i nie pamięta ustawień.
-   - Nikt nie sprawdził, czy tak samo zachowuje się za bramką Tuya.
-   - **Zanim kolektor zacznie go zbierać, trzeba zmierzyć liczbę wpisów w logach.**
-3. **Zwykłe dopisanie identyfikatorów do `TUYA_DEVICE_IDS` popsułoby stronę i watchdoga.**
-   - `classify()` uzna wilgotność gleby (`humidity`, %) za wilgotność powietrza
-     i wyrzuci światło.
-   - Skutek na stronie: zmienią się wszystkie liczniki i wykresy, a rada o wietrzeniu
-     zmieni werdykt (zmierzone na fiksturze).
-   - Skutek u watchdoga: cała zima zgłoszeń „pleśń" od mokrej ziemi.
-   - Rośliny idą więc **osobnym torem** — własna konfiguracja, własne pliki w
-     `data/rosliny/` i własna strona — dokładnie tak, jak chce właściciel.
-4. **Powiadomienia bez serwera da się zrobić.**
-   - Nadawcą jest przebieg GitHub Actions, który i tak chodzi co godzinę.
-   - Doręcza Web Push, czyli serwery Google (Android) i Apple (iPhone), wprost do
-     zainstalowanej aplikacji.
-   - Ani serwera, ani tokenu w przeglądarce. Odrzucenie z `TODO.md` („brak serwera")
-     przestaje obowiązywać.
-5. **Progi nie mogą być z głowy.** Procent wilgotności z takiej sondy to indeks
-   względny, inny w każdej doniczce. Pierwsze 1–2 tygodnie aplikacja tylko pokazuje
-   odczyty i uczy się:
-   - „szczytu" po podlaniu,
-   - poziomu, przy którym właściciel sam podlewa.
+1. **Dziś, bez czujników:**
+   - azalia: nie przesuszać, wylewać wodę z osłonki, nie zakręcać dla niej kaloryfera;
+   - skrzydłokwiat: sprawdzić, czy w spodzie doniczki nie stoi woda;
+   - fikus: nie przestawiać na ślepo — najpierw czujnik zmierzy światło.
 
-   Powiadomienia włączają się dopiero potem.
-6. **Do czasu wdrożenia** podlewanie da się pilnować bez kodu. Wystarczy automatyzacja
-   w Smart Life: „wilgotność gleby < X → powiadomienie".
-7. **Rośliny już teraz:**
-   - Azalia stoi w kuchni, która przez 21 dni **ani razu** nie zeszła do 18 °C
-     (stale 20–21 °C). Kwitnąca azalia woli 10–18 °C.
-   - Okna Salonu i Kuchni wychodzą na północ. Od dziś do ok. 20 marca nie zobaczą
-     bezpośredniego słońca.
+   Szczegóły w „Rady już teraz".
+2. **Warunek właściciela jest do spełnienia bez kompromisów.** Rośliny mają osobny
+   tor danych (własna konfiguracja, pliki w `data/rosliny/`) i osobną stronę
+   `rosliny.html`. Na dzisiejszej stronie dochodzi tylko pasek zakładek. Izolacji
+   pilnuje test.
+3. **Najpierw limit Tuya (etap 0).**
+   - Dzisiejsze zbieranie zużyje w październiku ok. **98% limitu** triala.
+   - Zapas to ok. 560 zapytań, czyli ok. 19 dodatkowych przebiegów **[do sprawdzenia
+     na iot.tuya.com]**.
+   - Trzy czujniki dopisane przy dzisiejszym sposobie pobierania przekroczyłyby limit,
+     a po jego wyczerpaniu staje także zbieranie z pokoi.
+4. **Czujnik może być wadliwą wersją.**
+   - Model z naklejki to „C3007". Zigbee2MQTT ostrzega przed nim: lawina komunikatów,
+     baterie na kilka dni.
+   - Nikt nie sprawdził, czy tak samo zachowuje się za bramką Tuya.
+   - Trzeba sparować i zmierzyć **od razu, w terminie zwrotu** (14 dni od dostawy przy
+     zakupie przez internet).
+5. **Powiadomienia na oba telefony, bez serwera i za darmo.** Nadawcą jest przebieg
+   GitHub Actions, który i tak chodzi co godzinę. Doręcza Web Push wprost do
+   zainstalowanej aplikacji. Odrzucenie z `TODO.md` („brak serwera") przestało
+   obowiązywać.
+6. **Progi z Twoich doniczek, nie z książki.**
+   - Procent z takiej sondy to indeks względny, inny w każdym egzemplarzu i w każdej
+     doniczce.
+   - Aplikacja najpierw się uczy: zapisuje odczyt w powietrzu, odczyt zaraz po
+     podlaniu i odczyt z chwili, w której sam podlewasz.
+   - Realnie pierwsze powiadomienia „podlej" przyjdą za **4–6 tygodni**. Fikus zimą
+     pije rzadko.
+   - Do tego czasu może pilnować prosta automatyzacja w Smart Life
+     **[do sprawdzenia po parowaniu]**.
+7. **Brak powiadomienia nie znaczy „wszystko w porządku".**
+   - Gdy wygaśnie trial Tuya albo token cron-job.org, powiadomienia ustaną po cichu.
+   - Sygnałem życia jest niedzielne podsumowanie: przychodzi zawsze, także gdy nic
+     się nie dzieje.
+   - Zapasowym sygnałem jest mail „Kolektor stoi" od watchdoga.
+8. **Zimą „przestaw" powie niewiele.**
+   - Salon i Kuchnia mają okna na północ i do ok. 20 marca nie zobaczą bezpośredniego
+     słońca (przy oknach dokładnie na północ).
+   - Jedyne jasne miejsce to Sypialnia od południa, a tam jest najcieplej.
+9. **Prywatność.** Pliki w `data/` są publiczne na Pages. Z czasów podlewania da się
+   wyczytać, kiedy ktoś jest w domu. Z odczytów pokoi (prysznic, farelka) da się to
+   już dziś.
 
 ---
 
 ## Czujnik
 
-Na pudełku: **TZ-TR-301Z#AT**, „Zigbee Soil Moisture Sensor Temperature Humidity
-Luminance Detection, 4 in 1 (For tuya App)". Model **ZS-301Z**, na naklejce
-**C3007**. Zasilanie to 2× AAA, łączność Zigbee 3.0. W Zigbee2MQTT ten czujnik
-to `ZS-301Z` (Arteco), odcisk `TS0601` / `_TZE284_o9ofysmo` albo `_TZE284_xc3vwx5a`.
+Na pudełku:
+- **TZ-TR-301Z#AT**, „Zigbee Soil Moisture Sensor Temperature Humidity Luminance
+  Detection, 4 in 1 (For tuya App)";
+- model **ZS-301Z**, na bocznej naklejce **C3007**;
+- 2× AAA (LR03), Zigbee 3.0.
+
+W Zigbee2MQTT ten czujnik to `ZS-301Z` (Arteco), odcisk `TS0601` /
+`_TZE284_o9ofysmo` albo `_TZE284_xc3vwx5a`.
 
 | Co mierzy | Punkt danych (Zigbee) | Prawdopodobny kod w chmurze Tuya | Uwagi |
 |---|---|---|---|
@@ -77,50 +102,59 @@ to `ZS-301Z` (Arteco), odcisk `TS0601` / `_TZE284_o9ofysmo` albo `_TZE284_xc3vwx
 | temperatura powietrza | 5 | `temp_current` (÷10) | czujnik w szyjce, kilka cm nad ziemią |
 | bateria | 14 | `battery_state` (low/middle/high) | **brak procentów**; „low" = 1–25% |
 | wilgotność powietrza | 101 | `env_humidity` (%RH) **[do sprawdzenia]** | nad mokrą ziemią będzie wyższa niż w pokoju |
-| natężenie światła | 102 | `dimmer` (0–10 000 lx) **[do sprawdzenia]** | otwór na czole głowicy; **nasyca się przy 10 000 lx** |
-| kalibracja gleby | 103 | `adjust_humidity` (±30) | ustawiana w Smart Life; przesuwa odczyt gleby |
+| natężenie światła | 102 | `dimmer` (0–10 000 lx) **[do sprawdzenia]** | otwór na czole głowicy; zakres kończy się na 10 000 lx, a czy czujnik się przy tym nasyca — do sprawdzenia |
+| kalibracja gleby | 103 | `adjust_humidity` (±30) | ustawiana w Smart Life; przesuwa odczyt gleby o stałą |
 | odstęp próbkowania | 104 | `adjust_sample_time` (30–1200 s) | domyślnie 600 s według zgłoszenia #29254 |
 
-Źródła: konwerter Zigbee2MQTT (`zigbee-herdsman-converters`, `src/devices/tuya.ts`),
-zgłoszenia [#27956](https://github.com/Koenkk/zigbee2mqtt/issues/27956) i
-[#29254](https://github.com/Koenkk/zigbee2mqtt/issues/29254). Kody w chmurze pochodzą
-z tabeli w #27956, a nie z naszego konta. Rozstrzygnie je dopiero `odkryj.yml`.
+Źródła:
+- konwerter Zigbee2MQTT (`zigbee-herdsman-converters`, `src/devices/tuya.ts`);
+- zgłoszenia [#27956](https://github.com/Koenkk/zigbee2mqtt/issues/27956) i
+  [#29254](https://github.com/Koenkk/zigbee2mqtt/issues/29254).
+
+Kody w chmurze pochodzą z tabeli w #27956, a nie z naszego konta. Rozstrzygnie je
+dopiero `odkryj.yml`.
 
 **Z instrukcji (V2.0):**
 - Czujnik mierzy co 30 s. Wysyła odczyt, gdy gleba zmieni się o 3%, temperatura
   o 0,3 °C albo wilgotność powietrza o 5%. Seria gleby idzie więc **schodkami po co
   najmniej 3 punkty**.
-- Instrukcja nie mówi, kiedy wysyła światło, ani czy ma raport okresowy.
-- Krótkie wciśnięcie przycisku wymusza odczyt. Przytrzymanie 5 s włącza parowanie
-  (miga czerwona dioda).
-- Sondę wbija się na co najmniej 2/3 długości, powierzchnią pomiarową przy ziemi.
-  Suchą ziemię najpierw zwilżyć, a potem odczekać 30–60 s.
+- Instrukcja nie mówi, kiedy wysyłane jest światło, ani czy jest raport okresowy.
+- Krótkie wciśnięcie przycisku wymusza odczyt. Przytrzymanie 5 s włącza parowanie.
+- Sondę wbija się na co najmniej 2/3 długości (ok. 5,5 z 8,2 cm), powierzchnią
+  pomiarową przy ziemi.
+- Kalibracja: „Moisture detection may have some deviations, users calibration can be
+  performed on the APP". To jest pole 103 — stałe przesunięcie samej gleby.
+  Temperatury i światła się nie kalibruje.
 
-**Wersja z pomiarem żyzności (EC 0–5000 µS/cm)** ma rozwidlony szpic sondy. Etykieta
-„4 in 1" wskazuje na zwykłą wersję, która kończy się ostrzem. Do sprawdzenia przy
-rozpakowaniu.
+**Wersja z pomiarem żyzności** (EC 0–5000 µS/cm) ma rozwidlony szpic sondy i dodatkowy
+punkt danych (112). Etykieta „4 in 1" wskazuje na zwykłą wersję. Rozstrzygnie
+`odkryj.yml`.
 
 **Pułapki chmury Tuya:**
-- Chmura zwraca logi tylko dla punktów danych z „oficjalnej" specyfikacji produktu.
-  Punkty 101–104 są niestandardowe, więc w trybie *Standard Instruction* mogą nie
-  przyjść wcale (tinytuya, `Cloud.getdevicelog`).
+- Chmura zwraca logi tylko dla punktów danych z „oficjalnej" specyfikacji produktu
+  (tinytuya, `Cloud.getdevicelog`). Punkty 101–104 są niestandardowe, więc w trybie
+  *Standard Instruction* mogą nie przyjść wcale.
 - Wtedy na iot.tuya.com trzeba przełączyć **wyłącznie produkt czujnika roślin** na
-  *DP Instruction*.
+  *DP Instruction*. Zmiana działa po kilku–kilkunastu godzinach.
 - **Nie przełączać czujników pokojowych.** Zmieniłyby się ich kody (`va_temperature`
   i reszta), a kolektor zgubiłby serie.
 
-**Zalewanie komunikatami (C3007, płytka „ZSSF01").** Opis Zigbee2MQTT: *„prohibitively
-high amount of messages … very fast battery drain (matter of days) … set values not
-persisting"*. W #29254 to ok. 1 komunikat na sekundę, a ustawiony odstęp wraca do 600 s.
-Zgłoszenia dotyczą Zigbee2MQTT, nie bramki Tuya. U nas to niewiadoma i trzeba ją
-zmierzyć (etap 1).
+**Zalewanie komunikatami** (C3007, płytka „ZSSF01"):
+- Opis Zigbee2MQTT: *„prohibitively high amount of messages … very fast battery drain
+  (matter of days) … set values not persisting"*.
+- W #29254 to ok. 1 komunikat na sekundę, a ustawiony odstęp wraca do 600 s.
+- Zgłoszenia dotyczą Zigbee2MQTT, nie bramki Tuya, więc u nas to niewiadoma.
+- Ten sam czujnik obciąża bramkę, przez którą idą czujniki pokojowe. Po parowaniu
+  porównamy liczbę ich raportów z dnia przed i po (z CSV, bez zapytań do Tuya).
+- **Jeśli się potwierdzi** — tysiące wpisów na godzinę albo bateria `low` w ciągu
+  tygodnia — czujniki zwrócić, a nie łatać w kolektorze. Oprogramowanie nie naprawi
+  baterii, a pobieranie takich logów zjadłoby limit Tuya.
 
 **Światło:**
-- Otwór jest na czole głowicy. Przy pionowej sondzie czujnik patrzy najpewniej
-  **w bok**, nie w górę **[do sprawdzenia]**.
-- Mierzy więc światło w płaszczyźnie pionowej, zależnie od tego, w którą stronę
-  obrócona jest głowica. Do tego zasłaniają go liście, najmocniej u skrzydłokwiatu.
-- Wartości bezwzględne przeliczane na DLI będą niepewne ok. 2×. Wiarygodny jest
+- Otwór jest na czole głowicy, więc przy pionowej sondzie czujnik patrzy najpewniej
+  **w bok** **[do sprawdzenia]**.
+- Wynik zależy od tego, w którą stronę obrócona jest głowica, a liście ją zasłaniają.
+- Przeliczanie na DLI (fotony na dobę) będzie niepewne ok. 2×. Wiarygodny jest
   **trend w jednym miejscu**.
 - Głowicę ustawić czołem do okna i więcej jej nie ruszać.
 
@@ -132,94 +166,123 @@ zmierzyć (etap 1).
 
 | | Fikus 'Ginseng' (*Ficus microcarpa*) | Skrzydłokwiat (*Spathiphyllum*) | Azalia doniczkowa (*Rhododendron simsii*) |
 |---|---|---|---|
-| Doniczka | czarna ceramika z podstawką, ok. 12–14 cm; na wierzchu mech | biała, z rowkiem nisko na ściance — **możliwe dno z rezerwuarem**, czyli woda w spodzie, której sonda nie widzi | **plastikowa doniczka w osłonce**; woda w osłonce jest niewidoczna dla sondy; na wierzchu kora |
-| Liście | zdrowe, ciemnozielone, przyrosty na czubkach | **brązowe, zaschnięte końcówki** na 4–5 liściach, kilka bladych | zdrowe; kwitnie, pąki i nowe przyrosty |
-| Miejsce | stół, nieznany pokój | komoda, nieznany pokój | **blat w kuchni** (okno na północ) |
+| Doniczka | czarna ceramika z podstawką, ok. 12–14 cm; na wierzchu mech | biała, z rowkiem nisko na ściance — **możliwe dno z rezerwuarem**, czyli woda w spodzie, której sonda nie widzi | **plastikowa doniczka w osłonce**; woda w osłonce jest dla sondy niewidoczna; na wierzchu kora; pień na paliku |
+| Liście | zdrowe, ciemnozielone, przyrosty na czubkach | **brązowe, zaschnięte końcówki** na 4–5 liściach, kilka bladych | zdrowe; kwitnie, nowe przyrosty; u podstawy pnia mały pęd |
+| Miejsce | Salon | Salon (zdjęcie zrobione w Kuchni) | Kuchnia, blat |
 
 ### Potrzeby
 
+Wszystkie liczby w tej tabeli pochodzą z wyciągów wyszukiwarki i są
+**[do sprawdzenia]**.
+
 | | Fikus | Skrzydłokwiat | Azalia |
 |---|---|---|---|
-| Podlewanie | przesuszyć wierzchnie 2–3 cm; znosi przesuszenie dużo lepiej niż przelanie | równo wilgotno, bez stania w wodzie; podlać, gdy wierzch wyschnie na 2,5–5 cm; **powtarzane więdnięcie daje brązowe końcówki** | **nigdy nie przesuszyć**; zaschnięty torf trudno nawilżyć, ratunek to zanurzenie doniczki w letniej wodzie na ok. 15 min; wylewać wodę z osłonki |
-| Zima (X–II) | mniej wody, bez nawozu | mniej wody, bez nawozu | wilgotność bez zmian |
-| Temperatura | 16–24 °C, zimą 16–20; nie lubi przeciągów ani kaloryfera | dzień 20–29 °C, **poniżej 15 °C ryzyko uszkodzeń** | **10–18 °C przy kwitnieniu**; przy ≥ 24 °C gubi pąki i liście, ziemia szybko schnie |
-| Wilgotność powietrza | 40–60% | ≥ 50%; suche powietrze to najczęstsza przyczyna brązowych końcówek | ≥ 50% |
-| Światło | jasno, bez gwałtownych zmian; **źle znosi przestawianie** — gubi liście, a po zmianie miejsca nie ruszać jej przez ok. 4 tygodnie | jasne rozproszone, bez słońca; minimum ok. 800 lx | jasno, chłodno, bez bezpośredniego słońca |
-| Światło w liczbach **[do sprawdzenia]** | ok. 1 100–2 150 lx w pomieszczeniu (zalecenia dla innych fikusów) | DLI ok. 0,65 mol/m²/dobę (≈ 10 000 lx·h dziennego światła) | DLI 1,7–2,1 (badania szklarniowe) |
+| Podlewanie | przesuszyć wierzchnie 2–3 cm; znosi przesuszenie dużo lepiej niż przelanie | równo wilgotno, bez stania w wodzie; podlać, gdy wierzch wyschnie na 2,5–5 cm; **powtarzane więdnięcie daje żółte liście i brązowe brzegi** | **nigdy nie przesuszyć**; zaschnięty torf trudno nawilżyć — ratunkiem jest zanurzenie doniczki; wylewać wodę z osłonki |
+| Zima (X–II) | mniej wody, bez nawozu | mniej wody, bez nawozu | podlewanie bez zmian — ziemia stale wilgotna |
+| Temperatura | idealnie 18–24 °C, zimą może być chłodniej (16–20); nie lubi przeciągów ani kaloryfera | dzień 20–29 °C; **poniżej ok. 15 °C ryzyko uszkodzeń** | chłodno: 10–20 °C (MBG), polskie źródła 10–15; przyjęte 10–18 °C; przy ≥ 24 °C gubi pąki i liście |
+| Wilgotność powietrza | 40–60% | liczby w źródłach brak; suche powietrze to najczęstsze polskie wyjaśnienie brązowych końcówek (obok nieregularnego podlewania i nawozu) | ≥ 50% |
+| Światło | jasno, bez gwałtownych zmian; **źle znosi przestawianie** — gubi liście i po zmianie miejsca potrzebuje ok. 4 tygodni spokoju; słońce znosi | jasne rozproszone, bez słońca; minimum ok. 800 lx | jasno, chłodno, bez bezpośredniego słońca |
+| Światło w liczbach | ok. 1 100–2 150 lx w pomieszczeniu (zalecenia dla innych fikusów) | DLI ok. 0,65 mol/m²/dobę (≈ 10 000 lx·h dziennego światła) | DLI 1,7–2,1 (badania szklarniowe) |
 
-Główne źródła: RHS, UF/IFAS (EP136, EP161, MREC), Missouri Botanical Garden, Clemson
-HGIC, SDSU Extension, Murator. Pełna lista na dole. Wartości dla fikusa 'Ginseng'
-wyciągnięto z badań nad innymi fikusami. Przelicznik dla światła dziennego to
-1 mol/m²/dobę ≈ 15 000 lx·h (1000 lx ≈ 18,5 µmol/m²/s) i nie działa dla lamp.
+Źródła: RHS, UF/IFAS (EP136, EP161, MREC), Missouri Botanical Garden, Clemson HGIC,
+SDSU Extension, Epic Gardening, Murator. Pełna lista na dole.
 
-### Co mówią nasze dane (pomiar, nie zgadywanie)
+Przelicznik dla światła dziennego: 1 mol/m²/dobę ≈ 15 000 lx·h (1000 lx ≈
+18,5 µmol/m²/s). Dla lamp nie działa.
+
+### Co mówią nasze dane
 
 Zmierzone na czujnikach pokojowych, ważone czasem, z wyłączeniem skoków i znanych
 artefaktów. Okno to 1–8.10.2026, ogrzewanie działa od 1.10.
 
 | Pokój | Temperatura: średnio (min–max) | Wilgotność: średnio (min–max) |
 |---|---|---|
-| Kuchnia (płn.) | 20,8 °C (19,6–22,2) | 59% (48–69) |
-| Salon (płn.) | 20,9 °C (18,9–22,3) | 58% (46–69) |
+| Salon (płn.) — fikus, skrzydłokwiat | 20,9 °C (18,9–22,3) | 58% (46–69) |
+| Kuchnia (płn.) — azalia | 20,8 °C (19,6–22,2) | 59% (48–69) |
 | Sypialnia (płd.) | 22,4 °C (20,8–23,5) | 53% (45–60) |
 | Łazienka | 21,4 °C (20,5–22,4) | 60% (50–74) |
 
-**Kuchnia a azalia:**
-- Od 17.09 kuchnia była ≤ 18 °C przez **0% czasu**, a powyżej 20 °C przez 79–96%.
+**Ciepło a azalia:**
+- Kuchnia ma średnio 20–21 °C, najniżej 19,4 °C. Od 17.09 **ani razu** nie zeszła
+  do 18 °C. W drugiej połowie września była powyżej 20 °C przez 81% czasu, a od 1.10
+  przez 96%.
 - Gotowania przy czujniku nie widać: największy wzrost w godzinę to +0,7 °C.
-- W żadnym pokoju nie ma 10–18 °C. Chłodne miejsce dla azalii musiałoby być
-  mikroklimatem, np. zimnym parapetem przy zakręconym kaloryferze. Zmierzy go czujnik
-  w doniczce.
+- W żadnym pokoju nie ma 10–18 °C.
+- **Nie zakręcać dla azalii kaloryfera w kuchni.** Schłodzenie kuchni do 17 °C przy tej
+  samej ilości pary podnosi wilgotność z 59% do ok. 75%. Próg pleśni przy 0 °C na
+  dworze to ok. 58%, więc alarm pleśni na stronie zacząłby krzyczeć.
+- Chłodniejsze miejsce przy szybie pokaże czujnik w doniczce, bo mierzy temperaturę
+  przy samej roślinie.
 
 **Wilgotność spada:**
-- Średnia dobowa 1.10 → 7.10: Sypialnia 56 → 50%, Kuchnia 64 → 56%, Salon 61 → 54%.
-- Szacunek na mróz, z modelu, a nie z pomiaru: **32–44%**.
-- Zimą skrzydłokwiat i azalia będą najpewniej poniżej swoich 50%.
+- Średnia dobowa 1.10 → 7.10: Salon 61 → 54%, Kuchnia 64 → 56%, Sypialnia 56 → 50%.
+- Szacunek na mróz, z modelu, a nie z pomiaru: **32–44%**. Zimą skrzydłokwiat i azalia
+  będą najpewniej poniżej swoich 50%.
+- **Nie nawilżać mieszkania dla roślin**, bo strona pilnuje progu pleśni. Wystarczy
+  trzymać rośliny razem i nie zraszać kwiatów azalii.
 
 **Światło:**
 - Od równonocy jesiennej do wiosennej słońce wschodzi i zachodzi po południowej
-  stronie linii wschód–zachód. Okna Kuchni i Salonu nie dostaną bezpośredniego słońca
-  **do ok. 20.03**.
-- 21.12 dzień ma 8 h, a słońce w południe stoi na 16°.
-- Jedynym jasnym miejscem zimą jest Sypialnia od południa, ale tam jest najcieplej
-  (22,4 °C).
-- W grudniu i styczniu po północnej stronie wszystkie trzy rośliny będą
-  najprawdopodobniej poniżej „dobrze", a azalia i fikus blisko swojego minimum lub pod nim.
+  stronie linii wschód–zachód. Okna na północ nie dostaną bezpośredniego słońca do
+  ok. 20.03.
+- 21.12 dzień ma 8 godz., a słońce w południe stoi na 16°.
+- Szacunek z literatury, nie z naszych czujników **[do sprawdzenia]**: w grudniu
+  i styczniu po północnej stronie wszystkie trzy rośliny będą poniżej „dobrze",
+  a azalia i fikus blisko swojego minimum lub pod nim.
 
-### Rady już teraz, bez czujników
+### Rady już teraz
 
-- **Azalia:**
-  - Zdjąć z blatu przy płycie w najchłodniejsze jasne miejsce bez słońca, nie nad
-    kaloryferem.
-  - Po podlaniu wylać wodę z osłonki.
-  - Nigdy nie dopuścić do przesuszenia. Woda z kranu w Katowicach jest miękka
-    (ok. 5 °dH) **[do sprawdzenia]**, więc nadaje się do podlewania azalii.
+- **Azalia (Kuchnia):**
+  - Jeśli stoi przy płycie albo czajniku — odsunąć.
+  - Po podlaniu wylać wodę z osłonki. Nie lać wody na głowicę czujnika.
+  - **Nigdy nie dopuścić do przesuszenia.** Jeśli zaschnie: **wyjąć czujnik**, wyjąć
+    plastikową doniczkę z osłonki i zanurzyć ją w letniej wodzie, aż przestaną lecieć
+    bąbelki (15–30 min), przytrzymując, bo sucha ziemia pływa, a pień na paliku
+    przeważa. Odsączyć, wylać wodę z osłonki, włożyć czujnik w to samo miejsce.
+  - Woda z kranu w Katowicach jest miękka (ok. 5 °dH według PSSE)
+    **[do sprawdzenia]**, więc nadaje się do podlewania.
+  - Usuwać przekwitłe kwiaty. Nie nawozić w czasie kwitnienia. Nie przesadzać do
+    wiosny; wtedy do kwaśnej ziemi dla azalii.
+  - Mały pęd u podstawy pnia: jeśli to odrost podkładki, wyciąć **[do sprawdzenia]**.
   - Przy 20–21 °C kwitnienie będzie krótsze niż w chłodzie.
-- **Fikus:** jeśli stoi po północnej stronie, **przestawić raz, teraz**, a nie
-  w grudniu. Najlepiej w najjaśniejsze stałe miejsce z dala od kaloryfera, i więcej
-  nie ruszać.
-- **Skrzydłokwiat:**
-  - Obciąć brązowe końcówki. Nie odrosną, a nowe nie powinny się pojawiać.
-  - Nie dopuszczać do więdnięcia między podlewaniami.
+- **Skrzydłokwiat (Salon):**
+  - Obciąć brązowe końcówki, zostawiając cienki brązowy pasek. Nie odrosną.
+  - Zimą przy suchym powietrzu nowe mogą się pojawiać i nie jest to błąd podlewania.
+    Ważne, żeby nie dopuszczać do więdnięcia.
   - Sprawdzić, czy w spodzie doniczki nie stoi woda.
+- **Fikus (Salon):**
+  - Jesienią, przy mniejszym świetle, i po każdym przestawieniu gubi część liści
+    przez 2–4 tygodnie. To nie pragnienie: nie podlewać częściej i nie przestawiać
+    z powrotem.
+  - **Nie przestawiać na ślepo.** Czujnik jest miernikiem światła. Przed wbiciem
+    na stałe można nim sprawdzić około południa kilka kandydujących miejsc
+    (`ROSLINY-INSTRUKCJA.md`, krok 4). Przestawić raz, do najjaśniejszego, a dopiero
+    potem wbić czujnik — nauka zaczyna się w docelowym miejscu.
+- **Wszystkie:**
+  - Co 2 tygodnie obejrzeć spód liści. Suche, ciepłe powietrze sprzyja przędziorkom
+    (azalia, fikus), a na fikusie zdarzają się wciornastki (srebrzyste smugi).
+  - Fikusa i skrzydłokwiatu nie nawozić do marca. Nawóz podnosi odczyt sondy, więc
+    wiosną trzeba będzie sprawdzić progi.
 
 ---
 
 ## Dlaczego nie można po prostu dopisać czujników
 
-Zmierzone na prawdziwym `index.html` z fiksturą `dane.js` i trzema roślinami, opisanymi
-tak, jak opisałby je dzisiejszy `fetch.py`.
+Sprawdzone na prawdziwym `index.html` z fiksturą `dane.js` i trzema roślinami,
+opisanymi tak, jak opisałby je dzisiejszy `fetch.py`. Wartości roślin w fiksturze były
+wymyślone, więc pewny jest kierunek i lista dotkniętych miejsc, a nie same liczby.
+Wiersz `diagnose()` pochodzi z symulacji w Pythonie.
 
 | Gdzie | Co by się stało |
 |---|---|
 | `classify()` (`fetch.py:73`) | `humidity` + `%` → `hum`: **gleba jako wilgotność powietrza**. `dimmer`, `bright_value`, `illuminance*` → odrzucone: **światła nie byłoby w ogóle** |
 | pamięć kodów w manifeście (`fetch.py:1119-1124`) | pierwsza zła klasyfikacja zostaje na zawsze — późniejsza poprawka `classify()` jej nie rusza |
 | `diagnose()` → watchdog | mokra ziemia (75% przy 10 °C na dworze) = „wilgotność powyżej progu pleśni przez 100% doby". **Zgłoszenie przez całą zimę** |
-| kafle, tabela, diagnostyka | 5 → 8 kafli, „4/4 OK" → „7/7 OK" albo „4/7 OK · 3 uwaga"; ósmy kolor zawija paletę na kolor Łazienki |
-| wykresy temperatury i wilgotności | oś temperatury 23,5–26,5 → 14–28 °C, pokoje spadają do 1/5 wysokości; gleba na wykresie wilgotności powietrza |
+| kafle, tabela, diagnostyka | 5 → 8 kafli, „4/4 OK" → „7/7 OK" albo „4/7 OK · 3 uwaga"; trzecia roślina (siódme urządzenie z palety) dostaje kolor Łazienki |
+| wykresy temperatury i wilgotności | pokoje spadają do ok. 1/5 wysokości osi; gleba na wykresie wilgotności powietrza |
 | rada o wietrzeniu | średnia mieszkania z roślinami: werdykt zmienił się z „Najlepszy moment na wietrzenie" na „Otwarte okno schłodzi mieszkanie" |
 | rzut, rytm doby, strefa komfortu, kalendarz | skale barw rozjechane; rytm doby domyślnie pokazuje „Fikusa" |
-| koszt w Tuya | pełne okno 7 dni przy raporcie co 600 s to ok. 51 stron logów na czujnik na przebieg. Przy zalewaniu dochodzi do limitu 300 stron, a przebieg przekracza 20 min i pada **dla wszystkich urządzeń** |
+| koszt w Tuya | pełne okno 7 dni przy raporcie co 600 s to ok. 51 stron logów na czujnik na przebieg. Przy zalewaniu 3 × 300 stron to ok. 930 zapytań na przebieg: miesięczny limit znika w niecałą dobę, a przebieg (ok. 19 min) ociera się o `timeout-minutes: 20` |
 
 Wniosek: rośliny nie mogą trafić do `data/index.json` ani do `data/RRRR-MM.csv`.
 
@@ -227,267 +290,431 @@ Wniosek: rośliny nie mogą trafić do `data/index.json` ani do `data/RRRR-MM.cs
 
 ## Jak to zbudować
 
-### Osobny tor danych
+### Etap 0: limit Tuya (przed wszystkim innym)
+
+**Dziś:** ok. 29 zapytań na przebieg.
+- Token i lista urządzeń.
+- Pełne 7 dni logów dla czterech pokoi: 6–7 stron po 100 wpisów każdy.
+- Klimatyzator.
+- Najpewniej nieudana próba API v2. Wynika to z czasów w logu; potwierdzi wypisanie
+  `client.log_api`.
+
+Przebiegów jest ok. 28 na dobę: 24 z cron-job.org i zwykle 4 z zapasowego
+harmonogramu GitHuba. Każdy push na `main` — także samego `.md` — odpala dodatkowy
+przebieg, więc zmiany trzeba wdrażać zbiorczo.
+
+**Pobieranie przyrostowe, niezależne od kolejności logów:**
+- Okno dzielimy na kawałki czasu (np. po 6 godz.), od najstarszego. Kawałek, który
+  zmieścił się w limicie stron, jest „domknięty".
+- Kursor `pobrane_do` urządzenia przesuwa się **tylko** do końca ostatniego
+  domkniętego kawałka. Nigdy do najnowszego widzianego wpisu, nigdy po odpowiedzi
+  uciętej błędem i nigdy dalej niż „teraz".
+- Zakładka 2–3 godz. liczy się od `pobrane_do`. Podłoga 7 dni zostaje, więc
+  nadrabianie po awarii działa jak dziś. Klimatyzator dalej najwyżej 12 godz.
+  (`SPRZET_OKNO`).
+- Limit stron na kawałek: pokoje co najmniej 10, rośliny 5. Każde trafienie w limit
+  to ostrzeżenie w logu, a nie cisza jak dziś.
+- Kursor pokoi trzymamy w `data/index.json` (`last_log` już tam jest dla
+  klimatyzatora).
+
+**Kolejność wpisów w logach Tuya** (od najstarszego czy od najnowszego) jest nieznana.
+Etap 0 sprawdza ją jednym wywołaniem, a projekt powyżej działa w obu przypadkach.
+
+**Testy:**
+- `main()`, `_logs` i `fetch_logs` nie mają dziś testów. Najpierw dostają podstawkę
+  klienta Tuya z ustawialną kolejnością stron.
+- Zalew 1 wpis/s przy limicie stron → kursor rusza się w każdym przebiegu.
+- Błąd na 3. stronie → następny przebieg pobiera brakujący kawałek.
+
+**Szacunek:**
+
+| Wariant | Zapytań na przebieg | Zapytań na miesiąc |
+|---|---|---|
+| bez roślin | ok. 7 | — |
+| z roślinami, bez zalewania | 10–13 | 8 800–11 400 |
+| przy zalewaniu z limitem 5 stron | ok. 22 | ok. 19 300 |
+
+**Gotowe, gdy:**
+- testy odrzucają starą wersję;
+- liczba zapytań jest zmierzona licznikiem w logu przebiegu;
+- dokumentacja nie twierdzi już, że każdy przebieg bierze pełne 7 dni ani że
+  skasowane wiersze wracają (README, KONTEKST, docstring `fetch.py`, komentarze
+  w `zbieraj.yml` i `zapisz.sh`).
+
+### Etap 1: rozpoznanie czujników
+
+`--discover` (workflow „Pokaż urządzenia w Tuya") dostaje:
+- surową specyfikację (`status` i `functions`) i bieżące wartości, po jednym zapytaniu
+  o specyfikację na urządzenie (dziś są dwa);
+- **tempo wpisów z ostatniej godziny**, tylko dla urządzeń spoza `TUYA_DEVICE_IDS`,
+  najwyżej 3 strony na urządzenie, z przeliczeniem na dobę po znacznikach czasu;
+- licznik zapytań w logu;
+- przy czujniku roślin podpowiedź „dopisz do `rosliny.json`" zamiast dzisiejszej
+  „dopisz do `TUYA_DEVICE_IDS`";
+- `timeout-minutes: 10` w `odkryj.yml`, jedynym workflowie bez limitu czasu.
+
+Uruchamiam go ja, **dopiero po wdrożeniu etapu 0**. Koszt: ok. 15–25 zapytań.
+
+**Jeśli potwierdzi się zalewanie**, logi roślin odpadają. Stan bierzemy wtedy jednym
+zapytaniem o status dla wszystkich trzech (`/v1.0/devices?device_ids=…`). Może być
+za darmo, jeśli lista urządzeń zwraca już `status` **[do sprawdzenia]**. Kosztem jest
+jedna próbka na godzinę, bez krzywej światła w ciągu dnia. Ale wcześniej — zwrot
+czujników.
+
+### Etap 2: osobny tor danych
 
 ```
-rosliny.json                  konfiguracja (ręczna, jak artefakty.json): czujnik → roślina
-data/rosliny/RRRR-MM.csv      surowe odczyty doniczek, ten sam format ts,device_id,code,value
-data/rosliny/stan.json        to, co pokazuje zakładka: ostatnie odczyty, dobowe sumy światła,
-                              wykryte podlewania, werdykty („podlej", „za ciemno")
+rosliny.json                     konfiguracja (ręczna, jak artefakty.json): czujnik → roślina
+data/rosliny/RRRR-MM.csv         surowe odczyty doniczek, format ts,device_id,code,value
+data/rosliny/stan.json           to, co pokazuje zakładka: szereg godzinowy z 30 dni, dobowe
+                                 sumy światła, wykryte podlania, progi, werdykty, kursory
 data/rosliny/powiadomienia.json  co i kiedy zostało wysłane (bez adresów telefonów!)
 ```
 
-- **`rosliny.json`** leży obok `fetch.py`, tak jak `artefakty.json`. Ścieżka liczy się
-  od pliku, żeby testy w katalogu tymczasowym widziały tę samą listę.
-- Wpis wygląda tak (szkic):
+**`rosliny.json`** leży obok `fetch.py`, tak jak `artefakty.json`. Ścieżka liczy się
+od pliku, żeby testy w katalogu tymczasowym widziały tę samą listę. Szkic wpisu:
 
-  ```json
-  {
-    "czujnik": "<id z odkryj.yml>",
-    "nazwa": "Azalia",
-    "gatunek": "azalia",
-    "pokoj": "Kuchnia",
-    "kody": {"gleba": "humidity", "swiatlo": "dimmer", "temp": "temp_current",
-             "wilg": "env_humidity", "bateria": "battery_state"}
-  }
-  ```
+```json
+{
+  "czujnik": "<id z odkryj.yml>",
+  "nazwa": "Azalia",
+  "gatunek": "azalia",
+  "pokoj": "bf5741c97c96fa85b1d7do",
+  "kody": {"gleba": "humidity", "swiatlo": "dimmer", "temp": "temp_current",
+           "wilg": "env_humidity", "bateria": "battery_state"},
+  "sucho": 0
+}
+```
 
-- **Kody wpisane jawnie**, a nie zgadywane przez `classify()`. Po parowaniu przepisuje
-  się je z wyniku `odkryj.yml`. Skala przychodzi ze specyfikacji, jak dziś.
-- Identyfikatory roślin **nie trafiają** do `TUYA_DEVICE_IDS`. Kolektor bierze je
-  z `rosliny.json`, więc `data/index.json`, `dzienne.csv`, `diagnose()` i cała
-  dzisiejsza strona nie wiedzą o ich istnieniu.
+- **Kody wpisane jawnie**, nie zgadywane przez `classify()`.
+- **`pokoj`** to identyfikator czujnika pokojowego, a nie nazwa. Nazwy przychodzą ze
+  Smart Life i zmiana nazwy po cichu wyłączyłaby regułę.
+- **`sucho`** to odczyt sondy w powietrzu z dnia instalacji.
+
+**Izolacja danych:**
+- `merge`, `load_month` i `save_month` dostają parametr katalogu. Dziś mają na sztywno
+  `data/` (`fetch.py:318-380`), a ponowne użycie wpisałoby rośliny do plików pokoi.
+- Tor pokoi **jawnie pomija** urządzenia z `rosliny.json` i z kategorią `zwjcy`,
+  z linią w logu, także przy pustym `TUYA_DEVICE_IDS`. Dziś pusta lista bierze całe
+  konto (`fetch.py:1099-1101`), a roślina z `temp_current` przeszłaby filtr
+  (`fetch.py:1147`).
 - Pliki w podkatalogu nie pasują do wzorca `data/[0-9]*.csv`, więc `purge_before`,
-  `write_daily`, `recent_rows` i `keep_known` same je pomijają. Mimo to ta izolacja
-  musi mieć **własny test**.
-- `git add data/` w `zapisz.sh` obejmuje podkatalog, a service worker serwuje `data/`
-  najpierw z sieci. Nic więcej nie trzeba dopisywać.
+  `write_daily`, `recent_rows` i `keep_known` je pomijają.
+- `git add data/` w `zapisz.sh` i service worker (`/data/` najpierw z sieci) obejmują
+  podkatalog bez zmian.
+- Test izolacji ma obejmować: identyfikator w obu miejscach, pustą listę urządzeń
+  i stronę główną z fiksturą roślin — te same liczniki co bez nich.
 
-### Kolektor
+**Izolacja awarii:**
+- Tor roślin działa w tym samym procesie co pokoje, z jednym tokenem. Rusza dopiero
+  **po** zapisaniu manifestu pokoi i w całości siedzi w `try/except Exception`.
+- Zła składnia ręcznie edytowanego `rosliny.json`, wyjątek w obliczeniach albo odmowa
+  Tuya dla doniczki kończy się wpisem `"blad"` w `stan.json` i linią w logu. Kod
+  wyjścia `fetch.py` się nie zmienia, więc `zapisz.sh` (`set -e`) dalej zapisuje
+  pokoje.
+- Pliki roślin zapisujemy przez plik tymczasowy i `os.replace`.
+- W drugą stronę: tor roślin nie potrzebuje listy urządzeń, więc jej awaria go nie
+  pomija.
+- Testy: każdy z trzech przypadków → `main()` zwraca 0, a odczyty pokoi są zapisane.
 
-1. **Pobieranie przyrostowe**, wspólne z etapem 0:
-   - od ostatniego zapisanego odczytu minus 2–3 godz. zakładki, ale nigdy dalej niż
-     7 dni wstecz, więc nadrabianie po awarii zostaje;
-   - `merge()` odrzuca duplikaty po `(ts, device_id, code)`, więc zakładka jest
-     bezpieczna;
-   - dla roślin **limit stron na przebieg** (np. 5) zamiast globalnych 300 i ostrzeżenie
-     w logu, gdy zostanie osiągnięty.
-2. **Nowy moduł `rosliny.py`**, czysta biblioteka standardowa, testowany jak `fetch.py`:
-   - dobowa suma światła: lx·h, całkowana w czasie, z przycinaniem dziur jak
-     w `udzial_powyzej()`;
-   - szacunkowe DLI z wyraźnym oznaczeniem „szacunek";
-   - wykrywanie podlania (skok gleby w górę) i poruszenia sondy (gwałtowny spadek);
-   - uczenie progów (niżej);
-   - werdykty z histerezą.
-3. **Werdykty liczy Python, a strona je tylko wyświetla.** Dzięki temu nie powstaje
-   nowa para bliźniaczych stałych JS/Python (dziś pilnują ich testy `SPIKE` i `FRSI`),
-   a karta w aplikacji i powiadomienie nie mogą sobie przeczyć.
-4. **Zalewanie komunikatami:** jeśli pomiar z etapu 1 pokaże setki wpisów na godzinę,
-   dochodzi `zwin_rosliny()` na wzór `collapse_power()`. Zostają zmiany i co najmniej
-   jeden wiersz na godzinę na kod. Działa to tylko przy pobieraniu przyrostowym.
-5. **Opcjonalnie** archiwum promieniowania z Open-Meteo (`shortwave_radiation`). Dziś
-   kolektor bierze je tylko do prognozy na 36 godz. Stosunek „światło przy roślinie /
-   światło na dworze" odróżnia pochmurny tydzień od złego miejsca. Bez tego „przestaw"
-   myliłoby się w każdy szary listopadowy tydzień.
+**Skale i kursory:**
+- Skalę czyta nowa funkcja z surowej specyfikacji, tylko dla kodów z `rosliny.json`,
+  bez `classify()`. Dzisiejsze `describe_codes` gubi kody, których `classify()` nie
+  zna.
+- Skalę zapisujemy w `stan.json` i pobieramy ponownie tylko po zmianie kodów. Inaczej
+  to +3 zapytania na przebieg.
+- Kod z `rosliny.json`, którego brak w specyfikacji, to błąd roślin, a nie cicha dziura.
 
-### Zakładka „Rośliny"
+**Nowy moduł `rosliny.py`.** Czysta biblioteka standardowa, testowany jak `fetch.py`:
+- dobowa suma światła w lx·h, całkowana w czasie, z przycinaniem dziur jak
+  w `udzial_powyzej()`;
+- szereg godzinowy z 30 dni do wykresu, żeby telefon nie ściągał miesięcznych CSV;
+- wykrywanie podlania (skok gleby w górę) i poruszenia sondy (gwałtowny spadek);
+- uczenie progów (niżej) i werdykty z histerezą.
 
-- **Osobna strona `rosliny.html`** w tym samym zakresie aplikacji (`scope: ./`), a nie
-  sekcja wewnątrz `index.html`:
-  - w zainstalowanej aplikacji przejście między stronami w zakresie zostaje w jej oknie;
-  - nie ładuje 177 KB logiki mieszkania;
-  - ma własne testy i własną fiksturę, a 130 testów strony głównej zostaje bez zmian;
-  - adres z powiadomienia (`./rosliny.html#azalia`) nie ginie, bo `boot()` w
-    `index.html` nadpisuje hash własnym `#zakres=…`.
-- **Pasek zakładek** „Mieszkanie | Rośliny" u góry obu stron. To jedyna zmiana widoczna
-  na dzisiejszej stronie.
-- **Na zakładce:**
-  - **Karta każdej rośliny:** gleba na tle pasma rośliny, wzorem toru z „Nocy w
-    sypialni". Do tego ostatnie podlanie („3 dni temu"), wczorajsze światło wobec
-    potrzeby, temperatura i bateria. Na górze werdykt jednym zdaniem.
-  - **Wykres gleby z 14–30 dni** z kreskami podlań. Linia schodkowa, bez wygładzania,
-    które rozmazałoby skok podlania.
-  - Światło na osobnym panelu, nie na drugiej osi, bo drugie osie zostały z projektu
-    świadomie usunięte.
-  - Wykres trzymany poza `state.charts`, jak strefa komfortu. Funkcja rysująca
-    przechodzi listę wtyczek z `draw()` i świadomie odrzuca te, których nie chce.
-  - **Przycisk „Włącz powiadomienia"** z instrukcją dla iPhone'a (patrz niżej).
-- **`sw.js`:**
-  - `rosliny.html` dochodzi do `SZKIELET`, więc `WERSJA` → `smart-home-v4`;
-  - nowe obsługi `push` i `notificationclick`;
-  - kliknięcie otwiera tylko adresy z zakresu aplikacji.
+Pozostałe zasady:
+- **Werdykty liczy Python, strona je tylko wyświetla.** Dzięki temu nie powstaje nowa
+  para bliźniaczych stałych JS/Python, a karta i powiadomienie mówią to samo.
+- **`zwin_rosliny()`** na wzór `collapse_power()` wchodzi od razu. Zostają zmiany
+  i jeden wiersz na godzinę na kod. Przy raporcie co 600 s surowe logi to ok. 4 MB
+  CSV na miesiąc dla trzech roślin.
+- **Watchdog** dostaje krok, który czyta alarmy czujników z `data/rosliny/stan.json`
+  i zakłada zgłoszenie z etykietą `rosliny`. Dotyczy to ciszy, baterii `low` i błędu
+  toru.
+- **Później (v2):** archiwum promieniowania z Open-Meteo, żeby odróżnić pochmurny
+  tydzień od złego miejsca. Trafia do `data/rosliny/`, a nie do `fetch_outdoor()`,
+  bo stamtąd wpadłoby do `dzienne.csv` i do `index.json`.
 
-### Powiadomienia
+### Etap 3: zakładka „Rośliny"
 
-**Kanał — rekomendacja i zapasy:**
+**Osobna strona `rosliny.html`** w tym samym zakresie aplikacji (`scope: ./`), a nie
+sekcja w `index.html`:
+- w zainstalowanej aplikacji (Android i iPhone) przejście między stronami z zakresu
+  zostaje w jej oknie;
+- nie ładuje 177 KB logiki mieszkania;
+- ma własne testy i fiksturę, a testy strony głównej zostają bez zmian;
+- w `index.html` hash z adresu by zginął, bo `boot()` nadpisuje go `#zakres=…`.
+
+`rosliny.html` jest samodzielny:
+- własna funkcja rysująca (wzór: `rysujKomfort()`), ze świadomie skopiowanymi
+  wtyczkami;
+- Chart.js z tego samego adresu CDN co w `index.html`;
+- w `<head>` te same znaczniki manifestu, Apple i viewportu oraz rejestracja `sw.js`;
+- pasek zakładek pod `env(safe-area-inset-top)`.
+
+Zasady `state.charts` i listy wtyczek z `draw()` dotyczą tylko `index.html`.
+
+**Zmiany w `index.html` (jedyne dwie):**
+1. Pasek zakładek „Mieszkanie | Rośliny".
+2. Przy starcie: jeśli w Cache API leży cel z powiadomienia, kasuje go i przechodzi
+   na `rosliny.html`. To obejście na iPhone'a, gdzie kliknięcie przy zimnym starcie
+   otwiera stronę główną (WebKit 263687).
+
+**Na zakładce:**
+- **Karta rośliny:**
+  - werdykt jednym zdaniem;
+  - gleba na tle pasma rośliny;
+  - ostatnie podlanie („3 dni temu");
+  - światło wczoraj wobec potrzeby;
+  - temperatura, bateria i wiek danych.
+- **Wykres gleby z 30 dni** z kreskami podlań. Linia schodkowa, bez wygładzania.
+  Światło na osobnym panelu, nie na drugiej osi.
+- **„Włącz powiadomienia"** z instrukcją dla iPhone'a.
+- Po kliknięciu w powiadomienie zakładka może zastać `stan.json` sprzed minuty
+  (Pages wdraża ok. minutę po commicie). Pokazuje wtedy werdykt z powiadomienia
+  z dopiskiem „dane w drodze" i pobiera stan ponownie.
+
+**`sw.js`:**
+- `rosliny.html` dochodzi do `SZKIELET`, więc `WERSJA` → `smart-home-v4`;
+- nowe obsługi `push` i `notificationclick`;
+- kliknięcie otwiera tylko adresy z zakresu aplikacji.
+
+**CI:** `strona-bez-budowania` sprawdza oba pliki HTML, a `rosliny.html` dochodzi do
+listy wymaganych plików.
+
+### Etap 4: powiadomienia
+
+**Kanał:**
 
 | Kanał | Za | Przeciw | Rola |
 |---|---|---|---|
-| **Web Push do aplikacji** | przychodzi *z tej* aplikacji; kliknięcie otwiera zakładkę „Rośliny"; za darmo; treść szyfrowana end-to-end | najwięcej pracy; na iPhonie subskrypcja potrafi po cichu wygasnąć | **główny** |
-| ntfy.sh | 10 minut konfiguracji; aplikacje na Androida i iOS | powiadomienie przychodzi z aplikacji ntfy, nie z naszej; ntfy.sh widzi treść; na iPhonie kliknięcie otwiera Safari | zapas, gdyby Web Push zawiódł |
-| automatyzacja Smart Life | zero kodu; działa od razu po parowaniu | jeden próg bez histerezy; bez światła z wielu dni i bez uczenia się | **tymczasowo**, do końca etapu 4 |
-| zgłoszenie od watchdoga (mail) | już działa | zwłoka do kilkunastu godzin | tylko awarie: martwa subskrypcja, cisza czujnika, bateria |
+| **Web Push do aplikacji** | przychodzi *z tej* aplikacji; kliknięcie otwiera zakładkę „Rośliny"; za darmo; treść szyfrowana | najwięcej pracy; na iPhonie subskrypcja potrafi po cichu wygasnąć | **główny** |
+| ntfy.sh | 10 minut konfiguracji; aplikacje na Androida i iOS | powiadomienie z aplikacji ntfy, nie z naszej; ntfy.sh widzi treść; na iPhonie kliknięcie otwiera Safari | zapas, gdyby Web Push zawiódł |
+| automatyzacja Smart Life | zero kodu | jeden próg bez histerezy, bez uczenia; nie wiadomo, czy gleba jest dostępna jako warunek ani czy dostanie je drugi domownik **[do sprawdzenia]** | **tymczasowo**, do etapu 5 |
+| zgłoszenie GitHub (mail) | już działa | zwłoka do kilkunastu godzin przez watchdoga | awarie: martwa subskrypcja, cisza czujnika, bateria |
 
 **Jak wysyłać bez dublowania:**
-- Dwa przebiegi kolektora potrafią wystartować naraz, a `zapisz.sh` liczy wtedy
-  odczyty jeszcze raz na drzewie zwycięzcy.
-- Dlatego `fetch.py` tylko **decyduje** i zapisuje „wysłano" w
-  `data/rosliny/powiadomienia.json`, w tym samym commicie co odczyty. Treść ląduje
-  w skrzynce poza repozytorium (`$RUNNER_TEMP`).
-- **Wysyła osobny krok** w `zbieraj.yml`, który rusza dopiero po udanym `zapisz.sh`.
-  Tylko ten krok dostaje sekrety powiadomień.
-- Udany push na gałąź działa jak zamek: przegrany przebieg po resecie widzi „wysłano"
-  zwycięzcy, więc nic nie idzie dwa razy. Gdy nie uda się żaden push, nic nie jest
-  wysłane ani zapisane, więc następny przebieg zrobi to od nowa.
-- Pułapka: `git reset --hard` nie kasuje plików nieśledzonych. `zapisz.sh` musi
-  czyścić skrzynkę na początku każdej próby, a test powinien to wymusić.
+- `fetch.py` zapisuje decyzję w `data/rosliny/powiadomienia.json` z polem
+  `przebieg` = `$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT`.
+- Po udanym `zapisz.sh` osobny krok w `zbieraj.yml` wysyła **wyłącznie** wpisy z tym
+  polem, odczytane z opublikowanego commita (`git show origin/main:…`). Tylko ten krok
+  dostaje sekrety powiadomień.
+- Wpis jest w opublikowanym commicie albo nie ma go wcale. Dwa przebiegi naraz,
+  ponowienie po przegranym wyścigu, ścieżka „nic do zapisania" ani „Re-run" w Actions
+  nie mają czego wysłać drugi raz.
+- Zasada: **co najwyżej raz**. Nieudanej wysyłki następny przebieg nie ponawia. Reguły
+  z ponowieniem nadrobią to same, a nieudana wysyłka zakłada zgłoszenie.
+
+**Awarie wysyłki:**
+- 404/410 (subskrypcja wygasła) albo 403 (klucz VAPID nie pasuje): **sam krok wysyłki**
+  zakłada albo odświeża zgłoszenie z etykietą `powiadomienia`. `zbieraj.yml` dostaje
+  do tego `issues: write`. Watchdog by tego nie zobaczył, bo wynik wysyłki powstaje
+  już po commicie.
+- 429 i 5xx: dwie ponowne próby w tym samym kroku, potem zgłoszenie.
+- Brak sekretów: krok kończy się na zielono z linią „brak subskrypcji". Dzięki temu
+  etap 3 da się wdrożyć przed etapem 4.
+
+**Przełącznik `POWIADOMIENIA: na-sucho | wlaczone`** w `zbieraj.yml` trafia do
+`fetch.py`, a nie tylko do kroku wysyłki:
+- na sucho reguły zapisują `na_sucho` z godziną, a nie „wysłano", więc ponowienia
+  i zasada „raz, potem karta" liczą się dopiero od włączenia;
+- pierwszy przebieg po włączeniu wysyła jedno zbiorcze powiadomienie o tym, co już
+  trwa.
 
 **Sekrety:**
 - `VAPID_KLUCZ_PRYWATNY`.
 - Subskrypcja każdego telefonu w osobnym sekrecie (`PUSH_ANDROID`, `PUSH_IPHONE`).
-  Sekretów GitHuba nie da się odczytać ani częściowo zmienić, więc jedna tablica JSON
-  byłaby niewygodna.
-- Klucz publiczny VAPID jest jawny z natury. Siedzi w stronie i w nadawcy jako para
-  bliźniaczych stałych, pilnowana testem.
-- **Subskrypcji nigdy nie wolno trzymać w `data/`**, bo `data/` jest publiczne na Pages.
-
-**Przenoszenie subskrypcji:**
-- Strona pokazuje JSON z przyciskiem „Kopiuj". Właściciel wkleja go raz na telefon
-  w *Settings → Secrets*.
-- Gdy wysyłka dostanie 404/410 (subskrypcja wygasła), watchdog zakłada zgłoszenie
-  „Powiadomienia nie dochodzą — włącz ponownie i podmień sekret".
+  Sekretów GitHuba nie da się odczytać ani zmienić częściowo.
+- Klucz publiczny VAPID leży **w jednym miejscu**: w `rosliny.html`. Nadawca wylicza
+  go z klucza prywatnego i porównuje ze stroną. Gdy się nie zgadzają, krok kończy się
+  na czerwono z komunikatem „klucz w sekrecie nie pasuje do strony". Test w CI
+  sprawdza tylko format stałej — to strażnik i tak go podpisujemy.
+- Parę kluczy generuje sama strona (WebCrypto), jednym przyciskiem. Prywatny właściciel
+  wkleja od razu jako sekret, a publiczny przekazuje do kodu. **Prywatny nigdy nie
+  przechodzi przez czat.**
+- **Logi Actions są publiczne.** Nadawca nigdy nie wypisuje adresu subskrypcji ani
+  treści wyjątków `requests`, bo zawierają URL. Na starcie kroku `::add-mask::` dla
+  każdego adresu. Test: przy wyjątku sieciowym z adresem w treści log nie zawiera
+  adresu.
+- **Subskrypcji nigdy nie trzymać w `data/`**, bo `data/` jest publiczne.
 
 **Nadawca:**
-- Ok. 100 linii na samej bibliotece `cryptography`: szyfrowanie RFC 8291 i podpis
-  VAPID ES256.
-- Prototyp poprawnie szyfruje i podpisuje, co sprawdzono lokalnie z biblioteką
-  referencyjną `http_ece`. **Nie był jeszcze puszczany na prawdziwe serwery Google
-  i Apple.**
-- Alternatywa `pywebpush` 2.5.0 ma trzy zmierzone pułapki:
-  - zmienia słownik `claims` w miejscu, więc drugi telefon dostaje zły `aud`;
-  - domyślnie wysyła `TTL 0`;
-  - odrzuca `sub` z adresem zawierającym ścieżkę.
-- `cryptography` wchodzi w osobny plik wymagań kroku wysyłki. Testy kolektora
-  zostają na bibliotece standardowej, poza testem szyfrowania.
-- Nagłówki: `TTL` 12 godz., `Urgency: normal`, `Topic`/`tag` ASCII (np.
-  `podlej-azalia`). Nowe powiadomienie o tym samym podmiocie zastępuje stare, zamiast
-  się dokładać.
+- `pywebpush` w osobnym pliku wymagań kroku wysyłki. Trzy zmierzone pułapki obchodzimy
+  jawnie, a każdą pilnuje test:
+  - świeży słownik `claims` przy każdym wywołaniu, bo biblioteka zmienia go w miejscu
+    i drugi telefon dostałby zły `aud`;
+  - `ttl` podany jawnie, bo domyślne 0 Apple odrzuca;
+  - `sub` bez ścieżki w adresie.
+- Zapas: własna implementacja na samej bibliotece `cryptography` (ok. 100 linii).
+  Prototyp przeszedł lokalnie test z biblioteką referencyjną `http_ece`, ale nie był
+  puszczany na prawdziwe serwery Google i Apple.
+- Nagłówki:
+  - `TTL` 12 godz., `Urgency: normal`;
+  - `Topic`/`tag` ASCII (np. `podlej-azalia`), więc nowe powiadomienie zastępuje stare.
 
-**Telefony:**
+**Telefony:** kroki w `ROSLINY-INSTRUKCJA.md`.
+- **Android:** Chrome, aplikacja już zainstalowana.
+- **iPhone:**
+  - iOS ≥ 16.4, aplikacja dodana z **Safari** i otwarta z ikony. Na iOS 26
+    przełącznik „Otwórz jako aplikację webową" ma być włączony.
+  - Safari cofa zgodę, jeśli push nie pokaże powiadomienia, więc obsługa `push`
+    pokazuje je **zawsze**.
+  - W UE Apple w 2024 r. wycofało się z wyłączenia aplikacji z ekranu początkowego.
 
-*Android (Chrome):*
-1. Otworzyć zainstalowaną aplikację.
-2. Zakładka „Rośliny" → „Włącz powiadomienia" → Zezwól.
-3. „Kopiuj" → wkleić jako sekret `PUSH_ANDROID`.
-4. Actions → próbne powiadomienie.
-5. Jeśli przychodzą z opóźnieniem: Ustawienia → Aplikacje → Chrome → Bateria → bez
-   ograniczeń.
+**Czy powiadomienia dochodzą:**
+1. Adres z `getSubscription()` porównujemy z ostatnio skopiowanym (localStorage).
+   Inny albo brak → „włącz ponownie i podmień sekret".
+2. Obsługa `push` zapisuje w IndexedDB identyfikator odebranego powiadomienia.
+   Zakładka porównuje je z `powiadomienia.json`: wysłane ponad godzinę temu
+   i nieodebrane → „Powiadomienia nie dochodzą do tego telefonu".
 
-*iPhone (iOS ≥ 16.4, najlepiej ≥ 18.4):*
-1. Aplikacja musi być dodana do ekranu początkowego **z Safari**.
-2. Otwarta **z ikony** → „Włącz powiadomienia" → Pozwalaj.
-3. „Kopiuj" → sekret `PUSH_IPHONE`.
-4. Ograniczenia:
-   - po usunięciu i ponownym dodaniu ikony trzeba zrobić subskrypcję od nowa;
-   - Safari cofa zgodę, jeśli push nie pokaże powiadomienia, więc obsługa `push`
-     musi je pokazać **zawsze**;
-   - w UE (DMA) Apple w 2024 r. wycofało się z wyłączenia aplikacji z ekranu
-     początkowego, więc w Polsce działa.
-5. Zakładka sprawdza przy każdym otwarciu, czy subskrypcja żyje. Jeśli nie, pokazuje
-   „Powiadomienia wyłączone — włącz ponownie".
+   Tylko to łapie martwą subskrypcję na iPhonie, którą Apple dalej potwierdza
+   kodem 201.
 
 ### Reguły powiadomień
 
+**Wersja 1 — trzy reguły, które odpowiadają na „podlej albo przestaw":**
+
+| Reguła | Kiedy | Ponowienie | Treść |
+|---|---|---|---|
+| **Podlej** | R poniżej progu rośliny przez ≥ 2 godz.; histereza 6 punktów | co 24 godz. (azalia co 12), najwyżej 3 razy; gaśnie po wykrytym podlaniu | azalia poniżej R 0,60: ta sama reguła zmienia treść na instrukcję zanurzenia (najpierw wyjąć czujnik) |
+| **Czujnik** | cisza > 12 godz., bateria `low`, sonda wyjęta (nagły spadek gleby) | raz, potem karta | „Fikus: czujnik milczy od…" |
+| **Niedzielne podsumowanie** | niedziela, 10:00 | co tydzień, **zawsze** — też jako sygnał, że system żyje | stan trzech roślin, ostatnie podlania, światło tygodnia wobec potrzeby; raz na sezon „przestaw do …" albo „lepszego miejsca nie ma" |
+
 **Zasady ogólne:**
-- **Cisza 21:00–8:00** czasu polskiego. Co wypadnie w nocy, idzie pierwszym przebiegiem
-  po 8:00.
-- **Jedno zbiorcze powiadomienie na przebieg** („Podlej: azalia, skrzydłokwiat").
-  Najwyżej 2 zwykłe na dobę.
-- Stan przewlekły, którego nie da się naprawić od ręki (ciepła kuchnia, ciemna zima),
-  dostaje **jedno** powiadomienie. Potem jest już tylko na karcie, dopóki się nie zmieni.
-- **Pierwszy tydzień na sucho:** reguły liczą się i widać je na zakładce, ale nic nie
-  wychodzi na telefon. Do tego przełącznik w `zbieraj.yml` do wyłączenia wysyłki.
+- Cisza 21:00–8:00 czasu polskiego. Po 8:00 reguły liczą się od nowa. Tylko alarm
+  czujnika zapisuje zdarzenie nocy i wysyła je rano.
+- Jedno zbiorcze powiadomienie na przebieg („Podlej: azalia, skrzydłokwiat"),
+  najwyżej 2 zwykłe na dobę.
+- Pierwszy tydzień po etapie 4 na sucho.
+
+**Wersja 2 — po zebraniu danych, jeśli będą potrzebne:**
+- za mokro za długo („wylej wodę z osłonki / podstawki");
+- za ciepło dla azalii: mediana dobowa ≥ 20 °C przez 3 dni → raz, a dziś przez cały
+  sezon grzewczy byłoby to stale prawdą, więc w v1 tylko tekst na karcie;
+- przy kaloryferze (doniczka − czujnik pokoju ≥ +3 °C przez 3 godz.; czyta pokój, nic
+  nie miesza);
+- za zimno (skrzydłokwiat ≤ 15 °C, fikus ≤ 13 °C, azalia ≤ 7 °C);
+- za dużo słońca: tylko skrzydłokwiat i kwitnąca azalia, odczyt na górnej granicy
+  czujnika ≥ 60 min w 2 z 3 dni. **Wiosną**, po zmierzeniu, przy ilu lx czujnik się
+  nasyca. Fikus znosi słońce i tej reguły nie dostaje;
+- DLI i prognoza „podlej za ok. 2 dni".
 
 **Uczenie progów:**
+- To mediany z wykrytych podlań, a nie „cokolwiek uczącego się" ani wykrywanie
+  anomalii, które `TODO.md` odrzuca. Działa od trzech zdarzeń.
+- **Skala gleby** od „sucho" do „szczytu": R = (odczyt − sucho) ÷ (szczyt − sucho).
+  Bez odjęcia „sucho" progi nie przenoszą się między egzemplarzami: sonda, która
+  w suchej ziemi pokazuje 50%, a po podlaniu 70%, miałaby przy zupełnie suchej ziemi
+  0,71.
+  - „Sucho" to odczyt w powietrzu przy instalacji. Później zastępuje go najniższy
+    odczyt z 30 dni, jeśli jest niższy.
 - **„Szczyt"** to mediana odczytów 2–6 godz. po wykrytym podlaniu, z trzech ostatnich
   podlań.
-- **„Punkt podlewania"** to odczyt tuż przed podlaniem, czyli chwila, w której
-  właściciel sam uznał, że już czas. Po trzech podlaniach mediana staje się osobistym
-  progiem, przyciętym do granic gatunku.
-- Przy schodkach po 3 punkty każda histereza musi mieć **co najmniej 6 punktów**.
+- **„Punkt podlewania"** to R tuż przed podlaniem, czyli chwila, w której właściciel
+  sam uznał, że już czas.
+  - Uczy się **tylko** z podlań, przed którymi nie poszło „podlej", czyli w praktyce
+    z okresu nauki.
+  - Po włączeniu powiadomień próg jest zamrożony i zmienia go tylko strojenie
+    (etap 5). Inaczej każde podlanie chwilę po „podlej" spychałoby próg w dół — dla
+    azalii w niebezpieczną stronę.
+- **Do trzeciego podlania** obowiązuje próg z literatury **[zgadnięte]**, liczony od
+  pierwszego wykrytego szczytu. Przed pierwszym szczytem nie ma powiadomień „podlej".
 
-| Reguła | Sygnał | Kiedy | Ponowienie | Uwagi |
-|---|---|---|---|---|
-| **Podlej** | gleba ÷ szczyt (R) | azalia R ≤ 0,75; skrzydłokwiat ≤ 0,60 (X–II: 0,50); fikus ≤ 0,45 (X–II: 0,35); przez ≥ 2 godz. | co 24 godz. (azalia 12), najwyżej 3 razy | gaśnie po wykrytym podlaniu |
-| **Pilne** | R | azalia ≤ 0,60 → „zanurz doniczkę na 15 min" | 12 godz. | omija limit dobowy, nie omija ciszy nocnej |
-| **Za mokro za długo** | R bez spadku | fikus ≥ 0,85 przez 7 dni (zimą 10); skrzydłokwiat ≥ 0,90 przez 10 (14); azalia ≥ 0,95 przez 7 | raz, potem karta | „wylej wodę z osłonki / podstawki" |
-| **Za ciemno — przestaw** | szacunkowe DLI, mediana z 7 dni, tylko dni z pełnym pomiarem | ≥ 5 z 7 dni poniżej progu gatunku, najlepiej względem światła na dworze | 14 dni; **fikus najwyżej raz na sezon**, a po wykrytym przestawieniu 4–6 tygodni ciszy | zimą po północnej stronie raz powiedzieć „lepszego miejsca nie ma" zamiast przypominać |
-| **Za dużo słońca** | lx | ≥ 10 000 lx (nasycenie czujnika) przez ≥ 30 min w 2 z 3 dni | 7 dni | po północnej stronie do marca praktycznie niemożliwe |
-| **Za ciepło** (azalia) | temperatura przy doniczce, tylko przy słabym świetle | ≥ 24 °C przez 2 godz.; mediana dobowa ≥ 22 °C przez 3 dni → raz | 14 dni | przy słońcu nagrzewa się obudowa, a nie powietrze |
-| **Przy kaloryferze** | doniczka − czujnik pokoju | ≥ +3 °C przez 3 godz. | 7 dni | jedyna reguła, która korzysta z czujników pokoi; tylko czyta, niczego nie miesza |
-| **Za zimno** | temperatura przy doniczce | skrzydłokwiat ≤ 15 °C, fikus ≤ 13 °C przez 2 godz. | 72 godz. | poranne podsumowanie nocy |
-| **Czujnik** | cisza, bateria `low`, nagły spadek gleby (sonda wyjęta) | cisza > 6 godz. za dnia; `low` | 7 dni | zgłoszenie od watchdoga z własną etykietą `rosliny` |
+| Roślina | Próg z literatury (R) | Granice osobistego progu |
+|---|---|---|
+| azalia | 0,75 | 0,60–0,85 |
+| skrzydłokwiat | 0,60 (X–II: 0,50) | 0,40–0,70 |
+| fikus | 0,45 (X–II: 0,35) | 0,20–0,55 |
 
-Wszystkie liczby w tabeli to punkt wyjścia z literatury i są **[do sprawdzenia]**.
-Po 2–3 cyklach podlewania przykłada się je do prawdziwych danych, tak jak 27.09 do
-progów `TREND_MAX` i `CIEPLO_W_DOMU`.
+Granice nie pozwolą nauce utrwalić nawyku przelewania albo przesuszania.
+
+Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
 
 ---
 
 ## Plan wdrożenia
 
-| Etap | Kto | Co | Kiedy gotowe |
-|---|---|---|---|
-| **0. Limit Tuya** | Claude | pobieranie przyrostowe dla wszystkich urządzeń; limit stron na urządzenie; bez nieudanej próby API v2 w każdym przebiegu; podpowiedź przy kodzie wyczerpanego limitu. Szacunek: ok. 29 → ok. 10 zapytań na przebieg, także z roślinami | testy odrzucają starą wersję; liczba zapytań zmierzona w logu przebiegu |
-| | właściciel | iot.tuya.com → projekt → IoT Core: **ile zostało w tym miesiącu i kiedy limit się odnawia** | liczba w ręku |
-| **1. Parowanie i pomiar** | właściciel | sparować trzy czujniki w Smart Life (5 s przycisk), nazwać Fikus / Azalia / Skrzydłokwiat; sprawdzić końcówkę sondy (ostrze czy widełki) i napis na płytce pod klapką (`ZSSF01`?); jeśli Smart Life pozwala, ustawić odstęp próbkowania na 600–1200 s | czujniki widać w Smart Life |
-| | Claude | rozszerzyć `--discover`: surowa specyfikacja (`status` i `functions`), bieżące wartości, **liczba wpisów w logach z 24 godz. na punkt danych** — jedno uruchomienie odpowiada na wszystkie pytania | — |
-| | właściciel | po dobie: Actions → „Pokaż urządzenia w Tuya" | wiadomo: kody, jednostki, skale, kategoria, czy jest zalewanie |
-| | właściciel | jeśli brakuje światła albo wilgotności powietrza: na iot.tuya.com przełączyć **tylko produkt czujnika roślin** na *DP Instruction* i powtórzyć | — |
-| | właściciel (opcjonalnie) | tymczasowa automatyzacja w Smart Life „wilgotność gleby < X → powiadomienie", pora: dzień | — |
-| **2. Kolektor roślin** | Claude | `rosliny.json`, osobny tor w `data/rosliny/`, `rosliny.py`, testy (każdy odrzuca starą wersję albo jest podpisany jako strażnik) | dane z doniczek lecą do repozytorium; strona główna bez zmian — pilnuje tego test |
-| **3. Zakładka „Rośliny"** | Claude | `rosliny.html`, pasek zakładek, karty, wykres, `sw.js`; tryb nauki — bez powiadomień | właściciel widzi rośliny w aplikacji |
-| **4. Powiadomienia** | Claude | nadawca Web Push, krok w `zbieraj.yml`, przycisk i obsługa w `sw.js`, przebieg próbny, zgłoszenie o martwej subskrypcji | próbne powiadomienie dochodzi na Androida (i iPhone'a) |
-| | właściciel | wygenerowane klucze VAPID do sekretów, subskrypcje z telefonów do sekretów | — |
-| | — | tydzień na sucho, potem włączenie | — |
-| **5. Strojenie** | razem | po 2–3 cyklach podlewania przyłożyć progi do danych; wyłączyć automatyzację Smart Life | — |
+**Etap 0. Limit Tuya**
+- **Właściciel:** iot.tuya.com → IoT Core: zużycie w tym miesiącu, limit i data
+  odnowienia.
+- **Claude:** pobieranie przyrostowe, limity stron, bez próby API v2, podpowiedź przy
+  kodzie wyczerpanego limitu, poprawiona dokumentacja.
 
-Etap 0 ma sens niezależnie od roślin i dobrze, żeby poszedł pierwszy. Według prognozy
-limit kończy się pod koniec października.
+**Etap 1. Parowanie i pomiar** — od razu, równolegle z etapem 0, w terminie zwrotu.
+- **Właściciel:**
+  - sparować i nazwać czujniki;
+  - zrobić odczyt w powietrzu i w wodzie;
+  - wbić czujniki;
+  - przez tydzień patrzeć w Smart Life na baterię.
+- **Claude:**
+  - porównanie raportów czujników pokojowych przed i po parowaniu (obciążenie
+    bramki);
+  - po etapie 0 rozszerzone „Pokaż urządzenia w Tuya" i odczyt wyniku.
+- **Właściciel, tylko jeśli poproszę:** *DP Instruction* dla produktu czujnika roślin.
+
+**Etap 2. Kolektor roślin**
+- **Claude:** `rosliny.json`, osobny tor, izolacja danych i awarii, `rosliny.py`,
+  krok watchdoga, testy.
+- Każdy test odrzuca starą wersję albo jest podpisany jako strażnik.
+
+**Etap 3. Zakładka „Rośliny"**
+- **Claude:** `rosliny.html`, pasek zakładek, karty, wykres, `sw.js`.
+- Tryb nauki, bez powiadomień.
+
+**Etap 4. Powiadomienia**
+- **Claude:** nadawca, krok w `zbieraj.yml`, przycisk, obsługa w `sw.js`, przebieg
+  próbny.
+- **Właściciel:** klucz VAPID i subskrypcje do sekretów.
+- Potem tydzień na sucho.
+
+**Etap 5. Strojenie** (razem)
+- Po 2–3 cyklach podlewania przyłożyć progi do danych.
+- Wyłączyć automatyzację Smart Life.
 
 ---
 
 ## Otwarte pytania do właściciela
 
-1. W którym pokoju stoją **fikus** i **skrzydłokwiat**? Jak daleko od okna i od
-   kaloryfera? Czy azalia stoi przy płycie?
-2. **iPhone** — czyj, jaki iOS? Czy powiadomienia mają iść na oba telefony?
-3. Czy doniczka skrzydłokwiatu ma **zbiorniczek na wodę w spodzie**?
-4. Kanał: **Web Push w aplikacji** (rekomendacja) czy prostszy **ntfy**?
-5. Czy zaczynamy od **etapu 0** (limit Tuya)?
+1. Jak dostawać powiadomienia: Android i iPhone w naszej aplikacji, czy przez ntfy?
+2. Jak podlewasz skrzydłokwiat: z góry na ziemię, czy do zbiorniczka w spodzie? Od tego
+   zależy, czy podlanie widać jako skok, czy jako powolny wzrost.
+3. Czy Claude może sam scalać zmiany na `main`? To wdraża stronę i kolektor, a każde
+   scalenie kosztuje jeden przebieg kolektora.
 
 ## Niewiadome, które rozstrzygnie pomiar
 
-- Kody, jednostki i skale w chmurze. Czy światło i wilgotność powietrza w ogóle
+- Kody, jednostki, skale i kategoria w chmurze. Czy światło i wilgotność powietrza
   przychodzą (*Standard* czy *DP Instruction*).
-- Ile wpisów na dobę robi jeden czujnik: raport okresowy, „na zmianę", zalewanie?
-  Od tego zależy koszt w Tuya i rozmiar CSV.
-- Czy kategoria to `zwjcy`.
-- W którą stronę patrzy czujnik światła, przy ilu lx się nasyca i jak często raportuje
-  światło.
-- Ile wytrzymuje bateria.
+- Ile wpisów na godzinę robi jeden czujnik: raport okresowy, „na zmianę", zalewanie.
+  Od tego zależy koszt w Tuya, rozmiar CSV i bateria.
+- Kolejność wpisów w logach Tuya.
+- Czy czujnik roślin obciąża bramkę tak, że gubi raporty pokoi.
+- W którą stronę patrzy czujnik światła i czy nasyca się przy 10 000 lx.
 - Ile pokazuje gleba w powietrzu, w wodzie i w każdej z trzech doniczek.
-- Czy nowe urządzenia same pojawią się w projekcie Tuya (powiązanie „Automatic Link"),
-  czy trzeba ponownie połączyć konto.
-- Czy Smart Life przyjmuje glebę jako warunek automatyzacji i czy powiadomienie dostaje
-  też drugi domownik.
-- Rzeczywisty limit i zużycie zapytań Tuya.
+- Czy nowe urządzenia same pojawią się w projekcie Tuya, czy trzeba ponownie połączyć
+  konto.
+- Czy Smart Life przyjmuje glebę jako warunek automatyzacji i czy powiadomienie
+  dostaje też drugi domownik.
+- Rzeczywisty limit i zużycie zapytań Tuya; czy zapytanie o token wlicza się do limitu.
+- Czy uruchamianie workflowów przez Claude'a działa (odczyt przebiegów działa,
+  uruchomienia jeszcze nie próbowano).
 
 ---
 
 ## Źródła
 
-Czujnik:
+**Czujnik:**
 - Zigbee2MQTT ZS-301Z — https://www.zigbee2mqtt.io/devices/ZS-301Z.html
 - konwerter — https://github.com/Koenkk/zigbee-herdsman-converters/blob/master/src/devices/tuya.ts
 - zgłoszenia Zigbee2MQTT:
@@ -498,31 +725,43 @@ Czujnik:
 - kategoria `zwjcy`:
   - https://github.com/home-assistant/core/blob/dev/homeassistant/components/tuya/const.py
   - https://github.com/tuya/tuya-home-assistant/issues/910
-- logi tylko dla „oficjalnych" punktów danych — https://github.com/jasonacox/tinytuya (`Cloud.getdevicelog`)
-- tryb *DP Instruction* — https://github.com/jasonacox/tinytuya/discussions/284
+- logi tylko dla „oficjalnych" punktów danych, tryb *DP Instruction*:
+  - https://github.com/jasonacox/tinytuya (`Cloud.getdevicelog`)
+  - https://github.com/jasonacox/tinytuya/discussions/284
 
-Tuya:
-- limit triala — https://www.tuya.com/vas/commodity/IOT_CORE_V2 (widziane tylko w wynikach
-  wyszukiwania); użytkownik w styczniu 2026 potwierdza 26 000 — https://github.com/azerty9971/xtend_tuya/issues/718
+**Tuya:**
+- limit triala — https://www.tuya.com/vas/commodity/IOT_CORE_V2 (widziane tylko
+  w wynikach wyszukiwania)
+- użytkownik w styczniu 2026 potwierdza 26 000 —
+  https://github.com/azerty9971/xtend_tuya/issues/718
 - przedłużanie triala — https://github.com/tuya/tuya-home-assistant/blob/main/docs/faq.md
 
-Rośliny:
+**Rośliny** (wszystkie przez wyciągi wyszukiwarki, strony zablokowane):
 - RHS — https://www.rhs.org.uk/plants/164300/ficus-microcarpa-moclame/details
 - UF/IFAS:
   - https://edis.ifas.ufl.edu/publication/EP136
   - https://edis.ifas.ufl.edu/publication/EP161
   - https://mrec.ifas.ufl.edu/foliage/folnotes/spathiph.htm
-- Missouri Botanical Garden (azalia) — https://www.missouribotanicalgarden.org/gardens-gardening/your-garden/help-for-the-home-gardener/advice-tips-resources/gardening-help-faqs/question/524/why-is-my-indoor-azalea-dropping-buds-and-leaves
+- Missouri Botanical Garden (azalia) —
+  https://www.missouribotanicalgarden.org/gardens-gardening/your-garden/help-for-the-home-gardener/advice-tips-resources/gardening-help-faqs/question/524/why-is-my-indoor-azalea-dropping-buds-and-leaves
 - Clemson — https://hgic.clemson.edu/factsheet/peace-lily/
 - SDSU — https://extension.sdstate.edu/care-peace-lilies
+- Epic Gardening (azalia) — https://www.epicgardening.com/indoor-azalea-care/
+- DLI azalii — https://www.researchportal.be/nl/node/8033098
+- światło zimą:
+  - Sarapata, UŚ — https://rebus.us.edu.pl/bitstream/20.500.12128/13656/1/Sarapata_Evaluation_of_the_solar.pdf
+  - https://houseplantjournal.com/?p=213
+- lx → PPFD — https://research.csiro.au/anaccmethods/culture-handling/light-units-and-measurement
 - Murator (azalia, skrzydłokwiat, fikus) — muratordom.pl
-- przeliczanie lx → PPFD — https://research.csiro.au/anaccmethods/culture-handling/light-units-and-measurement
+- twardość wody — PSSE Katowice, ocena za 2025 r. (gov.pl; załącznik nieprzypięty)
 
-Powiadomienia:
+**Powiadomienia:**
 - Apple — https://developer.apple.com/documentation/usernotifications/sending-web-push-notifications-in-web-apps-and-browsers
 - WebKit:
   - https://webkit.org/blog/13878/web-push-for-web-apps-on-ios-and-ipados/
   - https://webkit.org/blog/16535/meet-declarative-web-push/
-- znikające subskrypcje na iOS — https://bugs.webkit.org/show_bug.cgi?id=273063
+- znikające subskrypcje i zimny start na iOS:
+  - https://bugs.webkit.org/show_bug.cgi?id=273063
+  - https://bugs.webkit.org/show_bug.cgi?id=263687
 - limity Chrome — https://developer.chrome.com/blog/web-push-rate-limits
 - ntfy — https://docs.ntfy.sh/publish/
