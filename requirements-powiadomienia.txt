@@ -1,0 +1,31 @@
+# Tylko krok wysyłki powiadomień (wyslij.py) — instaluje się go obok requirements.txt.
+# Testy jednostkowe w CI tego nie potrzebują: wyslij.py importuje pywebpush dopiero przy
+# wysyłce, a testy podstawiają atrapę.
+#
+# Wersje przypięte co do jednej, bo na dokładnie tych 9.10.2026 zmierzono pułapki
+# opisane w wyslij.py (słownik roszczeń zmieniany w miejscu, domyślne ttl=0 i brak
+# limitu czasu, `sub` bez ścieżki) — po podbiciu którejkolwiek trzeba je zmierzyć od
+# nowa: tests/test_wyslij.py, klasa TestPrawdziwaBiblioteka (pomija się bez pywebpush).
+pywebpush==2.5.0
+py-vapid==1.9.4
+http-ece==1.2.1
+cryptography==50.0.2
+# pywebpush 2.5.0 importuje aiohttp już przy `import pywebpush`, choć wysyłamy synchronicznie
+aiohttp==3.14.4
+aiohappyeyeballs==2.7.1
+aiosignal==1.4.0
+attrs==26.1.0
+frozenlist==1.8.0
+multidict==6.9.1
+propcache==0.5.4
+yarl==1.25.1
+cffi==2.1.1
+pycparser==3.11
+# na Pythonie 3.12 (tym z zbieraj.yml) aiosignal ciągnie jeszcze to; na 3.13 zbędne
+typing_extensions==4.16.0
+# te same, co wciąga requirements.txt (requests>=2.31) — przypięte do zmierzonych
+requests==2.34.2
+certifi==2026.7.22
+charset-normalizer==3.5.2
+idna==3.20
+urllib3==2.8.0
