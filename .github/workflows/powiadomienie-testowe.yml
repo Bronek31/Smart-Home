@@ -34,4 +34,4 @@ jobs:
           PUSH_ANDROID: ${{ secrets.PUSH_ANDROID }}
           PUSH_IPHONE: ${{ secrets.PUSH_IPHONE }}
           GH_TOKEN: ${{ github.token }}
-        run: python wyslij.py --test
+        run: python wyslij.py --test --przebieg "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"

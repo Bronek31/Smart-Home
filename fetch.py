@@ -55,6 +55,9 @@ ARTEFAKTY_PLIK = Path(__file__).resolve().parent / "artefakty.json"
 ROSLINY_PLIK = Path(__file__).resolve().parent / "rosliny.json"
 KATALOG_ROSLIN = DATA_DIR / "rosliny"
 STAN_ROSLIN = KATALOG_ROSLIN / "stan.json"
+# Decyzje o powiadomieniach (etap 4). Publiczne jak całe data/ — bez adresów subskrypcji;
+# wysyła je osobny krok zbieraj.yml (wyslij.py) z opublikowanego commita.
+POWIADOMIENIA_ROSLIN = KATALOG_ROSLIN / "powiadomienia.json"
 DAILY = DATA_DIR / "dzienne.csv"
 FIELDS = ["ts", "device_id", "code", "value"]
 DAILY_FIELDS = ["date", "device_id", "code", "min", "avg", "max", "n"]
@@ -1439,6 +1442,13 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = 
             continue
         stany.append(stan)
         alerty.extend(f"**{k['nazwa']}** — {u}" for u in stan["do_zgloszenia"])
+    # Powiadomienia liczone z tych samych stanów, zanim stan.json się zapisze — błąd reguł
+    # ma trafić do `blad` i do watchdoga, a nie zniknąć w logu.
+    try:
+        zaplanuj_powiadomienia_roslin(stany, end_ms, strefa)
+    except Exception as err:
+        bledy.append(f"powiadomienia: {type(err).__name__}: {err}")
+        print(f"Rośliny: błąd reguł powiadomień — {type(err).__name__}: {err}", flush=True)
     alerty.extend(f"**Rośliny** — {b}" for b in bledy)
     _zapisz_stan_roslin({
         "updated": iso(end_ms),
@@ -1448,6 +1458,38 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = 
         "urzadzenia": urzadzenia,
     })
     print(f"Rośliny: dopisano {dopisane} odczytów, przerzedzono {przerzedzone}.", flush=True)
+
+
+def zaplanuj_powiadomienia_roslin(stany: list[dict], end_ms: int, strefa: ZoneInfo) -> None:
+    """Reguły powiadomień (rosliny.zaplanuj_powiadomienia) → data/rosliny/powiadomienia.json.
+
+    Tryb (`POWIADOMIENIA`: na-sucho | wlaczone) i znacznik przebiegu (`PRZEBIEG`) przychodzą
+    z zbieraj.yml. Ten sam przebieg liczony drugi raz po przegranym wyścigu (zapisz.sh)
+    dostaje ten sam znacznik, więc wysyłka i tak weźmie z main tylko jedną wersję.
+    Zapis tylko przy zmianie — bez tego plik zmieniałby się co godzinę i robił commit.
+    """
+    import rosliny
+
+    try:
+        poprzednie = json.loads(POWIADOMIENIA_ROSLIN.read_text(encoding="utf-8"))
+        if not isinstance(poprzednie, dict):
+            poprzednie = None
+    except FileNotFoundError:
+        poprzednie = None
+    tryb = os.environ.get("POWIADOMIENIA", "na-sucho").strip() or "na-sucho"
+    przebieg = os.environ.get("PRZEBIEG", "").strip() or "lokalny"
+    nowe = rosliny.zaplanuj_powiadomienia(stany, poprzednie, end_ms, strefa, tryb, przebieg)
+    if nowe == poprzednie:
+        return
+    KATALOG_ROSLIN.mkdir(parents=True, exist_ok=True)
+    tymczasowy = POWIADOMIENIA_ROSLIN.with_suffix(".json.tmp")
+    tymczasowy.write_text(json.dumps(nowe, ensure_ascii=False, indent=1, allow_nan=False) + "\n",
+                          encoding="utf-8")
+    os.replace(tymczasowy, POWIADOMIENIA_ROSLIN)
+    nowe_wpisy = [w for w in nowe.get("historia", []) if w.get("przebieg") == przebieg]
+    for w in nowe_wpisy:
+        print(f"Powiadomienie{' (na sucho)' if w.get('na_sucho') else ''}: {w.get('tytul')} — {w.get('tresc')}",
+              flush=True)
 
 
 def keep_known(devices: dict) -> dict:

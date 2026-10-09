@@ -719,6 +719,32 @@ class TestTorRoslin(TorRoslin):
         self.assertEqual(self.kod, 0)
         self.assertIn("DP Instruction", self.stan()["blad"] or "")
 
+    def test_powiadomienia_licza_sie_w_kolektorze_na_sucho(self):
+        """Etap 4: kolektor zapisuje decyzje reguł w data/rosliny/powiadomienia.json,
+        a domyślny tryb to „na-sucho" — nic z tego przebiegu nie jest do wysłania."""
+        self.napisz_rosliny()
+        with mock.patch.dict(os.environ, {"PRZEBIEG": "123-1"}):
+            self._przebieg(self.atrapa(), "salon")
+        self.assertEqual(self.kod, 0)
+        plik = self.KATALOG / "powiadomienia.json"
+        self.assertTrue(plik.exists(), "kolektor nie zapisał decyzji powiadomień")
+        dane = json.loads(plik.read_text(encoding="utf-8"))
+        self.assertEqual(dane["tryb"], "na-sucho")
+        self.assertFalse([w for w in dane["historia"] if w.get("na_sucho") is False],
+                         "na sucho nic nie może być do wysłania")
+        # plik jest publiczny — żadnych adresów subskrypcji
+        self.assertNotIn("http", plik.read_text(encoding="utf-8"))
+
+    def test_blad_regul_powiadomien_trafia_do_stanu_a_pokoje_ida_dalej(self):
+        self.napisz_rosliny()
+        with mock.patch.object(rosliny, "zaplanuj_powiadomienia", side_effect=KeyError("atrapa"), create=True):
+            self._przebieg(self.atrapa(), "salon")
+        self.assertEqual(self.kod, 0)
+        self.assertEqual(self.csv_pokoi(), {"salon"})
+        stan = self.stan()
+        self.assertIn("powiadomienia", stan.get("blad") or "")
+        self.assertTrue(stan.get("rosliny"), "błąd reguł nie może skasować stanu roślin")
+
     def test_bez_rosliny_json_nic_nie_powstaje(self):
         """Strażnik: dopóki nie ma konfiguracji, tor roślin nie dotyka data/."""
         self._przebieg(self.atrapa(), "salon")
