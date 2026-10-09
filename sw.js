@@ -16,9 +16,11 @@ const SZKIELET = ['./', './index.html', './rosliny.html', './ikona.svg', './ikon
 const OBCE = /(^|\.)jsdelivr\.net$|(^|\.)googleapis\.com$|(^|\.)gstatic\.com$/;
 
 self.addEventListener('install', e => {
-  // addAll przewraca się w całości, gdy padnie jeden plik — stąd pojedynczo
+  // addAll przewraca się w całości, gdy padnie jeden plik — stąd pojedynczo. cache:'reload'
+  // omija pamięć HTTP przeglądarki (Pages daje max-age 10 min): inaczej nowa wersja mogła
+  // zapisać w szkielecie starą stronę, np. index.html sprzed paska zakładek.
   e.waitUntil(caches.open(WERSJA)
-    .then(c => Promise.all(SZKIELET.map(u => c.add(u).catch(() => null))))
+    .then(c => Promise.all(SZKIELET.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => null))))
     .then(() => self.skipWaiting()));
 });
 

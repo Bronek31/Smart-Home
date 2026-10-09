@@ -60,9 +60,12 @@ test.describe('zakładka roślin', () => {
     await expect(page.locator('#notice')).toBeHidden();
     await expect(page.locator('.karta')).toHaveCount(3);
     await expect(karta(page, 'Azalia')).toHaveAttribute('data-werdykt', 'pilne');
-    await expect(karta(page, 'Azalia').locator('.werdykt')).toHaveText('Podlej pilnie — najlepiej zanurz doniczkę');
+    await expect(karta(page, 'Azalia').locator('.werdykt')).toHaveText('Podlej pilnie');
+    // rada przychodzi z Pythona razem z krokiem „wyjmij czujnik", którego strona sama nie znała
+    await expect(karta(page, 'Azalia').locator('.opis')).toContainText('Wyjmij czujnik');
     await expect(karta(page, 'Skrzydłokwiat').locator('.werdykt')).toHaveText('Gleba w porządku');
-    await expect(karta(page, 'Skrzydłokwiat').locator('.opis')).toHaveText('Gleba na 85% skali, podlewanie przy 50%.');
+    // próg w tych samych procentach co odczyt obok (50%), a nie w „% skali"
+    await expect(karta(page, 'Skrzydłokwiat').locator('.opis')).toHaveText('Podlewaj, gdy gleba spadnie do ok. 34%.');
     await expect(karta(page, 'Fikus').locator('.werdykt')).toHaveText('Uczę się');
     await expect(karta(page, 'Fikus').locator('.opis')).toContainText('pominięte w nauce');
     // nazwa pokoju z manifestu mieszkania, tylko jako podpis
@@ -80,7 +83,7 @@ test.describe('zakładka roślin', () => {
     expect(await pozycja('Skrzydłokwiat', '.pasmo-dobrze')).toBeCloseTo(50, 5);
     expect(await pozycja('Azalia', '.pasmo-teraz')).toBeCloseTo(55, 5);
     await expect(karta(page, 'Fikus').locator('.pasmo-teraz')).toHaveCount(0);
-    await expect(karta(page, 'Fikus').locator('.pasmo-opis')).toHaveText('skala po pierwszym podlaniu');
+    await expect(karta(page, 'Fikus').locator('.pasmo-opis')).toHaveText('skala jeszcze nieznana');
     // wartość gleby jak w stan.json, bez zaokrągleń po drodze
     await expect(karta(page, 'Azalia').locator('.gleba .t')).toHaveText('35%');
     expect(bledy).toEqual([]);
@@ -121,7 +124,7 @@ test.describe('zakładka roślin', () => {
       const ch = wykresy['wykres-gleba'];
       return { pasmo: ch.options.plugins.pasmo, podlania: ch.options.plugins.podlania.lista.length };
     });
-    // pasmo: od progu (11 + 0,5 × (57 − 11) = 34) do poziomu po podlaniu (57)
+    // pasmo: od progu z Pythona (prog_gleba 34) do poziomu po podlaniu (57)
     expect(opcje.pasmo).toEqual({ dol: 34, gora: 57 });
     expect(opcje.podlania).toBe(1);
     expect(bledy).toEqual([]);
@@ -190,6 +193,45 @@ test.describe('zakładka roślin', () => {
     expect(bledy).toEqual([]);
   });
 
+  test('odczyty sprzed wbicia sondy nie trafiają na wykres gleby', async ({ page }) => {
+    /* 9.10: przez pierwsze półtorej doby oś sięgała przed wbicie i sonda w powietrzu
+       (ok. 10%) rysowała się jak zupełnie sucha ziemia. */
+    const { bledy } = await otworzRosliny(page, {}, { hash: '#roslina=Fikus' });
+    const przed = await page.evaluate(() => {
+      const od = Date.parse(stan.rosliny.find((r) => r.nazwa === 'Fikus').od);
+      return wykresy['wykres-gleba'].data.datasets[0].data.filter((p) => p.x < od && p.y != null).length;
+    });
+    expect(przed).toBe(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('przełącznik zostawia fokus na klikniętym przycisku', async ({ page }) => {
+    const { bledy } = await otworzRosliny(page);
+    await page.focus('#wybor .range[data-roslina="Fikus"]');
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement?.dataset?.roslina)).toBe('Fikus');
+    await expect(page.locator('#wybor .range[aria-pressed="true"]')).toHaveText('Fikus');
+    expect(bledy).toEqual([]);
+  });
+
+  test('adres z #roslina= obrysowuje kartę tej rośliny', async ({ page }) => {
+    const { bledy } = await otworzRosliny(page, {}, { hash: '#roslina=Skrzyd%C5%82okwiat' });
+    await expect(karta(page, 'Skrzydłokwiat')).toHaveClass(/wskazana/);
+    await expect(page.locator('.karta.wskazana')).toHaveCount(1);
+    expect(bledy).toEqual([]);
+  });
+
+  test('odczyt sprzed dwóch godzin nie jest jeszcze spóźniony — ten sam próg co nagłówek', async ({ page }) => {
+    const teraz = Date.now();
+    const ts = iso(teraz - 135 * 60e3);
+    const { bledy } = await otworzRosliny(page, { zmiany: { Skrzydłokwiat: { ostatnie: {
+      gleba: { v: 50, ts }, temp: { v: 21, ts }, wilg: { v: 58, ts }, bateria: { v: 'high', ts } } } } });
+    const dd = karta(page, 'Skrzydłokwiat').locator('.fakty div', { hasText: 'Ostatni odczyt' }).locator('dd');
+    await expect(dd).toHaveText('2 godz. temu');
+    await expect(dd).not.toHaveClass(/warn-text/);
+    expect(bledy).toEqual([]);
+  });
+
   test('odświeżenie podmienia karty, gdy kolektor zapisał nowy stan', async ({ page }) => {
     const { bledy, pliki } = await otworzRosliny(page);
     const nowy = JSON.parse(JSON.stringify(pliki['rosliny/stan.json']));
@@ -209,6 +251,37 @@ test.describe('zakładka roślin — odporność', () => {
     await expect(page.locator('#baner')).toBeVisible();
     await expect(page.locator('#baner')).toContainText('Tuya odmówiła (1010)');
     await expect(page.locator('.karta')).toHaveCount(3);
+    expect(bledy).toEqual([]);
+  });
+
+  test('błąd kolektora pojawia się po odświeżeniu, choć czas stanu się nie zmienił', async ({ page }) => {
+    /* blad_toru_roslin() zostawia poprzedni stan razem z `updated` i dopisuje tylko błąd —
+       dawniej otwarta strona porównywała samo `updated` i baner widać było dopiero po
+       przeładowaniu. */
+    const { bledy, pliki } = await otworzRosliny(page);
+    await expect(page.locator('#baner')).toBeHidden();
+    pliki['rosliny/stan.json'] = { ...pliki['rosliny/stan.json'], blad: 'PrzekroczonyCzas: przekroczony limit 300 s' };
+    await page.evaluate(() => odswiez());
+    await expect(page.locator('#baner')).toContainText('PrzekroczonyCzas');
+    expect(bledy).toEqual([]);
+  });
+
+  test('odświeżenie z pustą listą roślin mówi to samo co świeże wczytanie', async ({ page }) => {
+    const { bledy, pliki } = await otworzRosliny(page);
+    pliki['rosliny/stan.json'] = { updated: new Date().toISOString(), blad: 'Fikus: Tuya odmówiła (1010)', alerty: [], rosliny: [], urzadzenia: {} };
+    await page.evaluate(() => odswiez());
+    await expect(page.locator('#notice h2')).toHaveText('Kolektor nie policzył stanu roślin');
+    await expect(page.locator('#app')).toBeHidden();
+    expect(bledy).toEqual([]);
+  });
+
+  test('bez internetu strona mówi o braku połączenia, a nie o kolektorze', async ({ page }) => {
+    const bledy = pilnujBledow(page);
+    await podepnijChart(page);
+    await page.route('**/data/**', (r) => r.abort('internetdisconnected'));
+    await page.goto('/rosliny.html');
+    await page.waitForFunction(() => !/wczytywanie/.test(document.getElementById('stamp').textContent), null, { timeout: 20000 });
+    await expect(page.locator('#notice h2')).toHaveText('Brak połączenia');
     expect(bledy).toEqual([]);
   });
 
@@ -242,6 +315,12 @@ test.describe('zakładka roślin — odporność', () => {
   });
 
   test('czujnik bez żadnych odczytów nie wywraca strony', async ({ page }) => {
+    // napisy rysowane na płótnie wykresów — inaczej nie da się sprawdzić komunikatu „brak odczytów"
+    await page.addInitScript(() => {
+      window.napisy = [];
+      const zwykly = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (tekst, ...reszta) { window.napisy.push(tekst); return zwykly.call(this, tekst, ...reszta); };
+    });
     const { bledy } = await otworzRosliny(page, { zmiany: { Fikus: {
       werdykt: 'czujnik', uwagi: ['Brak jakichkolwiek odczytów.'], ostatnie: {}, podlania: [], swiatlo_dobowe: [],
     } } }, { hash: '#roslina=Fikus' });
@@ -251,6 +330,8 @@ test.describe('zakładka roślin — odporność', () => {
       f.szereg.gleba = f.szereg.gleba.map(() => null);
       rysujWykresy();
     });
+    // pusty szereg to {x, y:null} co godzinę — dawniej wtyczka brała to za dane i nie pisała nic
+    expect(await page.evaluate(() => napisy.includes('Brak odczytów gleby w ostatnich 30 dniach'))).toBe(true);
     await expect(karta(page, 'Fikus').locator('.werdykt')).toHaveText('Sprawdź czujnik');
     await expect(karta(page, 'Fikus').locator('.fakty div', { hasText: 'Ostatni odczyt' }).locator('dd')).toHaveText('brak odczytów');
     await expect(karta(page, 'Fikus').locator('.fakty div', { hasText: 'Ostatnie podlanie' }).locator('dd')).toHaveText('nie wykryto');
@@ -316,5 +397,7 @@ test.describe('zakładka roślin — pliki', () => {
     expect(szkielet).toContain("'./rosliny.html'");
     // bez nowej wersji telefony z poprzednim szkieletem nie dociągną nowej strony
     expect(sw).not.toMatch(/WERSJA = 'smart-home-v3'/);
+    // szkielet z sieci, nie z pamięci HTTP — inaczej nowa wersja mogła zapisać stary index.html
+    expect(sw).toMatch(/new Request\(u, \{ cache: 'reload' \}\)/);
   });
 });

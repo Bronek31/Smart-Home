@@ -123,6 +123,9 @@ class TestKonfiguracja(unittest.TestCase):
             rosliny.wczytaj_konfiguracje("{to nie json")
         with self.assertRaisesRegex(ValueError, "dwa razy"):
             self.wczytaj(self.poprawna(), self.poprawna(nazwa="Drugi"))
+        # ta sama nazwa przy różnych czujnikach — zakładka i powiadomienia wybierają po nazwie
+        with self.assertRaisesRegex(ValueError, "Fikus wpisana dwa razy"):
+            self.wczytaj(self.poprawna(), self.poprawna(czujnik="b"))
 
     def test_prawdziwy_plik_jest_poprawny(self):
         """Strażnik: ręczny rosliny.json w repozytorium musi się wczytać — lekcja
@@ -291,7 +294,17 @@ class TestWerdykt(unittest.TestCase):
 
     def test_azalia_ponizej_pilnego(self):
         k = konf(gatunek="azalia", od="2026-10-08T00:00:00Z")
-        self.assertEqual(self.werdykt(k, self.wiersze(30))["werdykt"], "pilne")   # R = 0,5
+        s = self.werdykt(k, self.wiersze(30))                                  # R = 0,5
+        self.assertEqual(s["werdykt"], "pilne")
+        # rada z ROSLINY.md, z wyjęciem czujnika — strona i powiadomienie biorą ją stąd
+        self.assertIn("Wyjmij czujnik", " ".join(s["uwagi"]))
+
+    def test_prog_w_jednostkach_czujnika(self):
+        """Karta pokazuje glebę w surowych procentach czujnika, więc próg musi być w tych
+        samych — „gleba na 85% skali, podlewanie przy 50%" obok odczytu 50% myliło."""
+        s = self.werdykt(konf(od="2026-10-08T00:00:00Z"), self.wiersze(40))
+        self.assertEqual(s["prog_gleba"], round(10 + s["prog"] * (50 - 10)))
+        self.assertIsNone(self.werdykt(konf(), self.wiersze(40))["prog_gleba"])
 
     def test_cisza_to_czujnik(self):
         k = konf(od="2026-10-08T00:00:00Z")

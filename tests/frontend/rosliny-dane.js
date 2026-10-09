@@ -62,14 +62,15 @@ function zbudujStan(opcje = {}) {
       sucho: 10, od: iso(teraz - 30 * GODZ),
       ostatnie: ostatnie(teraz, { gleba: 100 }),
       szereg: szereg(teraz, {
-        gleba: (t) => (t < teraz - 30 * GODZ ? null : t < podlanieFikusa ? 17 : 100),
+        // przed wbiciem (30 godz. temu) sonda leżała w powietrzu — jak 8/9.10
+        gleba: (t) => (t < teraz - 40 * GODZ ? null : t < teraz - 30 * GODZ ? 10 : t < podlanieFikusa ? 17 : 100),
         temp: (t) => (t < teraz - 40 * GODZ ? null : 21.5),
         wilg: (t) => (t < teraz - 40 * GODZ ? null : 55),
         swiatlo: (t) => (t < teraz - 40 * GODZ ? null : 300),
       }),
       swiatlo_dobowe: doby(teraz, 16000), swiatlo_potrzeba_lxh: 20000,
       podlania: [{ ts: iso(podlanieFikusa), przed: 17, szczyt: null, liczy: false, pominiete: true }],
-      szczyt: null, punkt_podlewania: null, R: null, prog: 0.35, werdykt: 'nauka',
+      szczyt: null, punkt_podlewania: null, R: null, prog: 0.35, prog_gleba: null, werdykt: 'nauka',
       uwagi: ['Podlanie pominięte w nauce (rosliny.json) — skala przyjdzie z następnego.'],
       do_zgloszenia: [],
     },
@@ -83,7 +84,7 @@ function zbudujStan(opcje = {}) {
       }),
       swiatlo_dobowe: doby(teraz, 8000), swiatlo_potrzeba_lxh: 10000,
       podlania: [{ ts: iso(podlanieSkrz), przed: 19.5, szczyt: 57, liczy: true }],
-      szczyt: 57, punkt_podlewania: null, R: 0.85, prog: 0.5, werdykt: 'ok', uwagi: [], do_zgloszenia: [],
+      szczyt: 57, punkt_podlewania: null, R: 0.85, prog: 0.5, prog_gleba: 34, werdykt: 'ok', uwagi: [], do_zgloszenia: [],
     },
     {
       czujnik: 'bf262a90fc72e1aef65arq', nazwa: 'Azalia', gatunek: 'azalia', pokoj: KUCHNIA,
@@ -92,7 +93,10 @@ function zbudujStan(opcje = {}) {
       szereg: szereg(teraz, { gleba: () => 35, temp: () => 20.4, wilg: () => 62, swiatlo: () => 600 }),
       swiatlo_dobowe: doby(teraz, 30000), swiatlo_potrzeba_lxh: 28000,
       podlania: [{ ts: iso(teraz - 4 * DOBA), przed: 30, szczyt: 57, liczy: true }],
-      szczyt: 57, punkt_podlewania: null, R: 0.55, prog: 0.75, werdykt: 'pilne', uwagi: [], do_zgloszenia: [],
+      szczyt: 57, punkt_podlewania: null, R: 0.55, prog: 0.75, prog_gleba: 45, werdykt: 'pilne',
+      // rada dla azalii przychodzi z Pythona (GATUNKI['azalia']['rada_pilne'])
+      uwagi: ['Wyjmij czujnik, wyjmij plastikową doniczkę z osłonki i zanurz ją w letniej wodzie, aż przestaną lecieć bąbelki (15–30 min). Odsącz, wylej wodę z osłonki i wbij czujnik w to samo miejsce.'],
+      do_zgloszenia: [],
     },
   ];
   for (const r of rosliny) Object.assign(r, (opcje.zmiany || {})[r.nazwa] || {});
