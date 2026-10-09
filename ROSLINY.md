@@ -265,6 +265,45 @@ i „Dimmer" (światło). Pasuje to do kodów z #27956 (`env_humidity`, `dimmer`
 dopiero potwierdzi `--discover`. Temperatura po wciśnięciu przycisku i trzymaniu
 w dłoni jest zawyżona; porównanie z czujnikiem pokojowym — po godzinie spokoju.
 
+**Noc obok siebie (8/9.10, 18:45–05:00 UTC, próbkowanie 1200 s, nikt nie ruszał):**
+porównanie z chmury, sprawdzone dwiema metodami i przez sceptyka.
+
+| | Fikus | Skrzydłokwiat | Azalia | Wniosek |
+|---|---|---|---|---|
+| temperatura − Salon | +0,4 °C | +0,3 °C | +0,4 °C | przy świeżym raporcie ok. +0,2 °C; bez przesunięcia |
+| wilgotność powietrza − Salon | −4 | −4 | −2 | ok. −3 ±1 dla wszystkich; bez przesunięcia |
+| gleba w powietrzu (mediana) | 10 | 11 | 9 | „sucho": 10 / 11 / **9** (azalia było 8) |
+| wybudzenie co | 1239 s | 1160 s | 1218 s | zegary rozjechane o ±3% |
+| bateria | high | high | high | |
+
+- **Czujniki raportują tylko zmiany:** temperaturę co ok. 0,4 °C, wilgotność powietrza
+  co 3 punkty. Trzymana wartość przy powolnym trendzie jest więc o tyle spóźniona;
+  „przesunięcia" z tabeli to w dużej części ten próg. Salon (raport co godzinę) nie
+  jest wzorcem lepszym od nich.
+- **Gleba ma pojedyncze dołki o 3–4 punkty** (azalia 9 → 5 → 9, skrzydłokwiat
+  11 → 8 → 11, każdy na jeden raport). Reguły na telefon muszą je przeczekać
+  (projekt reguły „Podlej" już mówi „przez ≥ 2 godz."). Wykrywanie podlań ich nie łapie
+  (skok w górę o 10), a nauka by je odrzuciła (mediany).
+- **Gleba w powietrzu zależy trochę od temperatury:** azalia 8 przy 23–25 °C po
+  południu, 9 nocą przy 22 °C. Różnica 1 punktu to ok. 0,02–0,03 R.
+- **Światło przychodzi nocą, ale nie przy każdym wybudzeniu:** przerwy 61–116 min
+  (skrzydłokwiat najdłuższe), wilgotność powietrza raz po 2 godz. 1 min. Trzymanie
+  wartości podniesione z 2 do 3 godz. Pojedyncze 108 lx na fikusie o 19:27 UTC przy
+  zerze u sąsiadów — krótkie, sztuczne światło tylko na jednej głowicy.
+- **Skrzydłokwiat gubi najwięcej wybudzeń** (ok. 10 z 33 bez żadnego wiersza; część
+  to przerzedzanie, ale też pominięte kody, które były „należne"). Po wbiciu sprawdzić,
+  czy nie gorzej — mokra ziemia i ceramika osłabiają zasięg.
+- **`water_warning` przychodzi tylko jako zdarzenie** (ostatnie 15:43–15:50), bez
+  powtórek. Nie nadaje się na stan — kolektor go zapisuje, decyzje biorą się z gleby.
+- **Bramka nie cierpi:** pokoje wysłały tej nocy 11–12 raportów, tyle co przed
+  parowaniem (6/7.10: 11–17, 7/8.10: 11–12).
+- **Koszt:** 9 zapytań na przebieg plus token, po jednym na roślinę, 8–10 wpisów na
+  godzinę na czujnik. Dwa razy w nocy token pobrany 3–4 razy zamiast raz (02:01,
+  04:01) — do zbadania przy okazji, to kilka zapytań na dobę.
+- Światła w dzień nie porównaliśmy (wschód 04:52 UTC). Pod tą samą lampą 8.10
+  o 17:15 UTC: 103 / 122 / 160 lx, czyli ±25%. Ustawienie głowicy w doniczce zmieni
+  więcej, więc dziennego testu nie robimy.
+
 **Światło:**
 - Otwór jest na czole głowicy, więc przy pionowej sondzie czujnik patrzy najpewniej
   **w bok** **[do sprawdzenia]**.
@@ -857,9 +896,11 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
 - *(Rozstrzygnięte 8.10.)* Kolejność wpisów w logach Tuya: najpewniej od najnowszego
   (17 zapytań na pokój w pierwszym przebiegu, patrz KONTEKST.md). Algorytm i tak jej
   nie zakłada.
-- Czy czujnik roślin obciąża bramkę tak, że gubi raporty pokoi.
+- *(Rozstrzygnięte 9.10.)* Czy czujnik roślin obciąża bramkę tak, że gubi raporty pokoi:
+  nie, pokoje raportują jak przed parowaniem.
 - W którą stronę patrzy czujnik światła i czy nasyca się przy 10 000 lx.
-- Ile pokazuje gleba w powietrzu, w wodzie i w każdej z trzech doniczek.
+- Ile pokazuje gleba w każdej z trzech doniczek i zaraz po podlaniu. *(W powietrzu:
+  10 / 11 / 9, noc 8/9.10.)*
 - Czy nowe urządzenia same pojawią się w projekcie Tuya, czy trzeba ponownie połączyć
   konto.
 - Czy Smart Life przyjmuje glebę jako warunek automatyzacji i czy powiadomienie

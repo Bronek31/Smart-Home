@@ -54,8 +54,12 @@ PRZERZEDZENIE_MS = GODZ
 # (przegląd 8.10: ok. 900 wierszy na dobę zamiast 25). Tylko dla gleby — alarm to 1/0.
 MARTWA_STREFA_GLEBY = 1.0
 # Dłużej niż tyle bez odczytu to cisza, a nie stan trwający — w szeregu godzinowym
-# i w sumie światła nie przeciągamy ostatniej wartości dalej.
-MAKS_PRZERWA_MS = 2 * GODZ
+# i w sumie światła nie przeciągamy ostatniej wartości dalej. Noc 8/9.10 (czujniki
+# obok siebie, próbkowanie 1200 s): światło przychodziło co 61–116 min, bo czujnik nie
+# wysyła każdego kodu przy każdym wybudzeniu, a wilgotność powietrza raz po 2 godz.
+# 1 min. Dwie godziny to było na styk — w doniczce, przy słabszym zasięgu, dziury
+# zjadałyby pokrycie doby i wyłączały regułę „za ciemno".
+MAKS_PRZERWA_MS = 3 * GODZ
 # Skok gleby o co najmniej tyle punktów w ciągu OKNO_PODLANIA_MS to podlanie.
 SKOK_PODLANIA = 10.0
 OKNO_PODLANIA_MS = 2 * GODZ
@@ -256,7 +260,7 @@ def luksogodziny(pkt: list[tuple[int, float]], strefa: ZoneInfo, od_ms: int, do_
                  maks_ms: int = MAKS_PRZERWA_MS) -> list[dict]:
     """Dobowa suma światła [lx·h] w lokalnych dobach, z pokryciem pomiarem (0–1).
 
-    Światło przychodzi rzadko (1–2 wpisy na godzinę, pomiar 8.10), więc trzymamy ostatnią
+    Światło przychodzi rzadko (co 1–2 godz., pomiar z nocy 8/9.10), więc trzymamy ostatnią
     wartość do następnego odczytu, ale najwyżej `maks_ms` — dłuższa przerwa to brak
     pomiaru, a nie ciemność. Pokrycie mówi, jaką część doby naprawdę zmierzono; doba
     z niskim pokryciem nie nadaje się do reguły „za ciemno".

@@ -1,5 +1,5 @@
 {
-  "opis": "Czujniki w doniczkach — osobny tor kolektora (ROSLINY.md). czujnik: identyfikator z „Pokaż urządzenia w Tuya”. gatunek: fikus | skrzydlokwiat | azalia (progi w rosliny.py). pokoj: identyfikator czujnika pokojowego, przy którym stoi roślina (tylko do porównań, nic nie miesza). kody: pola chmury Tuya po przełączeniu produktu na DP Instruction — wpisane jawnie, bo classify() wzięłoby glebę i powietrze za to samo, a światło odrzuciło. sucho: odczyt gleby z sondą w powietrzu (8.10, 18:09) — zero skali R. od: chwila wbicia sondy do ziemi; wcześniejsze odczyty nie uczą progów. Po zmianie kodów kolektor sam odczyta ich skale.",
+  "opis": "Czujniki w doniczkach — osobny tor kolektora (ROSLINY.md). czujnik: identyfikator z „Pokaż urządzenia w Tuya”. gatunek: fikus | skrzydlokwiat | azalia (progi w rosliny.py). pokoj: identyfikator czujnika pokojowego, przy którym stoi roślina (tylko do porównań, nic nie miesza). kody: pola chmury Tuya po przełączeniu produktu na DP Instruction — wpisane jawnie, bo classify() wzięłoby glebę i powietrze za to samo, a światło odrzuciło. sucho: mediana odczytu gleby z sondą w powietrzu z nocy 8/9.10 (czujniki obok siebie, 10 godz.) — zero skali R. od: chwila wbicia sondy do ziemi; wcześniejsze odczyty nie uczą progów. Po zmianie kodów kolektor sam odczyta ich skale.",
   "rosliny": [
     {
       "czujnik": "bfe5bdf2b91c53dfd1eaiy",
@@ -24,7 +24,7 @@
       "nazwa": "Azalia",
       "gatunek": "azalia",
       "pokoj": "bf5741c97c96fa85b1d7do",
-      "sucho": 8,
+      "sucho": 9,
       "od": null,
       "kody": {"gleba": "humidity", "temp": "temp_current", "wilg": "env_humidity", "swiatlo": "illumiance", "bateria": "battery_state", "alarm": "water_warning"}
     }
