@@ -11,8 +11,8 @@
 
    Po zmianie tej listy albo strategii podnieś WERSJA — stare cache lecą wtedy
    do kosza przy aktywacji. */
-const WERSJA = 'smart-home-v3';
-const SZKIELET = ['./', './index.html', './ikona.svg', './ikona-192.png', './ikona-512.png', './manifest.json'];
+const WERSJA = 'smart-home-v4';
+const SZKIELET = ['./', './index.html', './rosliny.html', './ikona.svg', './ikona-192.png', './ikona-512.png', './manifest.json'];
 const OBCE = /(^|\.)jsdelivr\.net$|(^|\.)googleapis\.com$|(^|\.)gstatic\.com$/;
 
 self.addEventListener('install', e => {
