@@ -304,7 +304,8 @@ def _mediana(pkt: list[tuple[int, float]], czasy: list[int], od: int, do: int) -
 
 
 def podlania(gleba: list[tuple[int, float]], teraz_ms: int | None = None,
-             skok: float = SKOK_PODLANIA, okno_ms: int = OKNO_PODLANIA_MS) -> list[dict]:
+             skok: float = SKOK_PODLANIA, okno_ms: int = OKNO_PODLANIA_MS,
+             od_ms: int | None = None, sucho: float | None = None) -> list[dict]:
     """Wykryte podlania, rosnąco w czasie.
 
     Podlanie to wzrost gleby o co najmniej `skok` punktów względem najniższego odczytu
@@ -321,8 +322,15 @@ def podlania(gleba: list[tuple[int, float]], teraz_ms: int | None = None,
       jeszcze odcieka i szczyt skakałby między przebiegami.
     `liczy` mówi, czy podlanie uczy skali: także mediany muszą się różnić o `skok`.
     Poprawienie sondy (30 → 18 → 30) daje skok, ale nie wodę.
+
+    Gdy w oknie 2–6 godz. przed nie ma odczytów (pierwsze podlanie zaraz po wbiciu
+    sondy, przerwa w danych), `przed` to mediana z 2 godz. tuż przed skokiem. Odczyty
+    na poziomie powietrza (≤ `sucho` + ZAPAS_SUCHO) nie wchodzą ani do `przed`, ani do
+    `szczyt`. Podlania sprzed `od_ms` nie są zwracane — ale ich odczyty dalej służą za
+    tło: 9.10 właściciel podlał 10 minut po starcie nauki, a dawna wersja, która
+    dostawała szereg obcięty do startu nauki, nie miała wtedy ani jednego odczytu
+    „przed" i pierwsze podlanie nigdy nie uczyło skali.
     """
-    czasy = [t for t, _ in gleba]
     wydarzenia: list[int] = []
     okno: deque[int] = deque()            # indeksy, wartości rosnąco od lewej
     for i, (t, v) in enumerate(gleba):
@@ -340,11 +348,18 @@ def podlania(gleba: list[tuple[int, float]], teraz_ms: int | None = None,
         while okno and gleba[okno[-1]][1] >= v:
             okno.pop()
         okno.append(i)
+    w_ziemi = gleba if sucho is None else [(t, v) for (t, v) in gleba if v > sucho + ZAPAS_SUCHO]
+    czasy_w_ziemi = [t for t, _ in w_ziemi]
     out = []
     for ms in wydarzenia:
-        przed = _mediana(gleba, czasy, ms - PRZED_DO_MS, ms - PRZED_OD_MS)
+        if od_ms is not None and ms < od_ms:
+            continue
+        przed = _mediana(w_ziemi, czasy_w_ziemi, ms - PRZED_DO_MS, ms - PRZED_OD_MS)
+        if przed is None:
+            przed = _mediana(w_ziemi, czasy_w_ziemi, ms - PRZED_OD_MS, ms - 1)
         gotowe = teraz_ms is None or teraz_ms >= ms + SZCZYT_DO_MS
-        szczyt = _mediana(gleba, czasy, ms + SZCZYT_OD_MS, ms + SZCZYT_DO_MS) if gotowe else None
+        szczyt = (_mediana(w_ziemi, czasy_w_ziemi, ms + SZCZYT_OD_MS, ms + SZCZYT_DO_MS)
+                  if gotowe else None)
         out.append({"ts": iso(ms), "przed": przed, "szczyt": szczyt,
                     "liczy": przed is not None and szczyt is not None and szczyt - przed >= skok})
     return out
@@ -418,11 +433,15 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
     od_nauki = None
     if od_wbicia is not None:
         od_nauki = od_wbicia + ZAPAS_PO_WBICIU_MS
-        gleba_nauki = [(t, v) for (t, v) in gleba if t >= max(od_nauki, teraz_ms - DNI_NAUKI * DOBA)]
+        # Szereg od wbicia, nie od startu nauki: odczyty z pierwszej godziny w ziemi są
+        # tłem dla podlania tuż po starcie nauki. Samo wbicie (skok z powietrza do ziemi)
+        # wypada, bo podlania sprzed od_nauki nie są liczone.
+        gleba_nauki = [(t, v) for (t, v) in gleba
+                       if t >= max(od_wbicia, teraz_ms - DNI_NAUKI * DOBA)]
     else:
         gleba_nauki = []          # bez daty wbicia sondy nie uczymy się niczego
-    podl = podlania(gleba_nauki, teraz_ms)
     sucho = konf.get("sucho")
+    podl = podlania(gleba_nauki, teraz_ms, od_ms=od_nauki, sucho=sucho)
     wynik_nauki = nauka(podl, sucho)
     miesiac = datetime.fromtimestamp(teraz_ms / 1000, strefa).month
     prog = prog_rosliny(konf["gatunek"], miesiac, sucho, wynik_nauki["szczyt"],
