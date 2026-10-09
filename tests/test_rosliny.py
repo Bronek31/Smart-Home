@@ -161,15 +161,24 @@ class TestSwiatlo(unittest.TestCase):
         pkt = [(poczatek + k * GODZ, 600.0) for k in range(5)]
         doby = rosliny.luksogodziny(pkt, WAWA, ms("2026-10-07T22:00:00Z"), ms("2026-10-08T21:59:59Z"))
         doba = {d["data"]: d for d in doby}["2026-10-08"]
-        # 5 punktów co godzinę, ostatni trzymany 2 godz.: 6 godz. po 600 lx
-        self.assertEqual(doba["lxh"], 3600)
-        self.assertAlmostEqual(doba["pokrycie"], 6 / 24, places=2)
+        # 5 punktów co godzinę, ostatni trzymany 3 godz.: 7 godz. po 600 lx
+        self.assertEqual(doba["lxh"], 4200)
+        self.assertAlmostEqual(doba["pokrycie"], 7 / 24, places=2)
 
     def test_dluga_przerwa_to_brak_pomiaru_a_nie_ciemnosc_ani_swiatlo(self):
         pkt = [(ms("2026-10-08T08:00:00Z"), 1000.0), (ms("2026-10-08T14:00:00Z"), 0.0)]
         doby = rosliny.luksogodziny(pkt, WAWA, ms("2026-10-07T22:00:00Z"), ms("2026-10-08T21:59:59Z"))
         doba = {d["data"]: d for d in doby}["2026-10-08"]
-        self.assertEqual(doba["lxh"], 2000, "1000 lx przeciągnięte dalej niż 2 godz.")
+        self.assertEqual(doba["lxh"], 3000, "1000 lx przeciągnięte dalej niż 3 godz.")
+
+    def test_swiatlo_co_dwie_godziny_to_pelna_doba(self):
+        # Noc 8/9.10: czujnik nie wysyła światła przy każdym wybudzeniu, przerwy do 116 min.
+        # W doniczce może być rzadziej; przy trzymaniu 2 godz. każda przerwa 130 min
+        # dziurawiła dobę i wyłączała regułę „za ciemno".
+        polnoc = ms("2026-10-08T22:00:00Z")                  # 9.10, 00:00 w Warszawie
+        pkt = [(polnoc + k * 130 * 60_000, 0.0) for k in range(12)]
+        doba = rosliny.luksogodziny(pkt, WAWA, polnoc, polnoc + DOBA_MS)[0]
+        self.assertEqual(doba["pokrycie"], 1.0)
 
     def test_doba_dzieli_sie_o_lokalnej_polnocy(self):
         # 23:00–01:00 czasu warszawskiego po 100 lx: po godzinie w każdej dobie
