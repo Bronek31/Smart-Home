@@ -739,9 +739,13 @@ w osobnych kopiach repozytorium, potem przegląd z czterech stron ze sceptykiem.
   tolerancja 10 min na „2 godz." i „co dobę", bo przebiegi co godzinę pływają o sekundy;
   ponowienie nie czeka na poranne 2 godz. (azalia naprawdę co 12 godz.); bateria
   „trzyma" alarm do „high"; wpis czujnika niesie wszystkie trwające powody.
+- **Sprawdzone na Androidzie 9.10:** klucze z przycisku „Utwórz klucze" (na Androidzie),
+  sekret `PUSH_ANDROID`; test z `powiadomienie-testowe.yml` → FCM odpowiedział 201,
+  powiadomienie doszło, kliknięcie otworzyło zakładkę „Rośliny". Stała w stronie
+  zgadza się z kluczem w sekrecie (inaczej `--test` kończy się błędem).
 - **Niezweryfikowane:** prawdziwe odpowiedzi Apple (sieć tego środowiska blokuje
-  web.push.apple.com) i obejście zimnego startu na iPhonie — sprawdzi pierwsze
-  powiadomienie testowe.
+  web.push.apple.com) i obejście zimnego startu na iPhonie — `PUSH_IPHONE` dojdzie
+  później; wtedy drugi test.
 
 **Kanał:**
 
