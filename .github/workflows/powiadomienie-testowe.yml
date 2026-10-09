@@ -4,7 +4,8 @@ name: Powiadomienie testowe
 # całej drogi (sekret → serwer push Google/Apple → telefon) bez czekania, aż któraś roślina
 # będzie potrzebować wody. Właściciel odpala je przyciskiem „Run workflow"; Claude
 # uruchamiać workflowów nie może (403), więc rusza ono też po zmianie tego pliku na main —
-# jak odkryj.yml (pierwsze wywołanie: po podpięciu telefonów).
+# jak odkryj.yml. Wywołania przez zmianę pliku (dopisz linię, żeby wysłać znowu):
+# - 9.10, Android podpięty (iPhone później).
 
 on:
   workflow_dispatch:
