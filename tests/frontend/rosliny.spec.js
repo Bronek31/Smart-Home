@@ -414,7 +414,8 @@ test.describe('zakładka roślin — pliki', () => {
 
 const SW = fs.readFileSync(path.join(KORZEN, 'sw.js'), 'utf8');
 const ROSLINY_HTML = fs.readFileSync(path.join(KORZEN, 'rosliny.html'), 'utf8');
-const PUSTY_KLUCZ = "const VAPID_PUBLICZNY='';";
+// stała z pliku podmieniana w testach — w repozytorium stoi już prawdziwy klucz właściciela
+const STALA_KLUCZA = /const VAPID_PUBLICZNY='[^']*';/;
 const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36';
 const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 
@@ -495,10 +496,9 @@ async function otworzPowiadomienia(page, { klucz = null, powiadomienia, atrapy =
   await podepnijChart(page);
   const pliki = await podstawRosliny(page);
   if (powiadomienia !== undefined) pliki['rosliny/powiadomienia.json'] = powiadomienia;
-  if (klucz) {
-    await page.route('**/rosliny.html', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8',
-      body: ROSLINY_HTML.replace(PUSTY_KLUCZ, `const VAPID_PUBLICZNY='${klucz}';`) }));
-  }
+  // zawsze podmieniamy stałą: bez klucza testy sprawdzają stronę „przed konfiguracją"
+  await page.route('**/rosliny.html', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8',
+    body: ROSLINY_HTML.replace(STALA_KLUCZA, `const VAPID_PUBLICZNY='${klucz || ''}';`) }));
   await atrapyPowiadomien(page, atrapy);
   await page.goto('/rosliny.html');
   await czekajNaTelefon(page);
