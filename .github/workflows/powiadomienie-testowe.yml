@@ -1,0 +1,37 @@
+name: Powiadomienie testowe
+
+# Jedno powiadomienie „Powiadomienia działają" na każdy podpięty telefon — do sprawdzenia
+# całej drogi (sekret → serwer push Google/Apple → telefon) bez czekania, aż któraś roślina
+# będzie potrzebować wody. Właściciel odpala je przyciskiem „Run workflow"; Claude
+# uruchamiać workflowów nie może (403), więc rusza ono też po zmianie tego pliku na main —
+# jak odkryj.yml. Ostatnie wywołanie: 9.10, pierwsze podpięcie telefonów.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/powiadomienie-testowe.yml'
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -r requirements-powiadomienia.txt
+      - name: Wyślij powiadomienie testowe
+        env:
+          VAPID_KLUCZ_PRYWATNY: ${{ secrets.VAPID_KLUCZ_PRYWATNY }}
+          PUSH_ANDROID: ${{ secrets.PUSH_ANDROID }}
+          PUSH_IPHONE: ${{ secrets.PUSH_IPHONE }}
+          GH_TOKEN: ${{ github.token }}
+        run: python wyslij.py --test
