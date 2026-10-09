@@ -50,6 +50,8 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 | `rosliny.json` | czujniki w doniczkach: identyfikator, roślina, gatunek, kody pól Tuya, odczyt „sucho" i data wbicia. Ręczna lista |
 | `rosliny.py` | obliczenia dla doniczek bez sieci i plików: przerzedzanie, światło dobowe, podlania, progi, werdykt |
 | `rosliny.html` | zakładka „Rośliny": karty roślin z werdyktem i wykresy gleby oraz światła z `data/rosliny/stan.json`. Osobna strona w tej samej aplikacji — strona mieszkania ma tylko pasek zakładek |
+| `wyslij.py` | nadawca powiadomień Web Push: wysyła z `data/rosliny/powiadomienia.json` tylko wpisy tego przebiegu (krok w `zbieraj.yml`); sekrety `VAPID_KLUCZ_PRYWATNY`, `PUSH_ANDROID`, `PUSH_IPHONE` |
+| `requirements-powiadomienia.txt` | biblioteki nadawcy (pywebpush), instalowane tylko w kroku wysyłki |
 | `KONTEKST.md` | notatka przekazania: dlaczego jest tak, jak jest, i na co uważać przy dalszej pracy |
 | `ROSLINY.md` | plan czujników w doniczkach i powiadomień na telefon — w przygotowaniu |
 | `ROSLINY-INSTRUKCJA.md` | co zrobić z czujnikami w doniczkach krok po kroku — dla właściciela |

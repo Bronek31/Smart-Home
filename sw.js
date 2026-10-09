@@ -168,19 +168,17 @@ async function zapiszCel(cel) {
 }
 
 async function otworzCel(cel) {
-  // includeUncontrolled widzi wszystkie karty z tego originu, także innych projektów
-  // na github.io — przejmujemy tylko okno naszej aplikacji
-  const okna = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  // Tylko okna, którymi ten worker steruje — w nich navigate() działa. Okno spoza
+  // kontroli (albo karta innego projektu na github.io) nie jest nasze: nowe okno.
+  const okna = await self.clients.matchAll({ type: 'window' });
   const zakres = self.registration.scope;
   const okno = okna.find(o => o.url.startsWith(zakres));
   if (okno) {
-    try {
-      await okno.focus();
-      // navigate() działa tylko w oknie, którym ten worker steruje; w innym rzuca —
-      // wtedy nowe okno, żeby kliknięcie nie skończyło się na samym fokusie
-      await okno.navigate(cel);
-      return;
-    } catch { /* niżej openWindow */ }
+    // Po udanym focus() nie ma już openWindow: Chrome daje jedno kliknięcie na jedno
+    // okno, więc zapasowe openWindow i tak by odmówiło, a zostawiłoby zapisany cel
+    // (przegląd 9.10 — dawny test tego nie łapał, bo atrapa pozwalała na oba).
+    try { await okno.focus(); await okno.navigate(cel); } catch { /* fokus już jest */ }
+    return;
   }
   // Cel tylko przed openWindow, czyli przy zimnym starcie — tam działa obejście. Przy
   // otwartym oknie navigate() wystarcza, a zapisany cel mógłby zostać (nawigacja w obrębie

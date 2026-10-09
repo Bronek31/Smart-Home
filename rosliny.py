@@ -792,7 +792,10 @@ def zaplanuj_powiadomienia(stany: list[dict], poprzednie: dict | None, teraz_ms:
             licz = sorted(wyslano + sucho) if na_sucho else wyslano
             gatunek = s.get("gatunek")
             odstep = PONOWIENIE_GATUNKU_MS.get(gatunek, PONOWIENIE_MS) if isinstance(gatunek, str) else PONOWIENIE_MS
-            if (not noc and teraz_ms - max(od, rano_ms) >= TRWA_PONIZEJ_MS - ZAPAS_PRZEBIEGU_MS
+            # Poranne 2 godz. od 8:00 dotyczą tylko pierwszej wysyłki epizodu. Ponowienie
+            # czekało na nie także, więc „azalia co 12 godz." w praktyce wypadało raz na dobę
+            # około 10:00, jak u pozostałych (przegląd 9.10).
+            if (not noc and (licz or teraz_ms - max(od, rano_ms) >= TRWA_PONIZEJ_MS - ZAPAS_PRZEBIEGU_MS)
                     and len(licz) < MAKS_WYSYLEK_EPIZODU
                     and (not licz or teraz_ms - licz[-1] >= odstep - ZAPAS_PRZEBIEGU_MS)):
                 do_podlania.append(s)
@@ -803,8 +806,19 @@ def zaplanuj_powiadomienia(stany: list[dict], poprzednie: dict | None, teraz_ms:
             if isinstance(tekst, str) and tekst:
                 powody.setdefault(_powod(tekst), tekst)
         czujnik = przed.get("czujnik") if isinstance(przed.get("czujnik"), dict) else {}
-        czujnik = {p: dict(v) for p, v in czujnik.items() if p in powody and isinstance(v, dict)}
+        # Bateria na granicy low/middle skakałaby co kilka godzin i za każdym powrotem do
+        # „low" szedłby nowy alarm. Znacznik „bateria" trzyma się, dopóki czujnik nie zgłosi
+        # „high", czyli do wymiany baterii (przegląd 9.10: 28 alarmów zamiast 1).
+        ostatnie = s.get("ostatnie") if isinstance(s.get("ostatnie"), dict) else {}
+        bateria = ostatnie.get("bateria") if isinstance(ostatnie.get("bateria"), dict) else {}
+        trzymaj = {"bateria"} if str(bateria.get("v", "")).lower() not in ("high", "") else set()
+        czujnik = {p: dict(v) for p, v in czujnik.items() if (p in powody or p in trzymaj) and isinstance(v, dict)}
         nocne = [n for n in _lista(przed.get("noc")) if isinstance(n, dict) and n.get("powod")]
+        if not noc:
+            # nocna „bateria" rano dalej trwa — idzie jako zwykły alarm, nie „do rana minęło"
+            for n in nocne:
+                if n["powod"] in trzymaj and n["powod"] not in powody:
+                    powody[n["powod"]] = str(n.get("tekst", ""))
         nowe = [p for p in powody if not (czujnik.get(p, {}).get("wyslano")
                                           or (na_sucho and czujnik.get(p, {}).get("na_sucho")))]
         if noc:
@@ -816,7 +830,10 @@ def zaplanuj_powiadomienia(stany: list[dict], poprzednie: dict | None, teraz_ms:
                        f"{_mala(str(n.get('tekst', '')))} Do rana minęło."
                        for n in nocne if n["powod"] not in powody]
             if linie or minione:
-                czujnik_nowe.append((nazwa, linie + minione))
+                # Wpis niesie wszystkie trwające powody, nie tylko nowe: ten sam tag podmienia
+                # na telefonie poprzedni alarm tej rośliny, więc inaczej nieprzeczytana
+                # „bateria" znikałaby pod nowym „sonda wyjęta".
+                czujnik_nowe.append((nazwa, [f"{nazwa}: {_mala(t)}" for t in powody.values()] + minione))
             if powody or minione:
                 czujnik_trwa.append((nazwa, [f"{nazwa}: {_mala(t)}" for t in powody.values()] + minione))
             nocne = []                   # rano noc wychodzi — w tym wpisie albo w powitaniu

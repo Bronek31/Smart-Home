@@ -725,6 +725,24 @@ listy wymaganych plików.
 
 ### Etap 4: powiadomienia
 
+**Stan na 9.10: zbudowane, na sucho** — reguły (`rosliny.zaplanuj_powiadomienia`,
+`data/rosliny/powiadomienia.json`), nadawca (`wyslij.py`, krok w `zbieraj.yml`,
+`powiadomienie-testowe.yml`), telefon (sekcja „Powiadomienia" w `rosliny.html`, obsługa
+`push`/`notificationclick` w `sw.js` v5, zimny start w `index.html`). Trzech wykonawców
+w osobnych kopiach repozytorium, potem przegląd z czterech stron ze sceptykiem.
+- **Zmierzone na prawdziwej bibliotece** (pywebpush 2.5.0, py-vapid 1.9.4): wszystkie trzy
+  pułapki potwierdzone; klucz prywatny jako JWK `d` z WebCrypto działa w
+  `Vapid.from_string`, a wyliczony publiczny = eksport `raw` co do bajta. Treść powyżej
+  3993 B nie mieści się w 4096 B po zaszyfrowaniu — nadawca przycina.
+- **Odstępstwa od planu:** jeden wpis na regułę na przebieg (nie jeden zbiorczy na
+  wszystko) — każda reguła ma własny tag, a tag podmienia powiadomienie na telefonie;
+  tolerancja 10 min na „2 godz." i „co dobę", bo przebiegi co godzinę pływają o sekundy;
+  ponowienie nie czeka na poranne 2 godz. (azalia naprawdę co 12 godz.); bateria
+  „trzyma" alarm do „high"; wpis czujnika niesie wszystkie trwające powody.
+- **Niezweryfikowane:** prawdziwe odpowiedzi Apple (sieć tego środowiska blokuje
+  web.push.apple.com) i obejście zimnego startu na iPhonie — sprawdzi pierwsze
+  powiadomienie testowe.
+
 **Kanał:**
 
 | Kanał | Za | Przeciw | Rola |

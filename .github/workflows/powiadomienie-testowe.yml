@@ -4,7 +4,7 @@ name: Powiadomienie testowe
 # całej drogi (sekret → serwer push Google/Apple → telefon) bez czekania, aż któraś roślina
 # będzie potrzebować wody. Właściciel odpala je przyciskiem „Run workflow"; Claude
 # uruchamiać workflowów nie może (403), więc rusza ono też po zmianie tego pliku na main —
-# jak odkryj.yml. Ostatnie wywołanie: 9.10, pierwsze podpięcie telefonów.
+# jak odkryj.yml (pierwsze wywołanie: po podpięciu telefonów).
 
 on:
   workflow_dispatch:
@@ -34,4 +34,11 @@ jobs:
           PUSH_ANDROID: ${{ secrets.PUSH_ANDROID }}
           PUSH_IPHONE: ${{ secrets.PUSH_IPHONE }}
           GH_TOKEN: ${{ github.token }}
-        run: python wyslij.py --test --przebieg "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+        run: |
+          # Scalenie etapu 4 zmienia ten plik, a kluczy jeszcze nie ma — wtedy pomijamy,
+          # zamiast świecić na czerwono (przegląd 9.10). Ręczne „Run workflow" sprawdza zawsze.
+          if [ "$GITHUB_EVENT_NAME" = push ] && grep -q "const VAPID_PUBLICZNY='';" rosliny.html; then
+            echo "::notice::Klucz VAPID jeszcze nie ustawiony w rosliny.html — pomijam test."
+            exit 0
+          fi
+          python wyslij.py --test --przebieg "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"

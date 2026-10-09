@@ -529,15 +529,24 @@ async function stronaProby(page) {
 function zaladujSw([zrodlo, { okna = [], bezIndexedDB = false, zakres = location.origin + '/' } = {}]) {
   const obslugi = {};
   const log = window.log = { pokazane: [], otwarte: [], nawigacje: [], fokusy: 0, zamkniete: 0 };
+  // Jedno kliknięcie w powiadomienie to jeden „żeton" na focus() albo openWindow() — tak
+  // działa Chrome; drugie wywołanie rzuca. Atrapa bez tego przepuszczała oba naraz.
+  let zeton = 0;
+  const zuzyj = () => { if (zeton-- <= 0) throw new DOMException('Not allowed to open a window.', 'InvalidAccessError'); };
   const okienka = okna.map((o) => ({
     url: o.url,
-    focus: async () => { log.fokusy++; },
-    navigate: async (u) => { if (o.niesterowane) throw new TypeError('okno bez tego workera'); log.nawigacje.push(u); return null; },
+    niesterowane: !!o.niesterowane,
+    focus: async () => { zuzyj(); log.fokusy++; },
+    navigate: async (u) => { if (o.niesterowane || o.nawigacjaRzuca) throw new TypeError('okno bez tego workera'); log.nawigacje.push(u); return null; },
   }));
   const atrapaSelf = {
     addEventListener: (typ, f) => { obslugi[typ] = f; },
     registration: { scope: zakres, showNotification: async (t, o) => { log.pokazane.push([t, o]); } },
-    clients: { matchAll: async () => okienka, openWindow: async (u) => { log.otwarte.push(u); return null; }, claim: async () => {} },
+    clients: {
+      matchAll: async (opcje = {}) => okienka.filter((o) => opcje.includeUncontrolled || !o.niesterowane),
+      openWindow: async (u) => { zuzyj(); log.otwarte.push(u); return null; },
+      claim: async () => {},
+    },
     skipWaiting: async () => {},
   };
   const idb = bezIndexedDB ? { open() { throw new Error('IndexedDB wyłączone'); } } : indexedDB;
@@ -546,7 +555,7 @@ function zaladujSw([zrodlo, { okna = [], bezIndexedDB = false, zakres = location
   window.sw = {
     ...funkcje,
     async push(tekst) { const e = zdarzenie({ data: tekst == null ? null : { text: () => tekst } }); obslugi.push(e); await Promise.all(e.czekaj); },
-    async klik(data) { const e = zdarzenie({ notification: { data, close: () => { log.zamkniete++; } } }); obslugi.notificationclick(e); await Promise.all(e.czekaj); },
+    async klik(data) { zeton = 1; const e = zdarzenie({ notification: { data, close: () => { log.zamkniete++; } } }); obslugi.notificationclick(e); await Promise.all(e.czekaj); },
     async aktywuj() { const e = zdarzenie({}); obslugi.activate(e); await Promise.all(e.czekaj); },
   };
 }
@@ -870,6 +879,13 @@ test.describe('powiadomienia', () => {
     await page.evaluate(() => sw.klik({ url: 'rosliny.html#roslina=Fikus', id: 'A' }));
     expect(await page.evaluate(() => log)).toMatchObject({ nawigacje: [], otwarte: [`${origin}/rosliny.html#roslina=Fikus`] });
     expect((await celWCache(page)).cel).toBe('rosliny.html#roslina=Fikus');
+    // okno nasze, ale navigate() się nie udało: fokus już zużył kliknięcie — bez openWindow
+    // i bez zapisanego celu, który przerzuciłby potem zakładkę „Mieszkanie" do roślin
+    await page.evaluate(() => caches.delete('cel-powiadomienia'));
+    await page.evaluate(zaladujSw, [SW, { okna: [{ url: `${origin}/index.html`, nawigacjaRzuca: true }] }]);
+    await page.evaluate(() => sw.klik({ url: 'rosliny.html#roslina=Fikus', id: 'A' }));
+    expect(await page.evaluate(() => log)).toMatchObject({ fokusy: 1, nawigacje: [], otwarte: [] });
+    expect(await celWCache(page)).toBeNull();
     // karta innego projektu z tego samego originu (github.io) — nie nasza, zostaje w spokoju
     await page.evaluate(zaladujSw, [SW, { zakres: `${origin}/Smart-Home/`, okna: [{ url: `${origin}/inny-projekt/` }] }]);
     await page.evaluate(() => sw.klik({ url: 'rosliny.html#roslina=Fikus', id: 'A' }));

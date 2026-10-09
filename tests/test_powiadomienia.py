@@ -181,17 +181,21 @@ class TestPodlej(unittest.TestCase):
                          "najwyżej 3 wysyłki na epizod, potem już tylko karta")
 
     def test_azalia_ponawia_po_12_godz_fikus_po_24(self):
-        """12 godz. po wysyłce między 9:50 a 21:00 wypada zawsze w nocy albo przed 9:50,
-        więc dokładnej granicy 12 godz. nie widać — widać, że azalia nie czeka doby."""
+        """Ponowienie nie czeka na poranne 2 godz. od 8:00 — to dotyczy tylko pierwszej
+        wysyłki epizodu. Dawniej „azalia co 12 godz." wypadało rano około 10:00, czyli
+        raz na dobę jak u pozostałych (przegląd 9.10)."""
         poczatek = wawa("2026-10-12 18:30")
         fikus = Doniczka(gleba=od(poczatek, 21))
         azalia = Doniczka("Azalia", "azalia", gleba=od(poczatek, 37, 45))   # R 0,68: podlej, nie pilne
         plik, wpisy = przebiegi([fikus, azalia], [poczatek, wawa("2026-10-12 20:20")])
         self.assertEqual(wpisy[wawa("2026-10-12 20:20")][0]["rosliny"], ["Fikus", "Azalia"])
-        # rano licznik 2 godz. od 8:00 — także dla ponowienia
-        self.assertEqual(przebieg([fikus, azalia], wawa("2026-10-13 09:49:59"), plik)[1], [])
-        _, wpisy = przebieg([fikus, azalia], wawa("2026-10-13 09:50"), plik)
+        # 12 godz. później, w nocy — nic; pierwszy przebieg po 8:00 — azalia, fikus jeszcze nie
+        self.assertEqual(przebieg([fikus, azalia], wawa("2026-10-13 07:59"), plik)[1], [])
+        plik, wpisy = przebieg([fikus, azalia], wawa("2026-10-13 08:15"), plik)
         self.assertEqual([w["rosliny"] for w in wpisy], [["Azalia"]])
+        # wieczorem fikus po dobie, azalia po 12 godz. — drugie „podlej" tej doby
+        _, wpisy = przebieg([fikus, azalia], wawa("2026-10-13 20:15"), plik)
+        self.assertEqual([w["rosliny"] for w in wpisy], [["Fikus", "Azalia"]])
 
     def test_pilne_u_azalii_z_rada_zanurzenia(self):
         azalia = Doniczka("Azalia", "azalia", gleba=od(wawa("2026-10-12 11:00"), 30, 45))   # R 0,5
@@ -308,6 +312,28 @@ class TestCzujnik(unittest.TestCase):
                          ("Czujnik: fikus", "Fikus: bateria na wyczerpaniu.", "czujnik-fikus",
                           "rosliny.html#roslina=Fikus"))
         self.assertEqual(list(plik["stan_regul"]["Fikus"]["czujnik"]), ["bateria"])
+
+    def test_bateria_na_granicy_low_middle_to_jeden_alarm(self):
+        """Bateria skacząca low ↔ middle co godzinę dawniej dawała alarm przy każdym
+        powrocie do „low" (przegląd 9.10: 28 zamiast 1). Znacznik trzyma się do „high"."""
+        def bateria(t):
+            return "low" if int((t - wawa("2026-10-12 09:00")) // GODZ) % 2 == 0 else "middle"
+
+        czasy = [wawa("2026-10-12 09:00") + k * GODZ + 30 * MIN for k in range(11)]   # 9:30 … 19:30
+        _, wpisy = przebiegi([Doniczka(bateria=bateria)], czasy)
+        self.assertEqual(sum(len(wpisy[t]) for t in czasy), 1)
+
+    def test_nowy_alarm_niesie_tez_wczesniejszy_powod(self):
+        """Ten sam tag „czujnik-fikus" podmienia na telefonie poprzedni alarm — nowy wpis
+        musi powtórzyć nieprzeczytaną „baterię", inaczej znikałaby pod „sonda wyjęta"."""
+        wyjeta = wawa("2026-10-12 12:00")
+        fikus = Doniczka(gleba=lambda t: 9 if t >= wyjeta else 40, bateria="low")
+        czasy = [wawa("2026-10-12 10:30"), wawa("2026-10-12 14:30")]
+        _, wpisy = przebiegi([fikus], czasy)
+        self.assertEqual(reguly(wpisy[czasy[0]]), ["czujnik"])
+        (w,) = wpisy[czasy[1]]
+        self.assertIn("bateria na wyczerpaniu", w["tresc"])
+        self.assertIn("sonda wyjęta", w["tresc"])
 
     def test_cisza_z_rosnacymi_godzinami_to_jeden_powod(self):
         cisza = wawa("2026-10-11 23:00")
