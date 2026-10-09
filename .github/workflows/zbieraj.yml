@@ -25,10 +25,14 @@ on:
     paths-ignore:
       - 'data/**'
       - '.github/workflows/odkryj.yml'
+      - '.github/workflows/powiadomienie-testowe.yml'
   workflow_dispatch:        # przycisk "Run workflow" do ręcznego odpalenia
 
 permissions:
   contents: write
+  # krok wysyłki powiadomień sam zakłada zgłoszenie, gdy subskrypcja telefonu wygaśnie —
+  # watchdog tego nie zobaczy, bo wynik wysyłki powstaje już po commicie
+  issues: write
 
 concurrency:
   group: zbieranie
@@ -72,6 +76,14 @@ jobs:
           OUTDOOR_NAME: 'Na zewnątrz'
           # Strefa, według której tną się doby w agregatach data/dzienne.csv
           TZ_LOCAL: 'Europe/Warsaw'
+          # Powiadomienia o roślinach (ROSLINY.md, etap 4). „na-sucho": reguły liczą się
+          # i lądują w data/rosliny/powiadomienia.json, ale nic nie idzie na telefon —
+          # pierwszy tydzień po wdrożeniu. „wlaczone": krok niżej wysyła.
+          POWIADOMIENIA: 'na-sucho'
+          # Znacznik przebiegu w każdym wpisie powiadomień: wysyłka bierze tylko wpisy
+          # z tym znacznikiem z opublikowanego commita, więc ponowienie, przegrany wyścig
+          # ani „Re-run" w Actions nie wyślą niczego drugi raz.
+          PRZEBIEG: ${{ github.run_id }}-${{ github.run_attempt }}
         # Pobranie i zapis w jednym kroku, bo przy przegranym wyścigu o gałąź trzeba
         # policzyć odczyty jeszcze raz — na drzewie tego, kto zapisał pierwszy. Okno
         # zaczyna się tam, gdzie skończył poprzedni udany przebieg (`pobrane_do`
@@ -80,3 +92,28 @@ jobs:
         # dzień kosztuje jedno zapytanie na czujnik. Logika siedzi w zapisz.sh, żeby
         # dała się przetestować — patrz tests/test_zapisz.py.
         run: sh zapisz.sh
+
+      # Po udanym zapisie: wysyłka tylko tego, co ten przebieg opublikował na main.
+      # Jedyny krok z sekretami powiadomień. Bez sekretów kończy się na zielono
+      # z linią „brak subskrypcji" — dzięki temu zakładka działa, zanim telefony
+      # zostaną podpięte.
+      - name: Wyślij powiadomienia o roślinach
+        env:
+          VAPID_KLUCZ_PRYWATNY: ${{ secrets.VAPID_KLUCZ_PRYWATNY }}
+          PUSH_ANDROID: ${{ secrets.PUSH_ANDROID }}
+          PUSH_IPHONE: ${{ secrets.PUSH_IPHONE }}
+          GH_TOKEN: ${{ github.token }}
+          PRZEBIEG: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          git fetch -q origin main
+          if ! git show origin/main:data/rosliny/powiadomienia.json > "$RUNNER_TEMP/powiadomienia.json" 2>/dev/null; then
+            echo "Na main nie ma jeszcze data/rosliny/powiadomienia.json — nic do wysłania."
+            exit 0
+          fi
+          ILE=$(jq --arg p "$PRZEBIEG" '[.historia[]? | select(.przebieg == $p and (.na_sucho | not))] | length' "$RUNNER_TEMP/powiadomienia.json")
+          if [ "$ILE" = "0" ]; then
+            echo "Ten przebieg nie ma powiadomień do wysłania."
+            exit 0
+          fi
+          pip install -q -r requirements-powiadomienia.txt
+          python wyslij.py --plik "$RUNNER_TEMP/powiadomienia.json" --przebieg "$PRZEBIEG"

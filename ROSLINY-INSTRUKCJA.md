@@ -198,41 +198,54 @@ do drugiej osoby w domu, napisz — to jedna z niewiadomych.
 
 ## Krok 9. Powiadomienia w aplikacji
 
-Gdy zakładka będzie działać, dam dokładną listę. W skrócie:
+Sekrety dodaje się na stronie github.com, w przeglądarce. Aplikacja GitHub na telefonie
+ich nie edytuje; na telefonie otwórz github.com w Chrome/Safari (najlepiej „wersja na
+komputer"). Droga do sekretów:
+**github.com → Bronek31/Smart-Home → Settings → Secrets and variables → Actions →
+New repository secret** (pole *Name* i pole *Secret*, potem *Add secret*).
 
-**Android (Chrome, aplikacja już zainstalowana):**
-1. Otwórz aplikację → zakładka **Rośliny** → **Włącz powiadomienia** → Zezwól.
-2. **Kopiuj** i prześlij sobie na komputer.
-3. Wklej jako sekret w repozytorium: github.com → Smart-Home → Settings → Secrets and
-   variables → Actions → New repository secret. Nazwę podam. Aplikacja GitHub na
-   telefonie nie edytuje sekretów, więc zrób to na komputerze albo w przeglądarce
-   telefonu.
-4. Jeśli powiadomienia przychodzą z opóźnieniem: Ustawienia telefonu → Aplikacje →
-   Chrome → Bateria → **bez ograniczeń**.
+**A. Klucz do wysyłki — raz, na dowolnym urządzeniu**
+1. Otwórz aplikację → zakładka **Rośliny** → na dole sekcja **Powiadomienia** → rozwiń
+   „Klucze (jednorazowo, dla właściciela)" → **Utwórz klucze**.
+2. **Prywatny** → **Kopiuj** → nowy sekret: *Name* `VAPID_KLUCZ_PRYWATNY`, *Secret* —
+   wklej. **Nigdzie indziej. Nie wklejaj go do czatu.**
+3. **Publiczny** → **Kopiuj** → wyślij Claude'owi w czacie. Wpiszę go do strony; po kilku
+   minutach w sekcji pojawi się przycisk „Włącz powiadomienia na tym telefonie".
 
-**iPhone (iOS 16.4 lub nowszy):**
-1. W **Safari** otwórz stronę → Udostępnij → **Do ekranu początkowego**. Na iOS 26
-   zostaw włączone „Otwórz jako aplikację webową".
-2. Otwórz aplikację **z ikony** → Rośliny → **Włącz powiadomienia** → Pozwalaj.
-3. **Udostępnij** → prześlij sobie → drugi sekret.
+**B. Android (Chrome, aplikacja z ekranu początkowego)**
+1. Otwórz aplikację **z ikony** → Rośliny → **Włącz powiadomienia na tym telefonie** →
+   **Zezwól**.
+2. **Kopiuj** → nowy sekret: *Name* `PUSH_ANDROID`, *Secret* — wklej.
+3. Żeby powiadomienia nie przychodziły z opóźnieniem: Ustawienia telefonu → Aplikacje →
+   Chrome → Bateria → **Bez ograniczeń**.
+
+**C. iPhone (iOS 16.4 lub nowszy)**
+1. Aplikacja musi być dodana z **Safari**: Udostępnij → **Do ekranu początkowego**. Na
+   iOS 26 zostaw włączone „Otwórz jako aplikację webową".
+2. Otwórz ją **z ikony** → Rośliny → **Włącz powiadomienia na tym telefonie** → **Pozwalaj**.
+3. **Kopiuj** → nowy sekret: *Name* `PUSH_IPHONE`, *Secret* — wklej.
 4. Ustawienia → Powiadomienia → Smart Home: włącz baner i ekran blokady.
-5. Po usunięciu i ponownym dodaniu ikony trzeba to powtórzyć. Zakładka sama powie,
-   jeśli powiadomienia przestaną dochodzić.
 
-**Klucz do wysyłki:**
-- Wygenerujesz go na zakładce jednym przyciskiem.
-- Część prywatną od razu wkleisz jako sekret, a część publiczną przekażesz mi.
-- **Nigdy nie wklejaj części prywatnej ani żadnych sekretów do czatu.**
+**D. Sprawdzenie**
+- Napisz w czacie „sekrety dodane". Wyślę jedno powiadomienie testowe „Powiadomienia
+  działają" na oba telefony — napisz, czy doszło na każdy.
+- Sam też możesz je wysłać: github.com → Smart-Home → Actions → **Powiadomienie
+  testowe** → Run workflow.
 
-Przez pierwszy tydzień powiadomienia lecą „na sucho": widać je na zakładce, ale na
-telefon jeszcze nie idą.
-
-**W pierwszej wersji przychodzą trzy rodzaje powiadomień:**
-- „podlej";
-- „czujnik wymaga uwagi" (cisza, bateria, wyjęta sonda);
-- **niedzielne podsumowanie** — zawsze, także gdy wszystko jest w porządku.
-
-**Brak niedzielnego podsumowania znaczy, że coś się zepsuło** — napisz wtedy.
+**Co dalej**
+- Przez pierwszy tydzień reguły działają **na sucho**: liczą, kiedy by powiadomiły, i to
+  widać na zakładce (lista „Ostatnie powiadomienia" z dopiskiem „na sucho"), ale na
+  telefon nic nie idzie. Potem włączam je naprawdę.
+- Rodzaje powiadomień:
+  - „Podlej: …" — gdy gleba jest poniżej progu od 2 godz.; przypomnienie co dobę
+    (azalia co 12 godz.), najwyżej 3 razy, po podlaniu cisza;
+  - „Czujnik: …" — cisza czujnika, wyjęta sonda, słaba bateria; raz na powód;
+  - **niedzielne podsumowanie** o 10:00 — zawsze, także gdy wszystko jest w porządku.
+- Między 21:00 a 8:00 nic nie przychodzi; alarm czujnika z nocy przychodzi rano.
+- **Brak niedzielnego podsumowania znaczy, że coś się zepsuło** — napisz wtedy.
+- Po usunięciu i ponownym dodaniu ikony (albo nowym telefonie) powtórz B albo C i podmień
+  sekret. Zakładka sama ostrzeże, gdy subskrypcja się zmieni albo powiadomienia
+  przestaną dochodzić; nieudana wysyłka zakłada zgłoszenie z etykietą `powiadomienia`.
 
 ---
 

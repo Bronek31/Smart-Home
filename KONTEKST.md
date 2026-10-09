@@ -809,8 +809,8 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **162** (`python -m unittest discover -s tests`) |
-| Testy strony | **160** (`cd tests/frontend && npx playwright test`) |
+| Testy kolektora | **251** (`python -m unittest discover -s tests`) |
+| Testy strony | **189** (`cd tests/frontend && npx playwright test`) |
 | Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 7 zapytań Tuya na przebieg (do 8.10: 29) z pakietu 0,20 USD na miesiąc · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie i po każdej zmianie swojego pliku na main. Akcje na wersjach z Node 24 |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
 | Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
