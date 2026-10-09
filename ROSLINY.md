@@ -319,6 +319,14 @@ porównanie z chmury, sprawdzone dwiema metodami i przez sceptyka.
   Azalia dwa razy dokładnie 1000 — do obserwacji, czy to nie sufit pomiaru (rano przy
   oknie 2122, więc raczej nie).
 - Skrzydłokwiat raportuje w doniczce regularnie, co ok. 19–20 min.
+- **Skala po pierwszym podlaniu (9.10, przebieg 14:31 UTC):**
+  - skrzydłokwiat: szczyt 57, R 1,02, próg 0,50 (zimowy) = gleba ok. 34%, werdykt „ok";
+  - azalia: szczyt 57, R 1,0, próg 0,75 = gleba ok. 45%, werdykt „ok";
+  - fikus: podlanie pominięte (`pomin_podlania` — woda stała w osłonce, sonda 100 przez
+    5 godz.; po wylaniu ok. 15:30 gleba spada, 95 o 15:42). Skala z następnego podlania,
+    ok. 100 ml i wylanie wody z osłonki po 15 min.
+  - Światło fikusa po wyjmowaniu doniczki dalej podobne do skrzydłokwiatu (283 vs 370 lx
+    o 16:00) — głowica się nie obróciła.
 
 **Światło:**
 - Otwór jest na czole głowicy, więc przy pionowej sondzie czujnik patrzy najpewniej
