@@ -304,6 +304,22 @@ porównanie z chmury, sprawdzone dwiema metodami i przez sceptyka.
   o 17:15 UTC: 103 / 122 / 160 lx, czyli ±25%. Ustawienie głowicy w doniczce zmieni
   więcej, więc dziennego testu nie robimy.
 
+**Pierwsze godziny w doniczkach (9.10):**
+- Sondy wbite ok. 8:33, `od` = 8:35+02:00. Pierwsze odczyty w ziemi przyszły
+  8:35:26–59 (po wciśnięciu przycisków): fikus 17, skrzydłokwiat 19, azalia 16 —
+  6–8 punktów nad powietrzem, czyli sucho.
+- Podlanie ok. 9:40, wykryte u wszystkich trzech (pierwsze odczyty po nim):
+  fikus 17 → **100** o 9:51 (woda przy sondzie, dalej 100 o 11:13), azalia 18 → 66
+  → 69 → 59 → 57, skrzydłokwiat 20 → 58 → 56. Wymagało to poprawki: nauka dostawała
+  szereg obcięty do startu nauki i pierwsze podlanie tuż po nim nie miało „przed".
+- Przy mokrej ziemi wilgotność powietrza przy głowicy skacze z 55–60 do 67–81%.
+- Światło przed południem: fikus 377–640 lx, skrzydłokwiat 95–415 lx, azalia
+  (kuchnia) 429–1000. Poranne 11 lx fikusa było zaraz po wbiciu — fikus nie jest
+  ciemniejszy. Ok. 11:55 oba czujniki w salonie pokazały 0 lx naraz (zasłony?).
+  Azalia dwa razy dokładnie 1000 — do obserwacji, czy to nie sufit pomiaru (rano przy
+  oknie 2122, więc raczej nie).
+- Skrzydłokwiat raportuje w doniczce regularnie, co ok. 19–20 min.
+
 **Światło:**
 - Otwór jest na czole głowicy, więc przy pionowej sondzie czujnik patrzy najpewniej
   **w bok** **[do sprawdzenia]**.
