@@ -27,6 +27,14 @@ zrobiony 8.10: kolektor pobiera przyrostowo (ok. 7 zapytań na przebieg zamiast 
 z pakietu triala 0,20 USD na miesiąc), bo czujnik w doniczce przy pełnym oknie 7 dni
 kosztowałby więcej niż wszystkie pokoje razem.
 
+Stan 9.10: tor danych roślin działa na main (etap 2), noc obok siebie porównana
+(ROSLINY.md). Czekamy na wbicie sond; dalej zakładka (etap 3) i Web Push (etap 4).
+
+**Token Tuya pobierany kilka razy w przebiegu** (9.10) — zwykle 1, ale o 02:01 i 04:01
+UTC 3 i 4 razy („w tym o token" w podsumowaniu przebiegu); 8.10 o 17:01 pewnie to samo.
+Kilka zapytań na dobę z pakietu — znaleźć, która ścieżka w `Tuya.get()` /
+`_refresh_token()` odnawia token bez potrzeby, z testem odrzucającym starą wersję.
+
 ## Do sprawdzenia po kilku tygodniach grzania
 
 Kaloryfery ruszają 1.10, a farelka w łazience będzie chodzić codziennie. Dwa progi
