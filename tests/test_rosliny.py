@@ -337,11 +337,23 @@ class TestWerdykt(unittest.TestCase):
         # zanurzenie azalii tuż po wbiciu: okna 2–6 godz. jeszcze nie ma, a w ostatnich
         # 2 godz. sonda leżała pół godziny w powietrzu
         t0 = ms("2026-10-09T06:35:00Z")
-        pkt = [(t0 + k * 20 * 60_000, 30.0) for k in range(5)]                   # 1 h 20 min w ziemi
-        pkt += [(t0 + 100 * 60_000 + k * 10 * 60_000, 8.0) for k in range(3)]   # wyjęta
-        pkt += [(t0 + 130 * 60_000 + k * 20 * 60_000, 55.0) for k in range(24)]
+        pkt = [(t0, 30.0)]                                                       # w ziemi
+        pkt += [(t0 + (40 + k * 10) * 60_000, 8.0) for k in range(3)]           # wyjęta
+        pkt += [(t0 + (70 + k * 20) * 60_000, 55.0) for k in range(24)]
         p = rosliny.podlania(pkt, sucho=9.0)
-        self.assertEqual(p[0]["przed"], 30.0)
+        self.assertEqual(p[0]["przed"], 30.0, "bez filtra mediana wyszłaby 8 — powietrze")
+
+    def test_podlanie_ziemi_suchej_jak_powietrze_tez_uczy(self):
+        """Strażnik (przegląd 9.10): filtr odczytów „w powietrzu" wyrzucał też ziemię
+        przeschniętą na wiór (fikus 13 przy „sucho" 10), więc rośliny podlewane na sucho
+        zostawały w „nauce" na zawsze. Wersja z main sprzed filtra to przechodzi."""
+        t0 = ms("2026-10-11T00:00:00Z")
+        w = seria(t0, t0 + 8 * GODZ, GODZ, 13)
+        w += seria(t0 + 8 * GODZ, self.TERAZ, 20 * 60_000, lambda k: 45 if k < 6 else 41)
+        s = self.werdykt(konf(od="2026-10-10T00:00:00Z"), w)
+        self.assertEqual(s["podlania"][0]["przed"], 13.0)
+        self.assertTrue(s["podlania"][0]["liczy"])
+        self.assertNotEqual(s["werdykt"], "nauka")
 
     def test_szczyt_dopiero_6_godz_po_podlaniu(self):
         podlanie = self.TERAZ - 3 * GODZ

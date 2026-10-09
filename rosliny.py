@@ -357,6 +357,10 @@ def podlania(gleba: list[tuple[int, float]], teraz_ms: int | None = None,
         przed = _mediana(w_ziemi, czasy_w_ziemi, ms - PRZED_DO_MS, ms - PRZED_OD_MS)
         if przed is None:
             przed = _mediana(w_ziemi, czasy_w_ziemi, ms - PRZED_OD_MS, ms - 1)
+        if przed is None:
+            # Ziemia przeschnięta na wiór czyta tyle co powietrze (fikus 13 przy „sucho"
+            # 10) — to też jest „przed", inaczej podlewanie na sucho nigdy nie uczy.
+            przed = _mediana(gleba, [t for t, _ in gleba], ms - PRZED_DO_MS, ms - PRZED_OD_MS)
         gotowe = teraz_ms is None or teraz_ms >= ms + SZCZYT_DO_MS
         szczyt = (_mediana(w_ziemi, czasy_w_ziemi, ms + SZCZYT_OD_MS, ms + SZCZYT_DO_MS)
                   if gotowe else None)
