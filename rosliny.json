@@ -7,7 +7,7 @@
       "gatunek": "fikus",
       "pokoj": "bf43cf664d6644420axva3",
       "sucho": 10,
-      "od": null,
+      "od": "2026-10-09T08:35:00+02:00",
       "kody": {"gleba": "humidity", "temp": "temp_current", "wilg": "env_humidity", "swiatlo": "illumiance", "bateria": "battery_state", "alarm": "water_warning"}
     },
     {
@@ -16,7 +16,7 @@
       "gatunek": "skrzydlokwiat",
       "pokoj": "bf43cf664d6644420axva3",
       "sucho": 11,
-      "od": null,
+      "od": "2026-10-09T08:35:00+02:00",
       "kody": {"gleba": "humidity", "temp": "temp_current", "wilg": "env_humidity", "swiatlo": "illumiance", "bateria": "battery_state", "alarm": "water_warning"}
     },
     {
@@ -25,7 +25,7 @@
       "gatunek": "azalia",
       "pokoj": "bf5741c97c96fa85b1d7do",
       "sucho": 9,
-      "od": null,
+      "od": "2026-10-09T08:35:00+02:00",
       "kody": {"gleba": "humidity", "temp": "temp_current", "wilg": "env_humidity", "swiatlo": "illumiance", "bateria": "battery_state", "alarm": "water_warning"}
     }
   ]
