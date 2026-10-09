@@ -531,3 +531,16 @@ ts,device_id,code,value
 2026-10-09T15:46:08Z,bfe5bdf2b91c53dfd1eaiy,temp_current,20.7
 2026-10-09T16:01:17Z,bfa2be765aa6176805rhly,battery_state,high
 2026-10-09T16:02:04Z,bf262a90fc72e1aef65arq,env_humidity,73
+2026-10-09T16:22:22Z,bf262a90fc72e1aef65arq,temp_current,20.7
+2026-10-09T16:22:23Z,bf262a90fc72e1aef65arq,battery_state,high
+2026-10-09T16:27:26Z,bfe5bdf2b91c53dfd1eaiy,env_humidity,68
+2026-10-09T16:27:26Z,bfe5bdf2b91c53dfd1eaiy,illumiance,62
+2026-10-09T16:39:57Z,bfa2be765aa6176805rhly,env_humidity,72
+2026-10-09T16:42:41Z,bf262a90fc72e1aef65arq,humidity,58
+2026-10-09T16:42:41Z,bf262a90fc72e1aef65arq,illumiance,76
+2026-10-09T16:48:05Z,bfe5bdf2b91c53dfd1eaiy,humidity,94
+2026-10-09T16:48:06Z,bfe5bdf2b91c53dfd1eaiy,battery_state,high
+2026-10-09T16:48:06Z,bfe5bdf2b91c53dfd1eaiy,temp_current,20.7
+2026-10-09T16:59:17Z,bfa2be765aa6176805rhly,humidity,63
+2026-10-09T16:59:17Z,bfa2be765aa6176805rhly,temp_current,21
+2026-10-09T16:59:18Z,bfa2be765aa6176805rhly,illumiance,15
