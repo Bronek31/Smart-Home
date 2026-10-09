@@ -48,6 +48,13 @@
 .trace{margin-top:1.5rem}.trace h2{margin:0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .55rem}.trace h2 small{font-weight:400;letter-spacing:.06em;color:var(--faint);text-transform:none}.plot{position:relative;height:238px;background:var(--panel);border:1px solid var(--edge);touch-action:pan-y}@media(min-width:700px){.plot{height:300px}}.plot-niski{height:170px}@media(min-width:700px){.plot-niski{height:200px}}.plot canvas{touch-action:pan-y pinch-zoom}
 .trace .hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);max-width:52rem}.plot-blad{margin:0;padding:1.1rem 1.2rem;font-size:.82rem;line-height:1.5;color:var(--faint)}.plot:has(.plot-blad){height:auto}
 @media(max-width:420px){.karta{padding:.8rem .85rem .9rem 1rem}.gleba .t{font-size:1.5rem}}
+/* Powiadomienia: nagłówek jak nad wykresami, bloki jak .notice; pasek po lewej jak na banerze. */
+.powiadomienia{margin-top:2.2rem}.powiadomienia>h2{margin:0;padding-bottom:.6rem;border-bottom:1px solid var(--edge);font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
+.pow-blok{margin-top:.8rem;max-width:44rem;padding:.85rem 1rem;border:1px solid var(--edge);background:var(--panel);font-size:.88rem;line-height:1.5;color:var(--dim)}.pow-blok p{margin:.35rem 0}.pow-blok ol{margin:.35rem 0;padding-left:1.3rem}.pow-blok b{color:var(--text)}.pow-blok code{font-family:"IBM Plex Mono",monospace;font-size:.85em;color:var(--pen-1);background:#0b1015;padding:.12em .42em;border:1px solid var(--edge);overflow-wrap:anywhere}
+.pow-blok.uwaga{border-left:3px solid var(--warn)}.pow-blok.dobrze{border-left:3px solid var(--ok)}.pow-blok summary{cursor:pointer;color:var(--text)}.pow-blok details{margin-top:.5rem}
+.przycisk{appearance:none;margin:.3rem .3rem .3rem 0;border:1px solid var(--edge);background:transparent;color:var(--text);font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.83rem;letter-spacing:.03em;padding:.3rem .8rem;cursor:pointer;border-radius:0}.przycisk:hover{border-color:var(--grid-day)}.przycisk:disabled{color:var(--faint);cursor:default}.przycisk:focus-visible{outline:2px solid var(--pen-2);outline-offset:2px}
+.pole{display:block;width:100%;margin:.4rem 0 .1rem;padding:.45rem .55rem;background:#0b1015;border:1px solid var(--edge);border-radius:0;color:var(--text);font-family:"IBM Plex Mono",monospace;font-size:.78rem;line-height:1.4;word-break:break-all;resize:vertical}
+.pow-lista{list-style:none;margin:.3rem 0 0;padding:0}.pow-lista li{padding:.45rem 0;border-top:1px solid var(--grid);overflow-wrap:anywhere}.pow-lista .kiedy{font-family:"IBM Plex Mono",monospace;font-size:.8rem;color:var(--faint)}.znacznik{margin-left:.3rem;padding:0 .35em;border:1px solid var(--edge);font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--faint)}
 </style>
 </head>
 <body><main class="sheet">
@@ -62,6 +69,13 @@
   <p class="hint">Zielone pasmo to wilgotność, w której roślina ma się dobrze: od progu podlewania do poziomu zaraz po podlaniu. Program uczy się go z Twoich podlań, więc pojawia się dopiero po pierwszym.</p></div>
   <div class="trace"><h2>Światło na dobę <small>lx·h · przerywana linia to potrzeba rośliny</small></h2><div class="plot plot-niski"><canvas id="wykres-swiatlo" role="img" aria-label="Dobowa suma światła w ostatnich 30 dniach"></canvas></div>
   <p class="hint">Jaśniejsze słupki to doby zmierzone w całości, ciemniejsze — z dziurami w odczytach (np. dzisiejsza). Czujnik patrzy w jedną stronę, więc liczy się trend w tym samym miejscu, a nie pojedyncza doba.</p></div>
+</section>
+<!-- Poza #app: telefon da się podłączyć, zanim kolektor zapisze pierwszy stan roślin. -->
+<section class="powiadomienia" id="powiadomienia" aria-labelledby="pow-naglowek">
+  <h2 id="pow-naglowek">Powiadomienia</h2>
+  <div class="pow-blok uwaga" id="pow-dochodza" role="alert" hidden></div>
+  <div class="pow-blok" id="pow-telefon" role="status">sprawdzam&hellip;</div>
+  <div class="pow-blok" id="pow-historia" hidden></div>
 </section>
 </main>
 <script>
@@ -337,6 +351,250 @@ function rysujSwiatlo(r){
   });
 }
 
+/* --- powiadomienia (etap 4) ---
+   Ta sekcja tylko łączy telefon z nadawcą: kiedy i o czym powiadomić, decyduje rosliny.py,
+   wysyła wyslij.py, pokazuje sw.js. Tu: para kluczy (raz), subskrypcja tego telefonu
+   i sprawdzenie, czy powiadomienia dochodzą. Każde z tych API może nie istnieć (komputer,
+   iPhone poza aplikacją z ekranu, test bez workera), więc wszystko w try/catch — sekcja
+   ma najwyżej powiedzieć, czego brakuje, a nie wywrócić kart. */
+
+// Klucz publiczny VAPID (base64url, 65 B) — jedyne miejsce w repozytorium. wyslij.py czyta
+// go stąd wyrażeniem regularnym i porównuje z kluczem wyliczonym z sekretu, więc zapis
+// zostaje dokładnie w tej postaci. Pusty = jeszcze nieskonfigurowane.
+const VAPID_PUBLICZNY='';
+const PAMIEC_SUBSKRYPCJI='rosliny-subskrypcja';     // localStorage: {endpoint, od} skopiowanej do sekretu
+const SEKRETY={android:'PUSH_ANDROID',iphone:'PUSH_IPHONE'};
+const SCIEZKA_SEKRETOW='github.com → Smart-Home → Settings → Secrets and variables → Actions';
+
+let historiaPowiadomien;        // undefined — jeszcze nie wczytana (albo brak sieci), null — pliku nie ma
+let naszaSubskrypcja=null;      // {endpoint, od}, gdy subskrypcja tego telefonu to ta skopiowana do sekretu
+
+const b64url=b=>btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+function zB64url(s){const t=atob(s.replace(/-/g,'+').replace(/_/g,'/')+'==='.slice((s.length+3)%4));return Uint8Array.from(t,c=>c.charCodeAt(0))}
+function kluczPoprawny(k){try{const b=zB64url(k);return b.length===65&&b[0]===4}catch{return false}}
+
+/** Para VAPID z WebCrypto: prywatny jako JWK `d` (32 B, tak go bierze wyslij.py),
+    publiczny jako eksport 'raw' (65 B: 0x04, x, y — tak go chce pushManager.subscribe). */
+async function utworzKlucze(){
+  const para=await crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']);
+  const jwk=await crypto.subtle.exportKey('jwk',para.privateKey);
+  return {prywatny:jwk.d,publiczny:b64url(await crypto.subtle.exportKey('raw',para.publicKey))};
+}
+
+/** Telefon — tylko do podpowiedzi, który sekret podmienić. iPad z iPadOS 13+ podaje się
+    za Maca, poznać go po ekranie dotykowym. */
+function platforma(){
+  const ua=navigator.userAgent||'';
+  if(/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1))return 'iphone';
+  return /Android/.test(ua)?'android':null;
+}
+const samodzielna=()=>navigator.standalone===true||!!window.matchMedia?.('(display-mode: standalone)').matches;
+const sekretTelefonu=()=>SEKRETY[platforma()]||'PUSH_ANDROID albo PUSH_IPHONE';
+
+function zapamietana(){try{const z=JSON.parse(localStorage.getItem(PAMIEC_SUBSKRYPCJI));return typeof z?.endpoint==='string'?z:null}catch{return null}}
+// Czas zostaje z pierwszego skopiowania tej samej subskrypcji: od niego liczy się „czy dochodzą".
+function zapamietaj(endpoint){try{if(zapamietana()?.endpoint!==endpoint)localStorage.setItem(PAMIEC_SUBSKRYPCJI,JSON.stringify({endpoint,od:Date.now()}))}catch{}}
+
+async function subskrypcjaTelefonu(){
+  try{const r=await navigator.serviceWorker.getRegistration();return (await r?.pushManager?.getSubscription())||null}catch{return null}
+}
+
+/** Rejestracja z aktywnym workerem — subscribe() bez niego odmawia. `ready` bez workera
+    czeka w nieskończoność, stąd limit czasu. */
+async function gotowyWorker(){
+  if(!await navigator.serviceWorker.getRegistration())await navigator.serviceWorker.register('sw.js');
+  return Promise.race([navigator.serviceWorker.ready,
+    new Promise((_,zle)=>setTimeout(()=>zle(new Error('service worker się nie uruchomił — odśwież stronę i spróbuj jeszcze raz')),15000))]);
+}
+
+// Subskrypcja z innym kluczem (np. po wymianie pary) nie przyjmie naszych wysyłek,
+// a subscribe() z nowym kluczem by się o nią wywrócił. Bez informacji o kluczu — zostaje.
+const tenSamKlucz=sub=>{const k=sub.options?.applicationServerKey;return !k||b64url(k)===VAPID_PUBLICZNY};
+
+/** Identyfikatory powiadomień odebranych przez sw.js (IndexedDB `rosliny`/`odebrane`,
+    ta sama baza i wersja co tam). null — nie da się odczytać; wtedy nic nie wyrokujemy. */
+function odebraneId(){
+  return new Promise(ok=>{try{
+    const zad=indexedDB.open('rosliny',1);
+    zad.onupgradeneeded=()=>zad.result.createObjectStore('odebrane',{keyPath:'id'});
+    zad.onerror=()=>ok(null);
+    zad.onsuccess=()=>{const db=zad.result;try{const q=db.transaction('odebrane').objectStore('odebrane').getAllKeys();
+      q.onsuccess=()=>{db.close();ok(new Set(q.result))};q.onerror=()=>{db.close();ok(null)}}catch{db.close();ok(null)}};
+  }catch{ok(null)}});
+}
+
+/** Najnowsze wysłane (na_sucho false, po skopiowaniu subskrypcji), o którym już coś
+    wiadomo: odebrane albo starsze niż godzina. Zwraca je, jeśli nie dotarło. Świeższe
+    czekają na swoją godzinę, a jedno odebrane znaczy, że kanał działa. To jedyny sposób
+    na martwą subskrypcję iPhone'a, którą Apple dalej potwierdza kodem 201. */
+function nieDotarlo(historia,odebrane,od,teraz){
+  const wyslane=(historia||[]).filter(w=>w&&w.na_sucho===false&&czas(w.ts)>od);
+  for(const w of wyslane.reverse()){if(odebrane.has(w.id))return null;if(teraz-czas(w.ts)>GODZ_MS)return w}
+  return null;
+}
+
+function telefon(html,stan,klasa=''){
+  const el=document.getElementById('pow-telefon');
+  el.className='pow-blok'+(klasa?' '+klasa:'');el.dataset.stan=stan;el.innerHTML=html;
+}
+const PRZYCISK_WLACZ='<button type="button" class="przycisk" data-akcja="wlacz">Włącz powiadomienia na tym telefonie</button>';
+const INSTRUKCJA_IPHONE='<p><b>Na iPhonie powiadomienia działają tylko w aplikacji dodanej do ekranu początkowego.</b></p><ol>'+
+  '<li>Potrzebny iOS 16.4 lub nowszy.</li>'+
+  '<li>Otwórz tę stronę w <b>Safari</b> → Udostępnij → <b>Do ekranu początkowego</b>. Na iOS 26 zostaw włączone „Otwórz jako aplikację webową”.</li>'+
+  '<li>Otwórz aplikację <b>z ikony</b> → Rośliny → Włącz powiadomienia → Pozwalaj.</li></ol>';
+
+function pokazKlucze(){
+  telefon('<p>Powiadomienia nie są jeszcze skonfigurowane: brakuje klucza, którym nadawca podpisuje wysyłkę.</p>'+
+    '<details id="pow-klucze"><summary>Klucze (jednorazowo, dla właściciela)</summary>'+
+    '<p>Para powstaje tutaj, w przeglądarce — nic nie wychodzi z tego urządzenia.</p>'+
+    '<button type="button" class="przycisk" data-akcja="klucze">Utwórz klucze</button>'+
+    '<div id="pow-klucze-wynik" hidden>'+
+      `<p><b>Prywatny</b> → wklej jako sekret <code>VAPID_KLUCZ_PRYWATNY</code> (${SCIEZKA_SEKRETOW} → New repository secret). <b>Nigdzie indziej — nie wysyłaj go do czatu.</b></p>`+
+      '<textarea class="pole" id="pow-prywatny" readonly rows="2" aria-label="Klucz prywatny VAPID"></textarea>'+
+      '<button type="button" class="przycisk" data-akcja="kopiuj" data-pole="pow-prywatny">Kopiuj</button>'+
+      '<p><b>Publiczny</b> → wyślij Claude’owi w czacie. Trafi do tej strony i wtedy pojawi się tu przycisk „Włącz powiadomienia”.</p>'+
+      '<textarea class="pole" id="pow-publiczny" readonly rows="3" aria-label="Klucz publiczny VAPID"></textarea>'+
+      '<button type="button" class="przycisk" data-akcja="kopiuj" data-pole="pow-publiczny">Kopiuj</button>'+
+      '<p>Po zamknięciu strony tej pary nie da się odzyskać. Jeśli któraś część zginie, utwórz nową parę i podmień obie.</p>'+
+    '</div></details>','klucze');
+}
+
+function poleSubskrypcji(sub){
+  return `<textarea class="pole" id="pow-subskrypcja" readonly rows="4" aria-label="Subskrypcja tego telefonu">${esc(JSON.stringify(sub.toJSON()))}</textarea>`+
+    '<button type="button" class="przycisk" data-akcja="kopiuj" data-pole="pow-subskrypcja" data-subskrypcja>Kopiuj</button>'+
+    (navigator.share?'<button type="button" class="przycisk" data-akcja="udostepnij" data-pole="pow-subskrypcja" data-subskrypcja>Udostępnij</button>':'');
+}
+
+function pokazSubskrypcje(sub,wstep){
+  telefon(`<p><b>${esc(wstep)}</b></p><p>Skopiuj całość i wklej jako sekret <code>${esc(sekretTelefonu())}</code> `+
+    `(${SCIEZKA_SEKRETOW}; jeśli już jest — Update). Z komputera albo z przeglądarki telefonu — aplikacja GitHub sekretów nie edytuje.</p>`+
+    poleSubskrypcji(sub),'subskrypcja');
+}
+
+/** Stan tego telefonu. Kolejność ma znaczenie: bez klucza nie ma czego subskrybować,
+    a iPhone poza aplikacją z ekranu nie ma PushManagera albo go nie użyje. */
+async function rysujTelefon(){
+  naszaSubskrypcja=null;
+  if(!VAPID_PUBLICZNY)return pokazKlucze();
+  if(!kluczPoprawny(VAPID_PUBLICZNY))return telefon('<p><b>Klucz w stronie jest uszkodzony.</b> Stała <code>VAPID_PUBLICZNY</code> w <code>rosliny.html</code> musi mieć 87 znaków base64url (65 bajtów, pierwszy 0x04). Napisz do Claude’a.</p>','zly-klucz','uwaga');
+  const wsparcie='serviceWorker' in navigator&&'PushManager' in window&&'Notification' in window;
+  if(platforma()==='iphone'&&(!wsparcie||!samodzielna()))return telefon(INSTRUKCJA_IPHONE,'iphone','uwaga');
+  if(!wsparcie)return telefon('<p>Ta przeglądarka nie obsługuje powiadomień web push. Na Androidzie otwórz aplikację z ekranu początkowego (Chrome).</p>','brak-wsparcia');
+  if(Notification.permission==='denied')return telefon('<p><b>Zgoda na powiadomienia jest wyłączona.</b> Android: Ustawienia → Aplikacje → Smart Home (albo Chrome) → Powiadomienia. iPhone: Ustawienia → Powiadomienia → Smart Home. Potem wróć tutaj.</p>','odmowa','uwaga');
+  const sub=await subskrypcjaTelefonu(),zap=zapamietana();
+  // inny adres, brak subskrypcji albo subskrypcja ze starym kluczem — sekret już nie pasuje
+  if((zap&&sub?.endpoint!==zap.endpoint)||(sub&&!tenSamKlucz(sub)))
+    return telefon(`<p><b>Subskrypcja się zmieniła — włącz ponownie i podmień sekret <code>${esc(sekretTelefonu())}</code>.</b> Bez tego powiadomienia nie dojdą do tego telefonu.</p>`+PRZYCISK_WLACZ,'zmieniona','uwaga');
+  if(sub&&zap){
+    naszaSubskrypcja=zap;
+    return telefon(`<p><b>Powiadomienia włączone na tym telefonie</b> (sekret <code>${esc(sekretTelefonu())}</code>).</p>`+
+      `<details><summary>Subskrypcja — gdyby trzeba było wkleić ją jeszcze raz</summary>${poleSubskrypcji(sub)}</details>`,'wlaczone','dobrze');
+  }
+  if(sub)return pokazSubskrypcje(sub,'Ten telefon ma subskrypcję, ale nie widać, żeby trafiła do sekretu.');
+  telefon('<p>Ten telefon nie dostaje jeszcze powiadomień o roślinach.</p>'+PRZYCISK_WLACZ,'wylaczone');
+}
+
+async function wlacz(przycisk,{odnow=false}={}){
+  const napis=przycisk.textContent;
+  przycisk.disabled=true;przycisk.textContent='Włączam…';
+  try{
+    const zgoda=await Notification.requestPermission();
+    if(zgoda==='denied')return rysujTelefon();
+    if(zgoda!=='granted')return telefon('<p>Zgoda nie została udzielona — bez niej telefon nie pokaże powiadomień.</p>'+PRZYCISK_WLACZ,'wylaczone');
+    const reg=await gotowyWorker();
+    let sub=await reg.pushManager.getSubscription();
+    // odnowienie: martwą subskrypcję (nie dochodzą) trzeba zastąpić nową, z nowym adresem
+    if(sub&&(odnow||!tenSamKlucz(sub))){await sub.unsubscribe();sub=null}
+    sub=sub||await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:zB64url(VAPID_PUBLICZNY)});
+    document.getElementById('pow-dochodza').hidden=true;naszaSubskrypcja=null;
+    pokazSubskrypcje(sub,'Powiadomienia włączone. Teraz subskrypcja musi trafić do sekretu — inaczej nadawca nie wie, dokąd wysyłać.');
+  }catch(e){
+    telefon(`<p><b>Nie udało się włączyć powiadomień:</b> ${esc(e?.message||e)}</p>`+PRZYCISK_WLACZ,'blad','uwaga');
+  }finally{przycisk.disabled=false;przycisk.textContent=napis}    // „Odnów" w ostrzeżeniu zostaje na miejscu
+}
+
+async function kopiuj(pole){
+  try{await navigator.clipboard.writeText(pole.value);return true}catch{}
+  // zapas: zaznaczone pole da się skopiować palcem, nawet gdy schowek odmówi
+  try{pole.focus();pole.select();return document.execCommand('copy')}catch{return false}
+}
+
+/* „Kopiuj" i „Udostępnij". Subskrypcję zapamiętujemy już przy kliknięciu „Kopiuj", nawet
+   gdy schowek odmówił: pole zostaje zaznaczone, a zamiar — wkleić ją do sekretu — ten sam.
+   Anulowane udostępnienie nie liczy się. */
+async function przekaz(b){
+  const pole=document.getElementById(b.dataset.pole);if(!pole)return;
+  let ok=true;
+  if(b.dataset.akcja==='udostepnij'){try{await navigator.share({text:pole.value})}catch{ok=false}}
+  else b.textContent=await kopiuj(pole)?'Skopiowano':'Zaznaczone — skopiuj ręcznie';
+  if(ok&&'subskrypcja' in b.dataset){
+    try{zapamietaj(JSON.parse(pole.value).endpoint)}catch{}
+    naszaSubskrypcja=zapamietana();
+  }
+}
+
+async function utworzIPokaz(b){
+  try{
+    const k=await utworzKlucze();
+    document.getElementById('pow-prywatny').value=k.prywatny;
+    document.getElementById('pow-publiczny').value=k.publiczny;
+    document.getElementById('pow-klucze-wynik').hidden=false;
+    b.hidden=true;      // druga para po cichu podmieniłaby pierwszą; nową daje odświeżenie strony
+  }catch(e){b.insertAdjacentHTML('afterend',`<p>Nie udało się utworzyć kluczy: ${esc(e?.message||e)}</p>`)}
+}
+
+const TRYBY={'na-sucho':'na sucho — reguły już działają, ale powiadomienia są tylko zapisywane tutaj; telefony ich jeszcze nie dostają',
+  wlaczone:'włączone — powiadomienia idą na telefony'};
+function rysujHistorie(){
+  const el=document.getElementById('pow-historia'),h=historiaPowiadomien;
+  if(h===undefined){el.hidden=true;return}
+  if(!Array.isArray(h?.historia)){el.innerHTML='<p>Kolektor nie zapisał jeszcze żadnej decyzji o powiadomieniach.</p>';el.hidden=false;return}
+  const wpisy=h.historia.slice(-5).reverse();
+  el.innerHTML=`<p><b>Tryb:</b> ${TRYBY[h.tryb]||TRYBY['na-sucho']}.</p>`+(wpisy.length
+    ?'<p><b>Ostatnie powiadomienia</b></p><ul class="pow-lista">'+wpisy.map(w=>{const t=czas(w.ts);
+      return `<li data-id="${esc(w.id)}"><span class="kiedy">${t?fmtStamp(t):'–'}</span> <b>${esc(w.tytul)}</b>`+
+        (w.na_sucho?'<span class="znacznik">na sucho</span>':'')+`<br>${esc(w.tresc)}</li>`}).join('')+'</ul>'
+    :'<p>Na razie nie było powodu do powiadomienia.</p>');
+  el.hidden=false;
+}
+
+async function sprawdzDochodzenie(){
+  const el=document.getElementById('pow-dochodza');
+  const z=naszaSubskrypcja,h=historiaPowiadomien;
+  const odebrane=z&&Array.isArray(h?.historia)?await odebraneId():null;
+  const w=odebrane&&nieDotarlo(h.historia,odebrane,z.od,Date.now());
+  if(!w){el.hidden=true;return}
+  el.innerHTML=`<p><b>Powiadomienia nie dochodzą do tego telefonu.</b> „${esc(w.tytul)}” z ${fmtStamp(czas(w.ts))} nie dotarło. `+
+    `Odnów subskrypcję i podmień sekret <code>${esc(sekretTelefonu())}</code>. Jeśli sekret podmieniałeś przed chwilą, poczekaj na następne powiadomienie.</p>`+
+    '<button type="button" class="przycisk" data-akcja="wlacz" data-odnow>Odnów subskrypcję</button>';
+  el.hidden=false;
+}
+
+async function odswiezPowiadomienia(){
+  try{
+    const h=await wczytajJson('data/rosliny/powiadomienia.json');
+    if(h!==undefined)historiaPowiadomien=h;      // bez sieci zostaje to, co już widać
+    rysujHistorie();await sprawdzDochodzenie();
+  }catch{/* sekcja powiadomień nie może zatrzymać odświeżania kart */}
+}
+
+async function startPowiadomien(){
+  // Cel kliknięcia w powiadomienie (sw.js → Cache API, dla index.html) osiągnięty — inaczej
+  // następne uruchomienie z ikony przeskoczyłoby z mieszkania tutaj.
+  try{if('caches' in self)await caches.delete('cel-powiadomienia')}catch{}
+  try{await rysujTelefon()}
+  catch(e){telefon(`<p>Nie udało się sprawdzić powiadomień na tym telefonie: ${esc(e?.message||e)}</p>`,'blad','uwaga')}
+  await odswiezPowiadomienia();
+}
+
+document.getElementById('powiadomienia').addEventListener('click',e=>{
+  const b=e.target.closest('button[data-akcja]');if(!b)return;
+  const a=b.dataset.akcja;
+  if(a==='klucze')utworzIPokaz(b);
+  else if(a==='wlacz')wlacz(b,{odnow:'odnow' in b.dataset});
+  else przekaz(b);
+});
+
 /* --- start i odświeżanie --- */
 /* #roslina=… w adresie (kliknięcie w powiadomienie, etap 4) przewija do karty tej rośliny
    i ją obrysowuje — tylko przy wejściu i zmianie adresu, nie przy klikaniu przełącznika. */
@@ -391,6 +649,7 @@ async function start(){
 
 async function odswiez(){
   ostatnieSprawdzenie=Date.now();
+  odswiezPowiadomienia();
   if(!stan)return start();
   const s=await wczytajJson('data/rosliny/stan.json');
   if(!s)return rysujKarty();            // bez sieci zostaje to, co jest; „x min temu" się postarzało
@@ -402,6 +661,7 @@ addEventListener('online',()=>odswiez());
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-ostatnieSprawdzenie>ODSWIEZ_PO_POWROCIE)odswiez()});
 setInterval(()=>{if(document.visibilityState==='visible')odswiez()},ODSWIEZ_CO);
 start();
+startPowiadomien();
 if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
 </body>
