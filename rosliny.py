@@ -168,10 +168,16 @@ def wczytaj_konfiguracje(tekst: str) -> list[dict]:
         pokoj = r.get("pokoj")
         if pokoj is not None and not isinstance(pokoj, str):
             raise ValueError(f"rosliny.json: {nazwa} — „pokoj\" to identyfikator tekstem")
+        pomin = r.get("pomin_podlania") or []
+        if not isinstance(pomin, list) or not all(
+                isinstance(x, dict) and _ms_ze_strefa(x.get("kiedy")) is not None for x in pomin):
+            raise ValueError(f"rosliny.json: {nazwa} — „pomin_podlania\" to lista "
+                             f"{{\"kiedy\": data ISO z godziną i strefą, \"dlaczego\": opis}}")
         out.append({
             "czujnik": str(czujnik), "nazwa": str(nazwa), "gatunek": gatunek,
             "pokoj": pokoj, "kody": {k: str(v) for k, v in kody.items()},
             "sucho": _liczba(sucho), "od": od,
+            "pomin_podlania": [_ms_ze_strefa(x["kiedy"]) for x in pomin],
         })
     return out
 
@@ -446,6 +452,12 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
         gleba_nauki = []          # bez daty wbicia sondy nie uczymy się niczego
     sucho = konf.get("sucho")
     podl = podlania(gleba_nauki, teraz_ms, od_ms=od_nauki, sucho=sucho)
+    # Podlania wskazane ręcznie w rosliny.json nie uczą skali — np. 9.10 woda stała
+    # w osłonce fikusa i sonda pokazywała 100 przez 5 godz., więc „szczyt" był zawyżony.
+    # Godzina wpisu może się różnić od wykrytej o jedno-dwa wybudzenia czujnika.
+    for p in podl:
+        if any(abs(_ms(p["ts"]) - kiedy) <= GODZ for kiedy in konf.get("pomin_podlania") or []):
+            p["liczy"], p["pominiete"] = False, True
     wynik_nauki = nauka(podl, sucho)
     miesiac = datetime.fromtimestamp(teraz_ms / 1000, strefa).month
     prog = prog_rosliny(konf["gatunek"], miesiac, sucho, wynik_nauki["szczyt"],
@@ -495,7 +507,10 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
         uwagi.append(f"Uczę się od {_lokalnie(od_nauki, strefa)} — godzinę po wbiciu sondy.")
     elif szczyt is None:
         werdykt = "nauka"
-        if podl and podl[-1]["szczyt"] is None:
+        if podl and podl[-1].get("pominiete"):
+            uwagi.append(f"Podlanie {_lokalnie(_ms(podl[-1]['ts']), strefa)} pominięte w nauce "
+                         f"(rosliny.json) — skala przyjdzie z następnego.")
+        elif podl and podl[-1]["szczyt"] is None:
             uwagi.append(f"Podlanie {_lokalnie(_ms(podl[-1]['ts']), strefa)} — skala będzie "
                          f"znana 6 godz. po nim.")
         elif podl:

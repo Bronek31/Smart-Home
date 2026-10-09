@@ -8,6 +8,7 @@
       "pokoj": "bf43cf664d6644420axva3",
       "sucho": 10,
       "od": "2026-10-09T08:35:00+02:00",
+      "pomin_podlania": [{"kiedy": "2026-10-09T09:51:05+02:00", "dlaczego": "woda stała w osłonce, sonda 100 przez 5 godz.; wylana ok. 15:30"}],
       "kody": {"gleba": "humidity", "temp": "temp_current", "wilg": "env_humidity", "swiatlo": "illumiance", "bateria": "battery_state", "alarm": "water_warning"}
     },
     {

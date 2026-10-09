@@ -111,6 +111,13 @@ class TestKonfiguracja(unittest.TestCase):
             with self.subTest(oczekiwane), self.assertRaisesRegex(ValueError, oczekiwane):
                 self.wczytaj(wpis)
 
+    def test_pomin_podlania_wymaga_daty_ze_strefa(self):
+        for zle in ("2026-10-09T09:51:00", [{"kiedy": "wczoraj"}], [{"dlaczego": "woda"}], ["2026-10-09T09:51:00Z"]):
+            with self.subTest(zle), self.assertRaisesRegex(ValueError, "pomin_podlania"):
+                self.wczytaj(self.poprawna(pomin_podlania=zle))
+        k = self.wczytaj(self.poprawna(pomin_podlania=[{"kiedy": "2026-10-09T09:51:00+02:00", "dlaczego": "osłonka"}]))
+        self.assertEqual(k[0]["pomin_podlania"], [ms("2026-10-09T07:51:00Z")])
+
     def test_zly_json_i_dwa_razy_ten_sam_czujnik(self):
         with self.assertRaisesRegex(ValueError, "poprawny JSON"):
             rosliny.wczytaj_konfiguracje("{to nie json")
@@ -354,6 +361,21 @@ class TestWerdykt(unittest.TestCase):
         self.assertEqual(s["podlania"][0]["przed"], 13.0)
         self.assertTrue(s["podlania"][0]["liczy"])
         self.assertNotEqual(s["werdykt"], "nauka")
+
+    def test_podlanie_wskazane_w_konfiguracji_nie_uczy(self):
+        """9.10: woda stała w osłonce fikusa, sonda pokazywała 100 przez 5 godz. Takie
+        podlanie dałoby zawyżony szczyt, a z nim „podlej" o wiele za wcześnie."""
+        podlanie = self.TERAZ - 10 * GODZ
+        w = seria(self.TERAZ - 20 * GODZ, podlanie, 20 * 60_000, 17)
+        w += seria(podlanie, self.TERAZ, 20 * 60_000, 100)
+        k = konf(od="2026-10-10T00:00:00Z",
+                 pomin_podlania=[podlanie + 25 * 60_000])          # wpis o jedno wybudzenie obok
+        s = self.werdykt(k, w)
+        self.assertEqual(len(s["podlania"]), 1)
+        self.assertFalse(s["podlania"][0]["liczy"])
+        self.assertIsNone(s["szczyt"])
+        self.assertEqual(s["werdykt"], "nauka")
+        self.assertIn("pominięte", " ".join(s["uwagi"]))
 
     def test_szczyt_dopiero_6_godz_po_podlaniu(self):
         podlanie = self.TERAZ - 3 * GODZ
