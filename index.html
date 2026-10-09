@@ -217,6 +217,15 @@
 </section><div class="notice" id="notice" hidden></div>
 </main>
 <script>
+/* Kliknięcie w powiadomienie roślin przy zimnym starcie (etap 4): iPhone otwiera wtedy
+   start_url zamiast adresu z powiadomienia (WebKit 263687), więc sw.js zostawia cel
+   w Cache API, a tu go odbieramy, zanim strona mieszkania się wczyta. Tylko świeży cel
+   i tylko zakładka roślin; skasowany od razu, żeby następne uruchomienie z ikony
+   otworzyło mieszkanie. Druga próba po chwili, bo kolejności startu strony i obsługi
+   kliknięcia na iPhonie nie zmierzyliśmy. Bez Cache API — nic. */
+(()=>{const CEL='cel-powiadomienia',WAZNY=5*60e3;
+async function celZPowiadomienia(){try{const r=await caches.match('./cel',{cacheName:CEL});if(!r)return;await caches.delete(CEL);const {cel,ts}=await r.json();if(typeof cel==='string'&&/^rosliny\.html(?:[?#]|$)/.test(cel)&&Math.abs(Date.now()-ts)<WAZNY)location.replace(cel)}catch{}}
+if('caches' in self){celZPowiadomienia();setTimeout(celZPowiadomienia,2500)}})();
 const PENS=['#e8a13c','#5fb8e0','#5fce9e','#e2708f','#b79ae8','#d4c95f'];
 /* Dwór nie bierze koloru z palety pokoi. Brał, bo jest piątym urządzeniem na liście —
    i przez to wyglądał na piąty pokój, choć jest tłem, na którym tamte cztery się dzieją.
