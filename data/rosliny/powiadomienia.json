@@ -1,0 +1,29 @@
+{
+ "tryb": "na-sucho",
+ "wlaczone_od": null,
+ "historia": [],
+ "stan_regul": {
+  "Fikus": {
+   "ponizej_od": null,
+   "wyslano": [],
+   "na_sucho": [],
+   "czujnik": {},
+   "noc": []
+  },
+  "Skrzydłokwiat": {
+   "ponizej_od": null,
+   "wyslano": [],
+   "na_sucho": [],
+   "czujnik": {},
+   "noc": []
+  },
+  "Azalia": {
+   "ponizej_od": null,
+   "wyslano": [],
+   "na_sucho": [],
+   "czujnik": {},
+   "noc": []
+  }
+ },
+ "podsumowanie_ostatnie": null
+}
