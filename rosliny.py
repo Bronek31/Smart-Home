@@ -41,7 +41,11 @@ GATUNKI = {
     "skrzydlokwiat": {"prog": 0.60, "prog_zima": 0.50, "pilne": None, "granice": (0.40, 0.70),
                       "swiatlo_lxh": 10000},
     "azalia": {"prog": 0.75, "prog_zima": 0.75, "pilne": 0.60, "granice": (0.60, 0.85),
-               "swiatlo_lxh": 28000},
+               "swiatlo_lxh": 28000,
+               # przesuszony torf nie przyjmuje wody z góry — ratunek z ROSLINY.md, „Rady"
+               "rada_pilne": "Wyjmij czujnik, wyjmij plastikową doniczkę z osłonki i zanurz ją "
+                             "w letniej wodzie, aż przestaną lecieć bąbelki (15–30 min). Odsącz, "
+                             "wylej wodę z osłonki i wbij czujnik w to samo miejsce."},
 }
 ZIMA = {10, 11, 12, 1, 2}
 
@@ -135,7 +139,7 @@ def wczytaj_konfiguracje(tekst: str) -> list[dict]:
     lista = dane.get("rosliny") if isinstance(dane, dict) else None
     if not isinstance(lista, list):
         raise ValueError("rosliny.json: brak listy „rosliny\"")
-    out, widziane = [], set()
+    out, widziane, nazwy = [], set(), set()
     for i, r in enumerate(lista, 1):
         if not isinstance(r, dict):
             raise ValueError(f"rosliny.json: wpis {i} nie jest obiektem")
@@ -144,7 +148,12 @@ def wczytaj_konfiguracje(tekst: str) -> list[dict]:
             raise ValueError(f"rosliny.json: wpis {i} bez „czujnik\" albo „nazwa\" (tekstem)")
         if czujnik in widziane:
             raise ValueError(f"rosliny.json: czujnik {czujnik} wpisany dwa razy")
+        # Nazwa to klucz zakładki i powiadomień (rosliny.html#roslina=Fikus) — dwie takie
+        # same i druga roślina byłaby nie do wybrania.
+        if nazwa in nazwy:
+            raise ValueError(f"rosliny.json: roślina {nazwa} wpisana dwa razy")
         widziane.add(czujnik)
+        nazwy.add(nazwa)
         if not isinstance(gatunek, str) or gatunek not in GATUNKI:
             raise ValueError(f"rosliny.json: {nazwa} — nieznany gatunek {gatunek!r} "
                              f"(znane: {', '.join(GATUNKI)})")
@@ -521,6 +530,9 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
         pilne = GATUNKI[konf["gatunek"]]["pilne"]
         if pilne is not None and r is not None and r <= pilne:
             werdykt = "pilne"
+            rada = GATUNKI[konf["gatunek"]].get("rada_pilne")
+            if rada:
+                uwagi.append(rada)
         elif r is not None and r <= prog:
             werdykt = "podlej"
         else:
@@ -541,4 +553,8 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
         "swiatlo_potrzeba_lxh": GATUNKI[konf["gatunek"]]["swiatlo_lxh"],
         "podlania": podl, "szczyt": szczyt, "punkt_podlewania": wynik_nauki["punkt_podlewania"],
         "R": r, "prog": prog, "werdykt": werdykt, "uwagi": uwagi, "do_zgloszenia": zglos,
+        # Próg w jednostkach czujnika — ta sama liczba co duża wartość gleby na karcie
+        # i dolna krawędź pasma na wykresie. Strona nie odwraca wzoru na R sama.
+        "prog_gleba": (round(sucho + prog * (szczyt - sucho))
+                       if szczyt is not None and sucho is not None else None),
     }

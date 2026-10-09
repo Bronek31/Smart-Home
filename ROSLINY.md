@@ -652,6 +652,24 @@ Pozostałe zasady:
 
 ### Etap 3: zakładka „Rośliny"
 
+**Stan na 9.10: zrobione** (`rosliny.html`, 30 testów w `tests/frontend/rosliny.spec.js`).
+Po przeglądzie (cztery soczewki, każda ze sceptykiem):
+- **Werdykt, rady i próg przychodzą z Pythona.** Rada „wyjmij czujnik i zanurz
+  doniczkę" dla azalii jest w `GATUNKI`, a `prog_gleba` to próg w procentach czujnika —
+  ta sama liczba co odczyt na karcie i dolna krawędź pasma na wykresie.
+- **Odświeżanie nie patrzy na samo `updated`:** przy błędzie toru kolektor go nie zmienia,
+  więc baner z błędem pokazywał się dopiero po przeładowaniu.
+- **Oś gleby od wbicia sondy** (najmniej półtorej doby); odczytów sprzed wbicia nie ma na
+  wykresie, doby światła liczą się od dnia wbicia.
+- `#roslina=…` wybiera roślinę i obrysowuje jej kartę — tędy wejdzie kliknięcie
+  w powiadomienie (etap 4). Nazwy roślin muszą być różne (pilnuje `rosliny.json`).
+- Bez internetu i bez zapisanego stanu strona mówi „Brak połączenia", a nie „zajrzyj
+  do Actions".
+- **Świadomie odłożone:** podbicie wersji service workera (v3 → v4) czyści też zapas
+  odczytów, Chart.js i fontów, więc pierwsze uruchomienie bez sieci po aktualizacji nie
+  ma danych. Tak było przy każdym podbiciu; rozdzielenie pamięci na szkielet i zapas —
+  przy etapie 4, który i tak zmienia `sw.js`.
+
 **Osobna strona `rosliny.html`** w tym samym zakresie aplikacji (`scope: ./`), a nie
 sekcja w `index.html`:
 - w zainstalowanej aplikacji (Android i iPhone) przejście między stronami z zakresu

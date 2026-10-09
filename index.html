@@ -23,6 +23,10 @@
    (black-translucent) i rysuje się pod nim — bez tego nagłówek wchodził pod zegar
    i wcięcie ekranu. env() działa tylko przy viewport-fit=cover; poza iPhonem daje 0. */
 .sheet{padding-top:max(var(--gap),env(safe-area-inset-top));padding-left:max(var(--gap),env(safe-area-inset-left));padding-right:max(var(--gap),env(safe-area-inset-right));padding-bottom:max(4rem,env(safe-area-inset-bottom))}
+/* Pasek zakładek „Mieszkanie | Rośliny". Rośliny to osobna strona (rosliny.html) w tym
+   samym zakresie aplikacji — tutaj nie ląduje żaden odczyt z doniczek (warunek
+   właściciela, 8.10). Poza #app, bo na telefonie #app przestawia kolejność dzieci. */
+.zakladki{display:flex;gap:1px;width:max-content;max-width:100%;margin:0 0 .9rem;background:var(--edge);border:1px solid var(--edge)}.zakladki a{padding:.36rem .95rem;background:var(--bg);color:var(--dim);font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;text-decoration:none}.zakladki a:hover{color:var(--text)}.zakladki a[aria-current="page"]{background:var(--text);color:var(--bg);font-weight:600}.zakladki a:focus-visible{outline:2px solid var(--pen-2);outline-offset:2px}
 .masthead{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1.2rem;padding-bottom:.8rem;border-bottom:1px solid var(--edge)}.masthead h1{margin:0;font-size:clamp(1.25rem,4.5vw,1.9rem);font-weight:700;letter-spacing:-.02em}.masthead h1 .nib{color:var(--pen-1);text-shadow:0 0 14px rgba(232,161,60,.55)}.stamp{margin-left:auto;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 .section-title{margin:2rem 0 .55rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim)}
 .statusbar{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:1px;background:var(--edge);border:1px solid var(--edge);margin-top:var(--gap)}.statusbox{background:var(--panel);padding:.8rem .9rem}.statusbox .k{font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}.statusbox .v{margin-top:.2rem;font-family:"IBM Plex Mono",monospace;font-size:1rem}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:.45rem;background:var(--ok);box-shadow:0 0 9px currentColor}.dot.warn{background:var(--warn);color:var(--warn)}.dot.bad{background:var(--bad);color:var(--bad)}
@@ -138,6 +142,7 @@
 </style>
 </head>
 <body><main class="sheet">
+<nav class="zakladki" aria-label="Zakładki aplikacji"><a href="./" aria-current="page">Mieszkanie</a><a href="rosliny.html">Rośliny</a></nav>
 <header class="masthead"><h1><span class="nib">&#9134;</span> Smart Home</h1><span class="stamp" id="stamp">wczytywanie&hellip;</span></header>
 <section id="app" hidden>
   <div class="statusbar" id="statusbar"></div>

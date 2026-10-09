@@ -125,14 +125,17 @@ jobs:
         run: |
           python3 - <<'PY'
           import re, sys, pathlib
-          html = pathlib.Path("index.html").read_text(encoding="utf-8")
           bledy = []
-          if re.search(r'<script[^>]+type=["\']module["\']', html):
-              bledy.append("index.html używa modułów ES — Pages nie ma czego zbudować")
-          for src in re.findall(r'<script[^>]+src=["\']([^"\']+)', html):
-              if not src.startswith("https://"):
-                  bledy.append(f"skrypt spoza HTTPS: {src}")
-          for plik in ("manifest.json", "sw.js", "ikona.svg", "ikona-192.png", "ikona-512.png"):
+          # rosliny.html (zakładka „Rośliny") to druga strona tej samej aplikacji —
+          # te same zasady: jeden plik, bez budowania, skrypty tylko z HTTPS.
+          for strona in ("index.html", "rosliny.html"):
+              html = pathlib.Path(strona).read_text(encoding="utf-8")
+              if re.search(r'<script[^>]+type=["\']module["\']', html):
+                  bledy.append(f"{strona} używa modułów ES — Pages nie ma czego zbudować")
+              for src in re.findall(r'<script[^>]+src=["\']([^"\']+)', html):
+                  if not src.startswith("https://"):
+                      bledy.append(f"{strona}: skrypt spoza HTTPS: {src}")
+          for plik in ("manifest.json", "sw.js", "ikona.svg", "ikona-192.png", "ikona-512.png", "rosliny.html"):
               if not pathlib.Path(plik).exists():
                   bledy.append(f"brak pliku {plik}, na który wskazuje strona")
           # Bez .nojekyll Pages puszcza repozytorium przez Jekylla, a ten w trakcie

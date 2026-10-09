@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1419">
+<title>Rośliny · Smart Home</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="ikona.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="ikona-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Smart Home">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@300;400;500&family=IBM+Plex+Sans+Condensed:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+<!--
+  Zakładka „Rośliny" — osobna strona w tym samym zakresie aplikacji co index.html
+  (manifest: scope ./), żeby w zainstalowanej aplikacji przejście zostawało w jej oknie,
+  a odczyty z doniczek nie mieszały się ze stroną mieszkania (warunek właściciela, 8.10).
+  Wszystko liczy kolektor (rosliny.py → data/rosliny/stan.json); ta strona tylko
+  wyświetla werdykty i serie — żadnych bliźniaczych stałych JS/Python. Plan: ROSLINY.md,
+  „Etap 3".
+-->
+<style>
+:root{--bg:#0f1419;--panel:#151c24;--edge:#212c36;--grid:#1d262f;--grid-day:#2f3d4a;--text:#e4ebf1;--dim:#a6b7c4;--faint:#8496a5;--ok:#5fce9e;--warn:#e8a13c;--bad:#e2708f;--pen-1:#e8a13c;--pen-2:#5fb8e0;--pen-3:#5fce9e;--pen-4:#e2708f;--pen-5:#b79ae8;--pen-6:#d4c95f;--gap:clamp(1rem,3.2vw,2rem)}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}body{margin:0;min-height:100vh;background:radial-gradient(120% 70% at 50% -10%,#1a232c 0%,transparent 60%),repeating-linear-gradient(to bottom,transparent 0 31px,rgba(255,255,255,.014) 31px 32px),var(--bg);color:var(--text);font-family:"Familjen Grotesk",system-ui,sans-serif;font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}.sheet{max-width:1080px;margin:0 auto;padding:var(--gap) var(--gap) 4rem}
+/* Na iPhonie dodana do ekranu początkowego strona ma przezroczysty pasek stanu
+   (black-translucent) i rysuje się pod nim — tak samo jak index.html. */
+.sheet{padding-top:max(var(--gap),env(safe-area-inset-top));padding-left:max(var(--gap),env(safe-area-inset-left));padding-right:max(var(--gap),env(safe-area-inset-right));padding-bottom:max(4rem,env(safe-area-inset-bottom))}
+/* Pasek zakładek — ten sam co w index.html. */
+.zakladki{display:flex;gap:1px;width:max-content;max-width:100%;margin:0 0 .9rem;background:var(--edge);border:1px solid var(--edge)}.zakladki a{padding:.36rem .95rem;background:var(--bg);color:var(--dim);font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;text-decoration:none}.zakladki a:hover{color:var(--text)}.zakladki a[aria-current="page"]{background:var(--text);color:var(--bg);font-weight:600}.zakladki a:focus-visible{outline:2px solid var(--pen-2);outline-offset:2px}
+.masthead{display:flex;flex-wrap:wrap;align-items:baseline;gap:.4rem 1.2rem;padding-bottom:.8rem;border-bottom:1px solid var(--edge)}.masthead h1{margin:0;font-size:clamp(1.25rem,4.5vw,1.9rem);font-weight:700;letter-spacing:-.02em}.masthead h1 .nib{color:var(--pen-3);text-shadow:0 0 14px rgba(95,206,158,.55)}.stamp{margin-left:auto;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}.stamp.warn-text{color:var(--warn)}
+.notice{margin:2.5rem 0;padding:1.4rem 1.5rem;border:1px solid var(--edge);background:var(--panel);max-width:44rem}.notice h2{margin:0 0 .55rem;font-size:1.05rem}.notice p{margin:.45rem 0;color:var(--dim);font-size:.92rem}.notice code{font-family:"IBM Plex Mono",monospace;font-size:.85em;color:var(--pen-1);background:#0b1015;padding:.12em .42em;border:1px solid var(--edge)}[hidden]{display:none!important}
+.baner{margin-top:var(--gap);padding:.8rem 1rem;border:1px solid var(--edge);border-left:3px solid var(--bad);background:var(--panel);font-size:.88rem;color:var(--dim)}.baner b{color:var(--text)}
+/* Karty roślin: płaskie jak kafle w index.html, z barwnym paskiem werdyktu po lewej. */
+.karty{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(290px,100%),1fr));gap:1px;margin-top:var(--gap);background:var(--edge);border:1px solid var(--edge)}
+.karta{position:relative;overflow:hidden;background:var(--panel);padding:.9rem 1rem 1rem 1.15rem}.karta::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--c);box-shadow:0 0 12px 1px var(--c);opacity:.9}
+.karta.wskazana{outline:1px solid var(--c);outline-offset:-1px}.karta h2{margin:0;display:flex;align-items:baseline;gap:.6rem;font-size:1.15rem;font-weight:700;letter-spacing:-.01em}.karta h2 small{font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.7rem;font-weight:400;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}
+.werdykt{margin:.45rem 0 0;font-size:1.02rem;font-weight:500;color:var(--c)}.opis{margin:.2rem 0 0;font-size:.84rem;line-height:1.45;color:var(--dim)}
+.gleba{display:flex;align-items:center;gap:.9rem;margin-top:.8rem}.gleba .t{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;font-size:1.7rem;line-height:1;color:var(--c);text-shadow:0 0 18px color-mix(in srgb,var(--c) 45%,transparent)}.gleba .t small{font-size:.9rem;color:var(--dim);text-shadow:none;margin-left:.15rem}
+.pasmo-blok{flex:1;min-width:0}.pasmo{position:relative;height:10px;background:#0b1015;border:1px solid var(--edge)}.pasmo-dobrze{position:absolute;top:0;bottom:0;background:rgba(95,206,158,.22);border-left:1px dashed rgba(95,206,158,.7)}.pasmo-teraz{position:absolute;top:-4px;bottom:-4px;width:3px;margin-left:-1px;background:var(--c);box-shadow:0 0 8px var(--c)}
+.pasmo-opis{display:flex;justify-content:space-between;margin-top:.25rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.fakty{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.55rem .9rem;margin:.9rem 0 0}.fakty div{min-width:0}.fakty dt{font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--faint)}.fakty dd{margin:.1rem 0 0;font-family:"IBM Plex Mono",monospace;font-size:.84rem;font-variant-numeric:tabular-nums;color:var(--text);overflow-wrap:anywhere}.fakty .warn-text{color:var(--warn)}.fakty .bad-text{color:var(--bad)}
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin-top:2rem;padding-bottom:.6rem;border-bottom:1px solid var(--edge);font-family:"IBM Plex Sans Condensed",sans-serif}.controls .lbl{font-size:.7rem;letter-spacing:.13em;text-transform:uppercase;color:var(--faint);margin-right:.45rem}.range{appearance:none;border:1px solid var(--edge);background:transparent;color:var(--dim);font:inherit;font-size:.83rem;letter-spacing:.03em;padding:.24rem .72rem;cursor:pointer;border-radius:0;transition:.15s}.range:hover{border-color:var(--grid-day);color:var(--text)}.range[aria-pressed="true"]{background:var(--text);color:var(--bg);border-color:var(--text);font-weight:600}.range:focus-visible{outline:2px solid var(--pen-2);outline-offset:2px}
+.trace{margin-top:1.5rem}.trace h2{margin:0 0 .5rem;font-family:"IBM Plex Sans Condensed",sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .55rem}.trace h2 small{font-weight:400;letter-spacing:.06em;color:var(--faint);text-transform:none}.plot{position:relative;height:238px;background:var(--panel);border:1px solid var(--edge);touch-action:pan-y}@media(min-width:700px){.plot{height:300px}}.plot-niski{height:170px}@media(min-width:700px){.plot-niski{height:200px}}.plot canvas{touch-action:pan-y pinch-zoom}
+.trace .hint{margin:.5rem 0 0;font-size:.78rem;line-height:1.5;color:var(--faint);max-width:52rem}.plot-blad{margin:0;padding:1.1rem 1.2rem;font-size:.82rem;line-height:1.5;color:var(--faint)}.plot:has(.plot-blad){height:auto}
+@media(max-width:420px){.karta{padding:.8rem .85rem .9rem 1rem}.gleba .t{font-size:1.5rem}}
+</style>
+</head>
+<body><main class="sheet">
+<nav class="zakladki" aria-label="Zakładki aplikacji"><a href="./">Mieszkanie</a><a href="rosliny.html" aria-current="page">Rośliny</a></nav>
+<header class="masthead"><h1><span class="nib">&#9134;</span> Rośliny</h1><span class="stamp" id="stamp">wczytywanie&hellip;</span></header>
+<div class="notice" id="notice" hidden></div>
+<section id="app" hidden>
+  <div class="baner" id="baner" role="status" hidden></div>
+  <div class="karty" id="karty"></div>
+  <div class="controls" id="wybor"><span class="lbl">Wykresy</span></div>
+  <div class="trace"><h2>Wilgotność gleby <small>% · od wbicia sondy, najwyżej 30 dni · pionowe kreski to wykryte podlania</small></h2><div class="plot"><canvas id="wykres-gleba" role="img" aria-label="Wilgotność gleby w ostatnich 30 dniach"></canvas></div>
+  <p class="hint">Zielone pasmo to wilgotność, w której roślina ma się dobrze: od progu podlewania do poziomu zaraz po podlaniu. Program uczy się go z Twoich podlań, więc pojawia się dopiero po pierwszym.</p></div>
+  <div class="trace"><h2>Światło na dobę <small>lx·h · przerywana linia to potrzeba rośliny</small></h2><div class="plot plot-niski"><canvas id="wykres-swiatlo" role="img" aria-label="Dobowa suma światła w ostatnich 30 dniach"></canvas></div>
+  <p class="hint">Jaśniejsze słupki to doby zmierzone w całości, ciemniejsze — z dziurami w odczytach (np. dzisiejsza). Czujnik patrzy w jedną stronę, więc liczy się trend w tym samym miejscu, a nie pojedyncza doba.</p></div>
+</section>
+</main>
+<script>
+const CSS=getComputedStyle(document.documentElement);const C=n=>CSS.getPropertyValue(n).trim();
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fmtNum=(v,d=1)=>v==null||!isFinite(v)?'–':v.toFixed(d).replace('.',',');const pad=n=>String(n).padStart(2,'0');
+const fmtTys=v=>v==null||!isFinite(v)?'–':new Intl.NumberFormat('pl-PL',{maximumFractionDigits:0}).format(v);
+function fmtAgo(ms){const min=Math.round((Date.now()-ms)/60000);if(min<2)return'przed chwilą';if(min<60)return`${min} min temu`;const h=Math.round(min/60);if(h<48)return`${h} godz. temu`;return`${Math.round(h/24)} dni temu`}
+const fmtStamp=t=>new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}).format(new Date(t));
+const czas=ts=>{const t=Date.parse(ts);return isFinite(t)?t:null};
+const GODZ_MS=3600e3;
+const dzienLokalny=t=>{const d=new Date(t);return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`};
+
+/* Doby światła liczone dopiero od dnia wbicia sondy: wcześniej czujnik leżał na stole
+   (8.10 obok siebie w salonie) i mierzył światło stołu, a nie miejsca rośliny. Bez daty
+   wbicia — od pierwszej doby, w której cokolwiek zmierzono. */
+function dobySwiatla(r){
+  let doby=r.swiatlo_dobowe||[];
+  const od=czas(r.od);
+  if(od!=null){const pierwsza=dzienLokalny(od);doby=doby.filter(d=>d.data>=pierwsza)}
+  const i=doby.findIndex(d=>d.pokrycie>0);
+  return i<0?[]:doby.slice(i);
+}
+
+// Tyle co w index.html: po tylu godzinach bez zapisu kolektor uznajemy za spóźniony.
+const STALE_WARN=2.5*3600e3;
+const ODSWIEZ_CO=10*60e3,ODSWIEZ_PO_POWROCIE=2*60e3;
+
+/* Werdykt liczy rosliny.py; tu jest tylko jego opis i kolor. */
+const WERDYKTY={
+  ok:{tekst:'Gleba w porządku',kolor:'--ok'},
+  podlej:{tekst:'Czas podlać',kolor:'--warn'},
+  pilne:{tekst:'Podlej pilnie',kolor:'--bad'},
+  czujnik:{tekst:'Sprawdź czujnik',kolor:'--bad'},
+  nauka:{tekst:'Uczę się',kolor:'--pen-2'},
+};
+const BATERIA={high:'dobra',middle:'średnia',low:'niska'};
+
+let stan=null,pokoje={},wybrana=null,ostatnieSprawdzenie=0;
+const wykresy={};
+
+function blad(tytul,...akapity){
+  document.getElementById('stamp').textContent='brak danych';
+  const n=document.getElementById('notice');
+  n.innerHTML=`<h2>${esc(tytul)}</h2>`+akapity.map(p=>`<p>${p}</p>`).join('');
+  n.hidden=false;document.getElementById('app').hidden=true;
+}
+
+/* null — pliku nie ma (404); undefined — w ogóle nie ma sieci. Bez tego rozróżnienia
+   telefon bez internetu kazał zaglądać do Actions, jakby kolektor stał. */
+async function wczytajJson(sciezka){
+  let r;try{r=await fetch(sciezka,{cache:'no-cache'})}catch{return undefined}
+  try{return r.ok?await r.json():null}catch{return null}
+}
+
+/* Nazwę pokoju bierzemy z manifestu mieszkania tylko do podpisu karty — nic z doniczek
+   nie wraca w drugą stronę. Brak manifestu to po prostu karta bez nazwy pokoju. */
+async function wczytajPokoje(){
+  const m=await wczytajJson('data/index.json');
+  const out={};
+  for(const [id,d] of Object.entries(m?.devices||{}))if(d?.name)out[id]=d.name;
+  return out;
+}
+
+function roslinaZAdresu(){
+  const m=/(?:^|[#&])roslina=([^&]+)/.exec(location.hash);
+  try{return m?decodeURIComponent(m[1]):null}catch{return null}   // ucięty adres z „%" nie może wywrócić strony
+}
+
+function opisWerdyktu(r){
+  const w=WERDYKTY[r.werdykt]||{tekst:r.werdykt,kolor:'--dim'};
+  // Próg w tych samych procentach co odczyt gleby obok (prog_gleba liczy Python) — zdanie
+  // „gleba na 85% skali, podlewanie przy 50%" obok odczytu 50% mieszało dwie skale.
+  // Rady (np. zanurzenie azalii) też przychodzą z Pythona, w uwagach.
+  const zdania=[...(r.uwagi||[])];
+  if(['ok','podlej','pilne'].includes(r.werdykt)&&r.prog_gleba!=null)
+    zdania.unshift(`Podlewaj, gdy gleba spadnie do ok. ${r.prog_gleba}%.`);
+  return {tekst:w.tekst,kolor:w.kolor,opis:zdania.join(' ')};
+}
+
+function pasmo(r){
+  if(r.R==null||r.prog==null)return `<div class="pasmo-blok"><div class="pasmo" role="img" aria-label="Skala gleby jeszcze nieznana"></div><div class="pasmo-opis"><span>skala jeszcze nieznana</span></div></div>`;
+  const proc=v=>Math.max(0,Math.min(100,v*100));
+  const opis=r.prog_gleba!=null?`Gleba ${fmtNum(r.ostatnie?.gleba?.v,0)}%, próg podlewania ok. ${r.prog_gleba}%`:'Gleba na tle skali rośliny';
+  return `<div class="pasmo-blok"><div class="pasmo" role="img" aria-label="${esc(opis)}">`+
+    `<span class="pasmo-dobrze" style="left:${proc(r.prog)}%;width:${100-proc(r.prog)}%"></span>`+
+    `<span class="pasmo-teraz" style="left:${proc(r.R)}%"></span></div>`+
+    `<div class="pasmo-opis"><span>sucho</span><span>po podlaniu</span></div></div>`;
+}
+
+function swiatloWczoraj(r){
+  const wszystkie=r.swiatlo_dobowe||[];
+  const wczorajData=wszystkie.length>=2?wszystkie[wszystkie.length-2].data:null;
+  const wczoraj=dobySwiatla(r).find(d=>d.data===wczorajData);
+  if(!wczoraj)return {tekst:'jeszcze bez pełnej doby',klasa:''};
+  const potrzeba=r.swiatlo_potrzeba_lxh;
+  let tekst=`${fmtTys(wczoraj.lxh)} lx·h`;
+  // procent potrzeby z dziurawej doby straszyłby bez powodu — wtedy sama suma
+  if(wczoraj.pokrycie<.8)return {tekst:tekst+' (niepełny pomiar)',klasa:''};
+  if(potrzeba)tekst+=` · ${Math.round(100*wczoraj.lxh/potrzeba)}% potrzeby`;
+  return {tekst,klasa:potrzeba&&wczoraj.lxh<potrzeba/2?'warn-text':''};
+}
+
+function ostatniePodlanie(r){
+  const p=(r.podlania||[]).at(-1);
+  if(!p)return'nie wykryto';
+  return fmtAgo(czas(p.ts))+(p.pominiete?' (pominięte w nauce)':'');
+}
+
+function wiekDanych(r){
+  const t=Math.max(0,...Object.values(r.ostatnie||{}).map(o=>czas(o.ts)||0));
+  if(!t)return {tekst:'brak odczytów',klasa:'bad-text'};
+  return {tekst:fmtAgo(t),klasa:Date.now()-t>STALE_WARN?'warn-text':''};      // ten sam próg co stempel
+}
+
+function karta(r){
+  const w=opisWerdyktu(r);
+  const gleba=r.ostatnie?.gleba?.v;
+  const sw=swiatloWczoraj(r);const wiek=wiekDanych(r);
+  const bat=r.ostatnie?.bateria?.v;
+  const temp=r.ostatnie?.temp?.v,wilg=r.ostatnie?.wilg?.v;
+  const miejsce=pokoje[r.pokoj]?`<small>${esc(pokoje[r.pokoj].toLowerCase())}</small>`:'';
+  return `<article class="karta" data-roslina="${esc(r.nazwa)}" data-werdykt="${esc(r.werdykt)}" style="--c:var(${w.kolor})">`+
+    `<h2>${esc(r.nazwa)}${miejsce}</h2>`+
+    `<p class="werdykt">${esc(w.tekst)}</p>`+(w.opis?`<p class="opis">${esc(w.opis)}</p>`:'')+
+    `<div class="gleba"><span class="t">${fmtNum(gleba,0)}<small>%</small></span>${pasmo(r)}</div>`+
+    `<dl class="fakty">`+
+      `<div><dt>Ostatnie podlanie</dt><dd>${esc(ostatniePodlanie(r))}</dd></div>`+
+      `<div><dt>Światło wczoraj</dt><dd class="${sw.klasa}">${esc(sw.tekst)}</dd></div>`+
+      `<div><dt>Powietrze</dt><dd>${fmtNum(temp,1)} °C · ${fmtNum(wilg,0)}%</dd></div>`+
+      `<div><dt>Bateria</dt><dd class="${bat==='low'?'bad-text':''}">${esc(BATERIA[bat]||bat||'–')}</dd></div>`+
+      `<div><dt>Ostatni odczyt</dt><dd class="${wiek.klasa}">${esc(wiek.tekst)}</dd></div>`+
+    `</dl></article>`;
+}
+
+function rysujKarty(){
+  document.getElementById('karty').innerHTML=stan.rosliny.map(karta).join('');
+  const baner=document.getElementById('baner');
+  if(stan.blad){
+    baner.innerHTML=`<b>Kolektor zgłosił błąd przy roślinach:</b> ${esc(stan.blad)}`;
+    baner.hidden=false;
+  }else baner.hidden=true;
+  const stamp=document.getElementById('stamp');const t=czas(stan.updated);
+  stamp.textContent=t?'stan z '+fmtStamp(t):'stan nieznany';
+  stamp.classList.toggle('warn-text',!t||Date.now()-t>STALE_WARN);
+}
+
+/* Przyciski powstają raz na listę roślin; potem zmienia się tylko aria-pressed —
+   przebudowa przy każdym kliknięciu zrzucała fokus klawiatury na <body>. */
+function rysujWybor(){
+  const wybor=document.getElementById('wybor');
+  const nazwy=stan.rosliny.map(r=>r.nazwa);
+  const obecne=[...wybor.querySelectorAll('.range')];
+  if(obecne.map(b=>b.dataset.roslina).join('\n')!==nazwy.join('\n')){
+    obecne.forEach(b=>b.remove());
+    for(const nazwa of nazwy){
+      const b=document.createElement('button');
+      b.type='button';b.className='range';b.textContent=nazwa;b.dataset.roslina=nazwa;
+      b.addEventListener('click',()=>{wybrana=nazwa;history.replaceState(null,'',location.pathname+location.search+'#roslina='+encodeURIComponent(nazwa));rysujWybor();rysujWykresy()});
+      wybor.appendChild(b);
+    }
+  }
+  for(const b of wybor.querySelectorAll('.range'))b.setAttribute('aria-pressed',String(b.dataset.roslina===wybrana));
+}
+
+/* --- wykresy --- */
+const MONO='"IBM Plex Mono",monospace',WASKI='"IBM Plex Sans Condensed",sans-serif';
+const os=(tekst)=>({border:{color:C('--edge')},grid:{color:C('--grid')},title:{display:!!tekst,text:tekst,color:C('--faint'),font:{family:WASKI,size:11}},ticks:{color:C('--dim'),font:{family:MONO,size:11}}});
+const dymek=()=>({backgroundColor:'#080c10',titleColor:C('--dim'),bodyColor:C('--text'),borderColor:C('--grid-day'),borderWidth:1,cornerRadius:0,padding:10,titleFont:{family:WASKI,size:11,weight:'600'},bodyFont:{family:MONO,size:12}});
+// Wtyczki skopiowane świadomie z index.html (strefa/pustka), a nie współdzielone:
+// strona roślin ma nie ładować logiki mieszkania.
+const pasmoWtyczka={id:'pasmo',beforeDatasetsDraw(ch,_a,o){
+  if(o.dol==null||o.gora==null)return;const {ctx,chartArea:a,scales:{y}}=ch;
+  const g=y.getPixelForValue(o.gora),d=y.getPixelForValue(o.dol);
+  ctx.save();ctx.fillStyle='rgba(95,206,158,.11)';ctx.fillRect(a.left,g,a.right-a.left,d-g);
+  ctx.strokeStyle='rgba(95,206,158,.55)';ctx.setLineDash([4,3]);ctx.beginPath();ctx.moveTo(a.left,d);ctx.lineTo(a.right,d);ctx.stroke();
+  ctx.setLineDash([]);ctx.fillStyle='rgba(95,206,158,.85)';ctx.font='600 10px '+WASKI;ctx.textBaseline='bottom';ctx.fillText('PRÓG PODLEWANIA',a.left+6,d-3);ctx.restore();
+}};
+const podlaniaWtyczka={id:'podlania',afterDatasetsDraw(ch,_a,o){
+  const {ctx,chartArea:a,scales:{x}}=ch;
+  ctx.save();ctx.setLineDash([3,3]);ctx.lineWidth=1;
+  for(const p of o.lista||[]){const px=x.getPixelForValue(p.t);if(px<a.left||px>a.right)continue;
+    ctx.strokeStyle=p.pominiete?C('--faint'):C('--pen-2');ctx.beginPath();ctx.moveTo(px,a.top);ctx.lineTo(px,a.bottom);ctx.stroke()}
+  ctx.restore();
+}};
+const potrzebaWtyczka={id:'potrzeba',afterDatasetsDraw(ch,_a,o){
+  if(!o.wartosc)return;const {ctx,chartArea:a,scales:{y}}=ch;const py=y.getPixelForValue(o.wartosc);if(py<a.top||py>a.bottom)return;
+  ctx.save();ctx.strokeStyle=C('--warn');ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(a.left,py);ctx.lineTo(a.right,py);ctx.stroke();
+  // napis na ciemnym tle — na żółtych słupkach sam kolor się zlewał
+  ctx.setLineDash([]);ctx.font='600 10px '+WASKI;ctx.textBaseline='middle';
+  const szer=ctx.measureText('POTRZEBA').width+8;ctx.fillStyle='#080c10';ctx.fillRect(a.left+4,py-7,szer,14);
+  ctx.fillStyle=C('--warn');ctx.fillText('POTRZEBA',a.left+8,py);ctx.restore();
+}};
+const pustkaWtyczka={id:'pustka',afterDraw(ch,_a,o){
+  // punkt linii to {x,y}, słupek to liczba; {x,y:null} to brak odczytu, nie dana
+  if(ch.data.datasets.some(d=>d.data.some(p=>(p!==null&&typeof p==='object'?p.y:p)!=null)))return;
+  const {ctx,chartArea:a}=ch;ctx.save();ctx.fillStyle=C('--faint');ctx.font='13px '+WASKI;ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(o.tekst||'Brak odczytów w ostatnich 30 dniach',(a.left+a.right)/2,(a.top+a.bottom)/2);ctx.restore();
+}};
+
+function punktySzeregu(r,klucz){
+  const s=r.szereg||{};const start=czas(s.od);const krok=(s.krok_min||60)*60e3;
+  if(start==null||!Array.isArray(s[klucz]))return[];
+  return s[klucz].map((v,i)=>({x:start+i*krok,y:v}));
+}
+
+function brakWykresow(tekst){
+  for(const id of ['wykres-gleba','wykres-swiatlo']){wykresy[id]?.destroy();delete wykresy[id];
+    const plot=document.getElementById(id)?.closest('.plot')||document.querySelector(`.plot[data-plot="${id}"]`);
+    if(plot){plot.dataset.plot=id;plot.innerHTML=`<p class="plot-blad">${esc(tekst)}</p>`}}
+}
+
+function rysujWykresy(){
+  if(typeof Chart==='undefined')return brakWykresow('Nie udało się wczytać biblioteki wykresów z cdn.jsdelivr.net. Karty roślin działają bez niej; wykresy wrócą po odświeżeniu.');
+  const r=stan.rosliny.find(x=>x.nazwa===wybrana);if(!r)return;
+  try{rysujGlebe(r);rysujSwiatlo(r)}
+  catch(e){brakWykresow(`Wykresy się nie narysowały: ${e.message}.`)}
+}
+
+function rysujGlebe(r){
+  const id='wykres-gleba';wykresy[id]?.destroy();
+  const s=r.szereg||{};
+  // Sprzed wbicia sondy nic nie rysujemy: to sonda w powietrzu (ok. 10%), a na osi
+  // wyglądałoby jak zupełnie sucha ziemia.
+  const odWbicia=czas(r.od);
+  const pkt=punktySzeregu(r,'gleba').map(p=>odWbicia!=null&&p.x<odWbicia?{x:p.x,y:null}:p);
+  const kolor=C('--pen-2');
+  const dol=r.prog_gleba??null;
+  // Oś od wbicia sondy: wcześniejsze odczyty to sonda w powietrzu albo w ręku, a pusty
+  // miesiąc ściskał pierwsze dni do kreski przy prawej krawędzi. Najmniej półtorej doby.
+  const xMax=czas(stan.updated)||Date.now();
+  const pierwszy=pkt.find(p=>p.y!=null)?.x;
+  let xMin=Math.max(czas(s.od)??-Infinity,czas(r.od)??pierwszy??-Infinity);
+  if(!isFinite(xMin))xMin=czas(s.od)??xMax-30*24*GODZ_MS;
+  xMin=Math.min(xMin,xMax-36*GODZ_MS);
+  // Krótka oś (pierwsze dni po wbiciu): podziałka co kilka godzin, data o północy.
+  const krotka=xMax-xMin<3*24*GODZ_MS;
+  const podpis=v=>{const d=new Date(v);return krotka&&(d.getHours()||d.getMinutes())?`${pad(d.getHours())}:${pad(d.getMinutes())}`:`${pad(d.getDate())}.${pad(d.getMonth()+1)}`};
+  const kiedy=new Intl.DateTimeFormat('pl-PL',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});
+  wykresy[id]=new Chart(document.getElementById(id),{
+    type:'line',
+    data:{datasets:[{label:'gleba',data:pkt,borderColor:kolor,backgroundColor:kolor,borderWidth:1.6,stepped:true,pointRadius:0,pointHitRadius:6,spanGaps:false}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,events:['mousemove','mouseout','click'],parsing:false,normalized:true,
+      layout:{padding:{right:12,top:6}},interaction:{mode:'nearest',axis:'x',intersect:false},
+      scales:{
+        x:{type:'time',min:xMin,max:xMax,...os(''),ticks:{...os('').ticks,maxRotation:0,autoSkip:true,maxTicksLimit:8,callback:podpis},time:krotka?{unit:'hour',stepSize:6}:{unit:'day'}},
+        y:{min:0,max:100,...os('%'),ticks:{...os('%').ticks,stepSize:20}}},
+      plugins:{legend:{display:false},
+        tooltip:{...dymek(),callbacks:{title:it=>kiedy.format(new Date(it[0].parsed.x)),label:it=>` gleba ${fmtNum(it.parsed.y,0)} %`}},
+        pasmo:{dol,gora:dol!=null?r.szczyt:null},
+        podlania:{lista:(r.podlania||[]).map(p=>({t:czas(p.ts),pominiete:!!p.pominiete})).filter(p=>p.t)},
+        pustka:{tekst:'Brak odczytów gleby w ostatnich 30 dniach'}}},
+    plugins:[pasmoWtyczka,podlaniaWtyczka,pustkaWtyczka],
+  });
+}
+
+function rysujSwiatlo(r){
+  const id='wykres-swiatlo';wykresy[id]?.destroy();
+  const doby=dobySwiatla(r);
+  const etykieta=d=>{const [,m,dz]=d.data.split('-');return `${dz}.${m}`};
+  const pelne=C('--pen-6'),dziurawe='rgba(212,201,95,.35)';
+  wykresy[id]=new Chart(document.getElementById(id),{
+    type:'bar',
+    data:{labels:doby.map(etykieta),datasets:[{label:'światło',data:doby.map(d=>d.lxh),backgroundColor:doby.map(d=>d.pokrycie>=.8?pelne:dziurawe),borderWidth:0,barPercentage:.9,categoryPercentage:.9}]},
+    options:{responsive:true,maintainAspectRatio:false,animation:false,events:['mousemove','mouseout','click'],
+      layout:{padding:{right:12,top:6}},
+      scales:{x:{...os(''),grid:{display:false},ticks:{...os('').ticks,maxRotation:0,autoSkip:true,maxTicksLimit:8}},
+        y:{min:0,suggestedMax:(r.swiatlo_potrzeba_lxh||0)*1.15,...os('lx·h'),ticks:{...os('').ticks,callback:v=>fmtTys(v)}}},
+      plugins:{legend:{display:false},
+        tooltip:{...dymek(),callbacks:{label:it=>{const d=doby[it.dataIndex];return ` ${fmtTys(d.lxh)} lx·h · pomiar ${Math.round(d.pokrycie*100)}% doby`}}},
+        potrzeba:{wartosc:r.swiatlo_potrzeba_lxh},pustka:{tekst:'Brak pomiaru światła'}}},
+    plugins:[potrzebaWtyczka,pustkaWtyczka],
+  });
+}
+
+/* --- start i odświeżanie --- */
+/* #roslina=… w adresie (kliknięcie w powiadomienie, etap 4) przewija do karty tej rośliny
+   i ją obrysowuje — tylko przy wejściu i zmianie adresu, nie przy klikaniu przełącznika. */
+function pokazWskazana(){
+  const z=roslinaZAdresu();if(!z)return;
+  for(const k of document.querySelectorAll('.karta'))k.classList.toggle('wskazana',k.dataset.roslina===z);
+  [...document.querySelectorAll('.karta')].find(k=>k.dataset.roslina===z)?.scrollIntoView({block:'start'});
+}
+
+function rysuj(){
+  rysujKarty();
+  const zAdresu=roslinaZAdresu();
+  const nazwy=stan.rosliny.map(r=>r.nazwa);
+  if(zAdresu&&nazwy.includes(zAdresu))wybrana=zAdresu;
+  if(!nazwy.includes(wybrana)){
+    // na start wykres rośliny, która najbardziej potrzebuje uwagi
+    const kolejnosc=['pilne','czujnik','podlej','ok','nauka'];
+    wybrana=[...stan.rosliny].sort((a,b)=>kolejnosc.indexOf(a.werdykt)-kolejnosc.indexOf(b.werdykt))[0]?.nazwa??null;
+  }
+  rysujWybor();rysujWykresy();
+}
+
+/* Jedna droga dla pierwszego wczytania i odświeżania, żeby otwarta strona i świeżo
+   otwarta mówiły to samo. Przy błędzie toru kolektor nie zmienia `updated`
+   (blad_toru_roslin zostawia poprzedni stan), więc o przerysowaniu nie może decydować
+   samo `updated` — dawniej baner z błędem pokazywał się dopiero po przeładowaniu. */
+function pokazStan(s){
+  if(!Array.isArray(s.rosliny)||!s.rosliny.length){
+    stan=null;
+    if(s.blad)return blad('Kolektor nie policzył stanu roślin',esc(s.blad));
+    return blad('Brak roślin w konfiguracji','Lista w <code>rosliny.json</code> jest pusta.');
+  }
+  const tenSam=stan&&s.updated===stan.updated&&s.rosliny.map(r=>r.nazwa).join('\n')===stan.rosliny.map(r=>r.nazwa).join('\n');
+  const pierwszy=!stan;
+  stan=s;
+  document.getElementById('notice').hidden=true;document.getElementById('app').hidden=false;
+  if(tenSam)return rysujKarty();       // serie te same — dość odświeżyć karty, baner i „x min temu"
+  rysuj();
+  if(pierwszy)pokazWskazana();
+}
+
+async function start(){
+  const [s,p]=await Promise.all([wczytajJson('data/rosliny/stan.json'),wczytajPokoje()]);
+  ostatnieSprawdzenie=Date.now();pokoje=p;
+  if(s===undefined)return blad('Brak połączenia','Ten telefon nie ma jeszcze zapisanego stanu roślin. Wróć tu, gdy będzie internet — strona sama spróbuje ponownie.');
+  if(!s)return blad('Nie ma jeszcze danych z doniczek','Kolektor zapisuje stan roślin w <code>data/rosliny/stan.json</code> co godzinę. Jeśli ten komunikat nie znika, zajrzyj do zakładki Actions w repozytorium.');
+  pokazStan(s);
+  // Wykresy rysują się od razu; gdy dojdą fonty, jeszcze raz — inaczej podpisy osi
+  // zostawały w zastępczym kroju do następnego przerysowania.
+  document.fonts?.load?.('11px "IBM Plex Mono"').then(()=>{if(stan)rysujWykresy()}).catch(()=>{});
+}
+
+async function odswiez(){
+  ostatnieSprawdzenie=Date.now();
+  if(!stan)return start();
+  const s=await wczytajJson('data/rosliny/stan.json');
+  if(!s)return rysujKarty();            // bez sieci zostaje to, co jest; „x min temu" się postarzało
+  pokazStan(s);
+}
+
+addEventListener('hashchange',()=>{if(!stan)return;const z=roslinaZAdresu();if(z&&stan.rosliny.some(r=>r.nazwa===z)){if(z!==wybrana){wybrana=z;rysujWybor();rysujWykresy()}pokazWskazana()}});
+addEventListener('online',()=>odswiez());
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&Date.now()-ostatnieSprawdzenie>ODSWIEZ_PO_POWROCIE)odswiez()});
+setInterval(()=>{if(document.visibilityState==='visible')odswiez()},ODSWIEZ_CO);
+start();
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
