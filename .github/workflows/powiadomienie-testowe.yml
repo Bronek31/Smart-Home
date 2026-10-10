@@ -6,6 +6,7 @@ name: Powiadomienie testowe
 # uruchamiać workflowów nie może (403), więc rusza ono też po zmianie tego pliku na main —
 # jak odkryj.yml. Wywołania przez zmianę pliku (dopisz linię, żeby wysłać znowu):
 # - 9.10, Android podpięty (iPhone później).
+# - 10.10, iPhone podpięty — test na oba telefony.
 
 on:
   workflow_dispatch:
