@@ -1,7 +1,24 @@
 {
  "tryb": "na-sucho",
  "wlaczone_od": null,
- "historia": [],
+ "historia": [
+  {
+   "id": "20261011T080115Z-podsumowanie",
+   "ts": "2026-10-11T08:01:15Z",
+   "przebieg": "38123334895-1",
+   "regula": "podsumowanie",
+   "rosliny": [
+    "Fikus",
+    "Skrzydłokwiat",
+    "Azalia"
+   ],
+   "tytul": "Rośliny — podsumowanie tygodnia",
+   "tresc": "Fikus: uczę się, gleba 100%; ostatnie podlanie 09.10 09:51; światło śr. 4 452 lx·h na dobę, 22% potrzeby (pełne doby: 2 z 7).\nSkrzydłokwiat: w porządku, gleba 73% (podlewaj przy ok. 34%); ostatnie podlanie 09.10 09:57; światło śr. 3 904 lx·h na dobę, 39% potrzeby (pełne doby: 2 z 7).\nAzalia: w porządku, gleba 54% (podlewaj przy ok. 45%); ostatnie podlanie 09.10 09:54; światło śr. 7 333 lx·h na dobę, 26% potrzeby (pełne doby: 2 z 7).",
+   "tag": "podsumowanie",
+   "url": "rosliny.html",
+   "na_sucho": true
+  }
+ ],
  "stan_regul": {
   "Fikus": {
    "ponizej_od": null,
@@ -25,5 +42,5 @@
    "noc": []
   }
  },
- "podsumowanie_ostatnie": null
+ "podsumowanie_ostatnie": "2026-10-11"
 }
