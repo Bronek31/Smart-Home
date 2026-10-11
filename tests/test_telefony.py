@@ -68,7 +68,10 @@ class TestParsowanie(unittest.TestCase):
         u = T.ustawienia_z_env(env)
         self.assertTrue(u["android"]["podsumowanie"])
         self.assertEqual(u["iphone"], T.DOMYSLNE)
-        self.assertEqual(T.czy_wlasne(env), {"android": True, "iphone": False})
+        self.assertEqual(T.czy_wlasne(env), {"android": "własne", "iphone": "domyślne"})
+        # zmienna jest, ale zepsuta: planer bierze domyślne, więc log nie może mówić „własne”
+        self.assertEqual(T.czy_wlasne({"POWIADOMIENIA_IPHONE": "{zepsute"})["iphone"], "nieczytelne")
+        self.assertEqual(T.czy_wlasne({"POWIADOMIENIA_IPHONE": "[1]"})["iphone"], "nieczytelne")
 
     def test_domyslne_zgodne_ze_strona(self):
         """Strażnik: DOMYSLNE w index.html to te same wartości. Rozjazd znaczyłby, że ekran
@@ -76,8 +79,9 @@ class TestParsowanie(unittest.TestCase):
         import re
         html = (REPO / "index.html").read_text(encoding="utf-8")
         m = re.search(r"const DOMYSLNE\s*=\s*(\{[^}]*\})", html)
-        if m is None:
-            self.skipTest("index.html bez DOMYSLNE (strona sprzed zakładki Powiadomienia)")
+        # Strona ma zakładkę Powiadomienia, więc brak literału to błąd, a nie stara strona — inaczej strażnik
+        # przechodziłby po cichu, gdyby ktoś zmienił jego zapis.
+        self.assertIsNotNone(m, "index.html bez jednowierszowego literału const DOMYSLNE = {...}")
         js = re.sub(r"(\w+)\s*:", r'"\1":', m.group(1)).replace("'", '"')
         self.assertEqual(json.loads(js), T.DOMYSLNE)
 
@@ -153,16 +157,46 @@ class TestPrzedSnem(unittest.TestCase):
         self.assertTrue(T.przed_snem(u, lok(2026, 10, 11, 20, 59)))
         self.assertFalse(T.przed_snem(u, lok(2026, 10, 11, 21)))
 
-    def test_cisza_od_polnocy(self):
-        u = ust(od=0, do=7)
-        self.assertTrue(T.przed_snem(u, lok(2026, 10, 11, 22)))
-        self.assertTrue(T.przed_snem(u, lok(2026, 10, 11, 23)))
-        self.assertFalse(T.przed_snem(u, lok(2026, 10, 12, 0)))
+    def test_cisza_od_polnocy_do_2_to_22_24(self):
+        """Cisza od 1:00 dawała okno 23:00–0:59 — push po północy z radą, której karta po
+        północy już nie daje (przegląd, C4). Od 0, 1 i 2 okno to 22:00–24:00."""
+        for od in (0, 1, 2):
+            with self.subTest(od=od):
+                u = ust(od=od, do=7)
+                self.assertFalse(T.przed_snem(u, lok(2026, 10, 11, 21, 59)))
+                self.assertTrue(T.przed_snem(u, lok(2026, 10, 11, 22)))
+                self.assertTrue(T.przed_snem(u, lok(2026, 10, 11, 23, 59)))
+                self.assertFalse(T.przed_snem(u, lok(2026, 10, 12, 0)))
+                self.assertFalse(T.przed_snem(u, lok(2026, 10, 12, 1)))
+
+    def test_cisza_od_14_do_23_dwie_godziny_przed(self):
+        """Cisza 18–8 dostawała zapasowe 19–21, czyli okno w środku swojej ciszy — „przed
+        snem" nie przychodziło nigdy (przegląd, B3). Teraz 16:00–18:00."""
+        u = ust(od=18, do=8)
+        self.assertEqual([h for h in range(24) if T.przed_snem(u, lok(2026, 10, 11, h, 30))], [16, 17])
+        for od in range(14, 24):
+            with self.subTest(od=od):
+                u = ust(od=od, do=7)
+                self.assertEqual([h for h in range(24) if T.przed_snem(u, lok(2026, 10, 11, h, 30))],
+                                 [od - 2, od - 1])
 
     def test_bez_wieczornej_ciszy_19_21(self):
-        for u in (ust(cisza=False), ust(od=14, do=16), ust(od=22, do=22)):
-            self.assertTrue(T.przed_snem(u, lok(2026, 10, 11, 19, 30)))
-            self.assertFalse(T.przed_snem(u, lok(2026, 10, 11, 21, 30)))
+        """Cisza wyłączona, zerowa (od = do) albo zaczynająca się 3:00–13:00 — zapasowe
+        19:00–21:00."""
+        for u in (ust(cisza=False), ust(od=3, do=5), ust(od=13, do=15), ust(od=22, do=22)):
+            with self.subTest(u=(u["cisza"], u["od"], u["do"])):
+                self.assertEqual([h for h in range(24) if T.przed_snem(u, lok(2026, 10, 11, h, 30))], [19, 20])
+
+    def test_okno_zawsze_przed_polnoca(self):
+        """Każde ustawienie ciszy: okno tylko w godzinach 12–23, nigdy po północy — wtedy
+        rada „przewietrz przed snem" zgadza się z kartą pokoju."""
+        for cisza in (True, False):
+            for od in range(24):
+                for do in range(24):
+                    u = ust(cisza=cisza, od=od, do=do)
+                    godziny = [h for h in range(24) if T.przed_snem(u, lok(2026, 10, 11, h, 30))]
+                    self.assertEqual(len(godziny), 2, (cisza, od, do))
+                    self.assertTrue(all(12 <= h <= 23 for h in godziny), (cisza, od, do, godziny))
 
     def test_data_nocy(self):
         self.assertEqual(T.data_nocy(lok(2026, 10, 11, 20)), "2026-10-11")

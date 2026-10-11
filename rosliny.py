@@ -14,6 +14,7 @@ Plan, pomiary i powody progów: ROSLINY.md.
 from __future__ import annotations
 
 import bisect
+import copy
 import json
 import math
 import re
@@ -21,8 +22,10 @@ import statistics
 import unicodedata
 from collections import deque
 from datetime import datetime, timedelta, timezone
-from urllib.parse import quote
+from decimal import ROUND_HALF_UP, Decimal
 from zoneinfo import ZoneInfo
+
+import telefony
 
 GODZ = 3600 * 1000
 DOBA = 24 * GODZ
@@ -38,13 +41,31 @@ LICZBOWE = ("gleba", "temp", "wilg", "swiatlo")
 # porządnym podlaniu. `granice` przycinają próg nauczony z podlań właściciela, żeby nauka
 # nie utrwaliła nawyku przelewania ani przesuszania. `swiatlo_lxh` to dzienna potrzeba
 # światła w luksogodzinach (dla światła dziennego 1 mol/m²/dobę ≈ 15 000 lx·h).
+#
+# `nazwa_pelna`, `temp_zakres` i `wilg_zakres` to stałe karty rośliny (zatwierdzony
+# projekt aplikacji). Idą do stan.json, żeby strona nie miała ich drugiej kopii w JS.
+# `swiatlo_za_duzo_lx` (próg „odsuń od okna") jest uśpiony: czujnik mierzy 0–10 000 lx
+# (specyfikacja `illumiance`), więc progi z projektu (fikus 40 000, azalia 20 000,
+# skrzydłokwiat 10 000) przy warunku „>" nigdy by nie zadziałały, a ROSLINY.md przenosi
+# „za dużo słońca" na wiosnę, po zmierzeniu, przy ilu lx czujnik się nasyca. Gałąź reguły
+# istnieje i ma test na sztucznym progu.
 GATUNKI = {
     "fikus": {"prog": 0.45, "prog_zima": 0.35, "pilne": None, "granice": (0.20, 0.55),
-              "swiatlo_lxh": 20000},
+              "swiatlo_lxh": 20000,
+              "nazwa_pelna": "Fikus 'Ginseng' (Ficus microcarpa)", "temp_zakres": (16, 24),
+              "wilg_zakres": (40, 70), "swiatlo_za_duzo_lx": None,
+              # ROSLINY.md, „Rady": po każdym przestawieniu gubi liście przez 2–4 tygodnie,
+              # więc „nie przestawiać na ślepo" — raz, do najjaśniejszego miejsca
+              "rada_przestaw": "Fikus gubi liście po każdej przeprowadzce — przestaw raz, "
+                               "w najjaśniejsze miejsce."},
     "skrzydlokwiat": {"prog": 0.60, "prog_zima": 0.50, "pilne": None, "granice": (0.40, 0.70),
-                      "swiatlo_lxh": 10000},
+                      "swiatlo_lxh": 10000,
+                      "nazwa_pelna": "Skrzydłokwiat (Spathiphyllum)", "temp_zakres": (18, 27),
+                      "wilg_zakres": (50, 80), "swiatlo_za_duzo_lx": None},
     "azalia": {"prog": 0.75, "prog_zima": 0.75, "pilne": 0.60, "granice": (0.60, 0.85),
                "swiatlo_lxh": 28000,
+               "nazwa_pelna": "Azalia doniczkowa (Rhododendron simsii), forma drzewka",
+               "temp_zakres": (10, 18), "wilg_zakres": (50, 80), "swiatlo_za_duzo_lx": None,
                # przesuszony torf nie przyjmuje wody z góry — ratunek z ROSLINY.md, „Rady"
                "rada_pilne": "Wyjmij czujnik, wyjmij plastikową doniczkę z osłonki i zanurz ją "
                              "w letniej wodzie, aż przestaną lecieć bąbelki (15–30 min). Odsącz, "
@@ -90,6 +111,22 @@ DNI_HISTORII = 30
 # Nauka patrzy tyle dni wstecz: trzy podlania fikusa zimą to 6–8 tygodni.
 DNI_NAUKI = 60
 
+# Doba z mniejszym pokryciem pomiarem to nie „pełna doba": doba zmierzona w jednej czwartej
+# wyglądałaby na ciemną. Jedyny taki próg w projekcie — korzystają z niego ocena światła
+# (karta rośliny i reguła „przestaw") i podsumowanie tygodnia; strona dostaje gotowe
+# `swiatlo_pelne_doby` i `swiatlo_ocena`, a nie próg.
+POKRYCIE_PELNEJ_DOBY = 0.8
+# Ocena światła dopiero z tylu pełnych dób, z tych samych progów co zatwierdzony projekt
+# karty: poniżej 0,35 potrzeby „przestaw bliżej okna", poniżej 0,6 na karcie tylko „mało
+# światła". Koniec epizodu „przestaw" dopiero przy 0,45, bo suma światła skacze z doby na
+# dobę: skrzydłokwiat miał 9 i 10.10 2670 i 5138 lx·h, czyli 0,27 i 0,51 potrzeby
+# (stan.json 11.10) — bez histerezy epizod na granicy otwierałby się co parę dni od nowa.
+DOBY_OCENY_SWIATLA = 3
+SWIATLO_JASNIEJ_U = 0.35
+SWIATLO_MALO_U = 0.6
+PRZESTAW_KONIEC_U = 0.45
+KIERUNKI_PRZESTAW = ("jasniej", "ciemniej")
+
 
 def _ms(ts: str) -> int | None:
     try:
@@ -124,6 +161,24 @@ def _ms_ze_strefa(ts) -> int | None:
     return int(chwila.timestamp() * 1000)
 
 
+def _calk(x: float) -> int:
+    """Liczba całkowita połówką w górę — jak `liczba()` na stronie (Intl.NumberFormat,
+    tryb halfExpand) i Math.round dla liczb dodatnich (wszystkie tutaj takie są).
+
+    Format Pythona (`f"{18.5:.0f}"`) zaokrągla połówkę do parzystej: u = 0,185 ze stan.json
+    dawało w powiadomieniu „18%", a na karcie „19%" (przegląd, C1). Liczy się z dziesiętnego
+    zapisu liczby (`repr`, ten sam co w JSON-ie), a nie z jej przybliżenia binarnego."""
+    return int(Decimal(repr(float(x))).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
+def _proc_swiatla(u: float) -> int:
+    """Procent potrzebnego światła z u ZAPISANEGO w stan.json (trzy miejsca po przecinku):
+    karta i treść „przestaw" pokazują tę samą liczbę. Z nieprzyciętego u 0,18451 wyszłoby
+    18%, a z zapisanego 0,185 — 19%. Mnożenie w Decimal, bo 0,185 · 100 w binarnym float
+    bywa 18,499…"""
+    return int((Decimal(repr(float(u))) * 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
+
+
 def _lokalnie(ms: int, strefa: ZoneInfo) -> str:
     return datetime.fromtimestamp(ms / 1000, strefa).strftime("%d.%m %H:%M")
 
@@ -151,8 +206,8 @@ def wczytaj_konfiguracje(tekst: str) -> list[dict]:
             raise ValueError(f"rosliny.json: wpis {i} bez „czujnik\" albo „nazwa\" (tekstem)")
         if czujnik in widziane:
             raise ValueError(f"rosliny.json: czujnik {czujnik} wpisany dwa razy")
-        # Nazwa to klucz zakładki i powiadomień (rosliny.html#roslina=Fikus) — dwie takie
-        # same i druga roślina byłaby nie do wybrania.
+        # Nazwa to klucz stanu reguł i adresu w aplikacji (#fikus, slug z nazwy) — dwie
+        # takie same i druga roślina byłaby nie do wybrania.
         if nazwa in nazwy:
             raise ValueError(f"rosliny.json: roślina {nazwa} wpisana dwa razy")
         widziane.add(czujnik)
@@ -276,12 +331,20 @@ def szereg_godzinowy(pkt: list[tuple[int, float]], od_ms: int, do_ms: int) -> li
 
 def luksogodziny(pkt: list[tuple[int, float]], strefa: ZoneInfo, od_ms: int, do_ms: int,
                  maks_ms: int = MAKS_PRZERWA_MS) -> list[dict]:
-    """Dobowa suma światła [lx·h] w lokalnych dobach, z pokryciem pomiarem (0–1).
+    """Dobowa suma światła [lx·h] w lokalnych dobach, z pokryciem pomiarem (0–1)
+    i szczytem [lx].
 
     Światło przychodzi rzadko (co 1–2 godz., pomiar z nocy 8/9.10), więc trzymamy ostatnią
     wartość do następnego odczytu, ale najwyżej `maks_ms` — dłuższa przerwa to brak
     pomiaru, a nie ciemność. Pokrycie mówi, jaką część doby naprawdę zmierzono; doba
     z niskim pokryciem nie nadaje się do reguły „za ciemno".
+
+    `szczyt_lx` to najwyższa wartość z tych samych odcinków co suma: odczyt sprzed północy
+    trzymany po niej liczy się też do następnej doby, a odczyt sprzed dziury dłuższej niż
+    `maks_ms` nie sięga za dziurę. Liczony tu, a nie z surowych wierszy, bo surowe wiersze
+    trzeba by kroić na doby drugi raz (prototyp robił to w strefie maszyny — w Actions to
+    UTC, czyli doba przesunięta o godzinę zimą i o dwie latem). None, gdy doby nie
+    zmierzono wcale.
     """
     if od_ms >= do_ms:
         return []
@@ -292,9 +355,10 @@ def luksogodziny(pkt: list[tuple[int, float]], strefa: ZoneInfo, od_ms: int, do_
             lokalnie = datetime.fromtimestamp(a / 1000, strefa)
             nastepna = (lokalnie + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
             koniec = min(b, int(nastepna.timestamp() * 1000))
-            suma = doby.setdefault(lokalnie.date().isoformat(), [0.0, 0.0])
+            suma = doby.setdefault(lokalnie.date().isoformat(), [0.0, 0.0, 0.0])
             suma[0] += v * (koniec - a) / GODZ
             suma[1] += (koniec - a)
+            suma[2] = max(suma[2], v)
             a = koniec
 
     for i, (t, v) in enumerate(pkt):
@@ -309,11 +373,72 @@ def luksogodziny(pkt: list[tuple[int, float]], strefa: ZoneInfo, od_ms: int, do_
         poczatek = datetime(dzien.year, dzien.month, dzien.day, tzinfo=strefa)
         dlugosc = ((poczatek + timedelta(days=1)).astimezone(timezone.utc)
                    - poczatek.astimezone(timezone.utc)).total_seconds() * 1000
-        lxh, zmierzone = doby.get(dzien.isoformat(), [0.0, 0.0])
+        lxh, zmierzone, szczyt = doby.get(dzien.isoformat(), [0.0, 0.0, 0.0])
         out.append({"data": dzien.isoformat(), "lxh": round(lxh),
-                    "pokrycie": round(min(1.0, zmierzone / dlugosc), 2)})
+                    "pokrycie": round(min(1.0, zmierzone / dlugosc), 2),
+                    "szczyt_lx": round(szczyt) if zmierzone > 0 else None})
         dzien += timedelta(days=1)
     return out
+
+
+def pelne_doby_swiatla(swiatlo_dobowe, od_ms: int | None, teraz_ms: int, strefa: ZoneInfo) -> list[dict]:
+    """Doby, z których wolno oceniać światło, rosnąco po dacie: zmierzone w co najmniej
+    POKRYCIE_PELNEJ_DOBY, bez dzisiejszej (urwanej) i tylko po dniu wbicia sondy.
+
+    Doba wbicia odpada w całości: do wbicia (9.10, 8:35) czujniki leżały obok siebie
+    gdzie indziej (noc 8/9.10, pomiar „sucho" z rosliny.json), więc jej suma nie mówi nic
+    o miejscu rośliny. Bez daty wbicia nie ma żadnej pełnej doby — czujnik leżący na
+    stole nie może zlecić przestawienia rośliny.
+    """
+    if od_ms is None:
+        return []
+    od_data = datetime.fromtimestamp(od_ms / 1000, strefa).date().isoformat()
+    dzis = datetime.fromtimestamp(teraz_ms / 1000, strefa).date().isoformat()
+    doby = [d for d in _lista(swiatlo_dobowe) if isinstance(d, dict) and isinstance(d.get("data"), str)
+            and od_data < d["data"] < dzis
+            and (_liczba(d.get("pokrycie")) or 0) >= POKRYCIE_PELNEJ_DOBY
+            and _liczba(d.get("lxh")) is not None]
+    return sorted(doby, key=lambda d: d["data"])
+
+
+def ocena_swiatla(swiatlo_dobowe, potrzeba, za_duzo_lx, od_ms: int | None, teraz_ms: int,
+                  strefa: ZoneInfo, werdykt: str | None = None) -> dict | None:
+    """Kierunek „przestaw" z trzech ostatnich pełnych dób — jedna decyzja dla karty
+    rośliny i dla powiadomienia (strona jej nie liczy drugi raz).
+
+    `u` to średnia suma światła tych dób przez dzienną potrzebę gatunku. Kierunek:
+    "ciemniej", gdy jest próg „za dużo" i szczyt ostatniej z tych dób go przekracza
+    (pierwszeństwo — ostre słońce w szczycie przy małej sumie to jedno spójne „odsuń od
+    okna", nie sprzeczne „bliżej okna"); inaczej "jasniej" przy u < 0,35, "malo" przy
+    u < 0,6, a poza tym "ok". None przy mniej niż trzech pełnych dobach i przy werdykcie
+    „czujnik" — światło z milczącego czujnika jest stare.
+    """
+    if werdykt == "czujnik":
+        return None
+    potrzeba = _liczba(potrzeba)
+    if not potrzeba or potrzeba <= 0:
+        return None
+    doby = pelne_doby_swiatla(swiatlo_dobowe, od_ms, teraz_ms, strefa)[-DOBY_OCENY_SWIATLA:]
+    if len(doby) < DOBY_OCENY_SWIATLA:
+        return None
+    u = sum(_liczba(d["lxh"]) for d in doby) / len(doby) / potrzeba
+    szczyt = _liczba(doby[-1].get("szczyt_lx"))
+    prog = _liczba(za_duzo_lx)
+    if prog is not None and szczyt is not None and szczyt > prog:
+        kierunek = "ciemniej"
+    elif u < SWIATLO_JASNIEJ_U:
+        kierunek = "jasniej"
+    elif u < SWIATLO_MALO_U:
+        kierunek = "malo"
+    else:
+        kierunek = "ok"
+    # Decyzja zapada na nieprzyciętym u. Zapis z trzema miejscami, a nie dwoma, żeby było
+    # widać, po której stronie progu leży (0,349 → 0,35 wyglądałoby na „nie jaśniej").
+    # `proc` to gotowy procent do wyświetlenia — karta bierze go wprost, a powiadomienie
+    # „przestaw" liczy go tą samą funkcją z tego samego zapisanego u.
+    u_zapis = round(u, 3)
+    return {"kierunek": kierunek, "u": u_zapis, "proc": _proc_swiatla(u_zapis), "doby": [d["data"] for d in doby],
+            "szczyt_lx": round(szczyt) if szczyt is not None else None}
 
 
 def _mediana(pkt: list[tuple[int, float]], czasy: list[int], od: int, do: int) -> float | None:
@@ -549,11 +674,21 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
     pierwsza = datetime.fromtimestamp(teraz_ms / 1000, strefa).date() - timedelta(days=DNI_HISTORII - 1)
     od_dob = int(datetime(pierwsza.year, pierwsza.month, pierwsza.day, tzinfo=strefa).timestamp() * 1000)
     swiatlo = luksogodziny(serie.get("swiatlo", []), strefa, od_dob, teraz_ms)
+    gat = GATUNKI[konf["gatunek"]]
+    pelne = pelne_doby_swiatla(swiatlo, od_wbicia, teraz_ms, strefa)
     return {
         "czujnik": czujnik, "nazwa": konf["nazwa"], "gatunek": konf["gatunek"],
+        "nazwa_pelna": gat["nazwa_pelna"], "temp_zakres": list(gat["temp_zakres"]),
+        "wilg_zakres": list(gat["wilg_zakres"]),
         "pokoj": konf.get("pokoj"), "sucho": sucho, "od": konf.get("od"),
         "ostatnie": ostatnie, "szereg": szereg, "swiatlo_dobowe": swiatlo,
-        "swiatlo_potrzeba_lxh": GATUNKI[konf["gatunek"]]["swiatlo_lxh"],
+        "swiatlo_potrzeba_lxh": gat["swiatlo_lxh"],
+        "swiatlo_za_duzo_lx": gat["swiatlo_za_duzo_lx"],
+        "swiatlo_pelne_doby": len(pelne),
+        "swiatlo_wczoraj_lxh": pelne[-1]["lxh"] if pelne else None,
+        "swiatlo_szczyt_lx_wczoraj": pelne[-1].get("szczyt_lx") if pelne else None,
+        "swiatlo_ocena": ocena_swiatla(swiatlo, gat["swiatlo_lxh"], gat["swiatlo_za_duzo_lx"], od_wbicia,
+                                       teraz_ms, strefa, werdykt),
         "podlania": podl, "szczyt": szczyt, "punkt_podlewania": wynik_nauki["punkt_podlewania"],
         "R": r, "prog": prog, "werdykt": werdykt, "uwagi": uwagi, "do_zgloszenia": zglos,
         # Próg w jednostkach czujnika — ta sama liczba co duża wartość gleby na karcie
@@ -568,8 +703,9 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
 # a osobny krok po udanym zapisz.sh wysyła wpisy tego przebiegu — więc co najwyżej raz
 # (ROSLINY.md, „Etap 4").
 
-# Cisza nocna czasu `strefa`: od 21:00 do 8:00 nic nie wychodzi.
-NOC_OD_H, NOC_DO_H = 21, 8
+# Cisza nocna jest osobna dla każdego telefonu (telefony.py, zmienne POWIADOMIENIA_ANDROID
+# i POWIADOMIENIA_IPHONE). „Noc" dawnych reguł to chwila, gdy ciszę mają wszystkie telefony
+# — przy domyślnych ustawieniach obu to dokładnie dawne 21:00–8:00.
 PODSUMOWANIE_OD_H = 10                   # niedziela od 10:00
 PONIZEJ = ("podlej", "pilne")
 # Roślina „poniżej" musi tyle trwać, zanim pójdzie „podlej" — jeden odczyt na granicy to
@@ -588,9 +724,14 @@ HISTEREZA_GLEBY = 6
 # czekałyby przebieg (godzinę) dłużej.
 ZAPAS_PRZEBIEGU_MS = 10 * 60 * 1000
 DNI_POWIADOMIEN = 60
-# Doba z mniejszym pokryciem pomiarem to nie „pełna doba" w podsumowaniu — ta sama
-# granica co „niepełny pomiar" na stronie (rosliny.html, `pokrycie<.8`).
-POKRYCIE_PELNEJ_DOBY = 0.8
+# Reguła → przełącznik w ustawieniach telefonu (telefony.DOMYSLNE). Powitanie nie ma
+# przełącznika: to pierwsze prawdziwe powiadomienie, po nim widać, czy telefon je dostaje.
+KLUCZ_USTAWIEN = {"podlej": "podlej", "czujnik": "czujnik", "przestaw": "przestaw",
+                  "podsumowanie": "podsumowanie", "wlaczone": None}
+# Zakładki aplikacji. Roślina, której slug wypada jak zakładka, dostaje w adresie „-2" —
+# tak samo liczy go index.html. Kolizję z pokojem wyklucza pokoje.json (slug pokoju jest
+# tam unikalny także wobec roślin).
+ZAKLADKI = ("dom", "rosliny", "historia", "powiadomienia")
 
 # Powód zgłoszenia czujnika jako stały klucz. Tekst z do_zgloszenia zmienia się co
 # przebieg („milczy od 13 godz.", „od 14 godz."), a „raz na powód" musi go rozpoznać.
@@ -620,10 +761,15 @@ def _znacznik(regula: str, nazwy: list[str]) -> str:
 
 
 def _adres(nazwa: str | None) -> str:
-    if not nazwa:
-        return "rosliny.html"
-    # z tym `safe` quote koduje dokładnie jak encodeURIComponent, który strona odwraca
-    return "rosliny.html#roslina=" + quote(nazwa, safe="!'()*")
+    """Adres w aplikacji: `#fikus` dla jednej rośliny, `#rosliny` bez nazwy (kilka roślin,
+    podsumowanie). Slug z nazwy, a nie z gatunku: nazwa jest unikalna (wczytaj_konfiguracje),
+    gatunek nie — dwa fikusy dostałyby jeden adres. Względny i bez `http`: service worker
+    rozwiązuje go względem zakresu aplikacji, a plik powiadomień jest publiczny. Stare
+    `rosliny.html#roslina=…` z doręczonych powiadomień obsługuje strona."""
+    slug = _slug(nazwa) if isinstance(nazwa, str) else ""
+    if not slug:
+        return "#rosliny"
+    return "#" + (slug + "-2" if slug in ZAKLADKI else slug)
 
 
 def _mala(tekst: str) -> str:
@@ -656,9 +802,9 @@ def _lista_ms(wartosci) -> list[int]:
 
 def _linia_podlej(stan: dict) -> str:
     gleba, prog = _gleba(stan), _liczba(stan.get("prog_gleba"))
-    linia = f"{stan['nazwa']}: " + (f"gleba {gleba:.0f}%" if gleba is not None else "czas podlać")
+    linia = f"{stan['nazwa']}: " + (f"gleba {_calk(gleba)}%" if gleba is not None else "czas podlać")
     if gleba is not None and prog is not None:
-        linia += f" (podlewaj przy ok. {prog:.0f}%)"
+        linia += f" (podlewaj przy ok. {_calk(prog)}%)"
     linia += "."
     if stan.get("werdykt") == "pilne":
         # rada (zanurzenie azalii) już leży w uwagach — stan_rosliny ją dokłada
@@ -675,7 +821,7 @@ def _linia_podsumowania(stan: dict, dzis, strefa: ZoneInfo) -> str:
               + (WERDYKT_SLOWNIE.get(werdykt, "bez werdyktu") if isinstance(werdykt, str) else "bez werdyktu")]
     gleba, prog = _gleba(stan), _liczba(stan.get("prog_gleba"))
     if gleba is not None:
-        czesci[0] += f", gleba {gleba:.0f}%" + (f" (podlewaj przy ok. {prog:.0f}%)" if prog is not None else "")
+        czesci[0] += f", gleba {_calk(gleba)}%" + (f" (podlewaj przy ok. {_calk(prog)}%)" if prog is not None else "")
     podlane = [m for m in (_ms(p.get("ts")) for p in _lista(stan.get("podlania")) if isinstance(p, dict))
                if m is not None]
     czesci.append(f"ostatnie podlanie {_lokalnie(max(podlane), strefa)}" if podlane
@@ -690,43 +836,171 @@ def _linia_podsumowania(stan: dict, dzis, strefa: ZoneInfo) -> str:
     if doby:
         srednio = sum(_liczba(d["lxh"]) for d in doby) / len(doby)
         potrzeba = _liczba(stan.get("swiatlo_potrzeba_lxh"))
-        swiatlo = f"światło śr. {srednio:,.0f} lx·h na dobę".replace(",", " ")
+        swiatlo = f"światło śr. {_tys(srednio)} lx·h na dobę"
         if potrzeba:
-            swiatlo += f", {100 * srednio / potrzeba:.0f}% potrzeby"
+            swiatlo += f", {_calk(100 * srednio / potrzeba)}% potrzeby"
         czesci.append(swiatlo + f" (pełne doby: {len(doby)} z 7)")
     else:
         czesci.append("światło: za mało pomiaru z ostatnich 7 dób")
     return "; ".join(czesci) + "."
 
 
+def _tys(liczba: float) -> str:
+    return f"{_calk(liczba):,}".replace(",", " ")
+
+
+def _przestaw_slowa(stan: dict, kierunek: str, u: float | None, szczyt: float | None) -> tuple[str, str]:
+    """(co zrobić, dlaczego) dla jednej rośliny — tytuł i treść „przestaw"."""
+    if kierunek == "ciemniej":
+        prog = _liczba(stan.get("swiatlo_za_duzo_lx"))
+        dlaczego = (f"Wczoraj w szczycie {_tys(szczyt)} lx" if szczyt is not None else "Wczoraj w szczycie dnia")
+        dlaczego += f", a liście przypalają się już od {_tys(prog)} lx." if prog is not None else "."
+        if u is not None and u < SWIATLO_MALO_U:
+            dlaczego += " Najlepiej jasne miejsce bez bezpośredniego słońca."
+        return "odsuń od okna", dlaczego
+    dlaczego = (f"Ostatnie {DOBY_OCENY_SWIATLA} doby: średnio {_proc_swiatla(u)}% potrzebnego światła."
+                if u is not None else f"Ostatnie {DOBY_OCENY_SWIATLA} doby: za mało światła.")
+    gatunek = stan.get("gatunek")
+    rada = GATUNKI[gatunek].get("rada_przestaw") if isinstance(gatunek, str) and gatunek in GATUNKI else None
+    if rada:
+        dlaczego += " " + rada
+    return "przestaw bliżej okna", dlaczego
+
+
+def _linia_przestaw(stan: dict, kierunek: str, u: float | None, szczyt: float | None) -> str:
+    co, dlaczego = _przestaw_slowa(stan, kierunek, u, szczyt)
+    return f"{stan['nazwa']}: {co}. {dlaczego}"
+
+
+def _tresc_przestaw(lista: list[tuple]) -> tuple[str, str]:
+    """Jedna roślina: „Fikus: przestaw bliżej okna" i powód w treści. Kilka: „Przestaw:
+    fikus, skrzydłokwiat" i linia na roślinę."""
+    if len(lista) == 1:
+        stan, kierunek, u, szczyt = lista[0]
+        co, dlaczego = _przestaw_slowa(stan, kierunek, u, szczyt)
+        return f"{stan['nazwa']}: {co}", dlaczego
+    return ("Przestaw: " + ", ".join(_mala(s["nazwa"]) for s, *_ in lista),
+            "\n".join(_linia_przestaw(*x) for x in lista))
+
+
+def _tresc_podlej(lista: list[dict]) -> tuple[str, str]:
+    tytul = ", ".join(_mala(s["nazwa"]) + (" (pilne)" if s.get("werdykt") == "pilne" else "") for s in lista)
+    return f"Podlej: {tytul}", "\n".join(_linia_podlej(s) for s in lista)
+
+
+def _linie_czujnika(nazwa: str, powody: dict, minione: list[str]) -> list[str]:
+    return [f"{nazwa}: {_mala(t)}" for t in powody.values()] + list(minione)
+
+
+def _ocena(stan: dict) -> tuple[str | None, float | None, float | None]:
+    """(kierunek, u, szczyt) z `swiatlo_ocena` stanu albo (None, None, None)."""
+    ocena = stan.get("swiatlo_ocena")
+    if not isinstance(ocena, dict):
+        return None, None, None
+    kierunek = ocena.get("kierunek")
+    if not isinstance(kierunek, str) or kierunek not in KIERUNKI_PRZESTAW + ("malo", "ok"):
+        return None, None, None
+    return kierunek, _liczba(ocena.get("u")), _liczba(ocena.get("szczyt_lx"))
+
+
+def _odstep(stan: dict) -> int:
+    """Odstęp ponowień „podlej" gatunku (azalia 12 godz., reszta 24)."""
+    gatunek = stan.get("gatunek")
+    return PONOWIENIE_GATUNKU_MS.get(gatunek, PONOWIENIE_MS) if isinstance(gatunek, str) else PONOWIENIE_MS
+
+
+def _podlej_dla(wartosc) -> dict:
+    """`podlej_dla` ze stanu reguł: {telefon: chwila doręczenia odłożonego „podlej"}. Plik jest
+    publiczny i edytowalny, więc tylko znane telefony z poprawną datą. Kolejność kluczy jak
+    w pliku — inna kolejność po przepisaniu zmieniałaby plik bez zmiany danych."""
+    if not isinstance(wartosc, dict):
+        return {}
+    return {t: v for t, v in wartosc.items() if t in telefony.TELEFONY and _ms(v) is not None}
+
+
+def _ustawienia(ustawienia) -> dict:
+    """Ustawienia obu telefonów. None (albo brak telefonu) to telefony.DOMYSLNE. Słownik
+    przechodzi przez ten sam parser co zmienne repozytorium, więc zła wartość pola daje
+    domyślną, a nie wyjątek w środku reguł."""
+    zrodlo = ustawienia if isinstance(ustawienia, dict) else {}
+    wynik = {}
+    for t in telefony.TELEFONY:
+        u = zrodlo.get(t)
+        try:
+            wynik[t] = telefony.ustawienia_telefonu(json.dumps(u)) if isinstance(u, dict) else dict(telefony.DOMYSLNE)
+        except (TypeError, ValueError):
+            wynik[t] = dict(telefony.DOMYSLNE)
+    return wynik
+
+
+def _odloz(kolejki: dict, do_kogo: list[str], pozycja: dict) -> None:
+    """Pozycja do kolejki telefonów w ciszy. Gdy ten sam obiekt już czeka, pozycja zostaje
+    jedna (z czasem pierwszego zdarzenia, telefony.odloz), ale dostaje świeże pola
+    walidacji: nowy epizod „podlej" w tej samej nocy ma nowe `ponizej_od`, a nowy powód
+    czujnika dopisuje się do starych — inaczej rano przepadłby albo jeden, albo drugi."""
+    for t in do_kogo:
+        stara = next((p for p in kolejki[t]["odlozone"]
+                      if p.get("regula") == pozycja["regula"] and p.get("obiekt") == pozycja.get("obiekt")), None)
+        if stara is None:
+            telefony.odloz(kolejki, [t], pozycja)
+        elif pozycja["regula"] == "czujnik":
+            powody = [r for r in _lista(stara.get("powody")) if isinstance(r, dict)]
+            znane = {r.get("powod") for r in powody}
+            stara["powody"] = powody + [dict(r) for r in pozycja["powody"] if r["powod"] not in znane]
+            stara["minione"] = list(dict.fromkeys([x for x in _lista(stara.get("minione")) if isinstance(x, str)]
+                                                  + pozycja["minione"]))
+        else:
+            stara.update({k: v for k, v in pozycja.items() if k not in ("regula", "obiekt", "ts")})
+
+
 def zaplanuj_powiadomienia(stany: list[dict], poprzednie: dict | None, teraz_ms: int,
-                           strefa: ZoneInfo, tryb: str, przebieg: str) -> dict:
+                           strefa: ZoneInfo, tryb: str, przebieg: str, ustawienia: dict | None = None) -> dict:
     """Zwraca NOWĄ zawartość data/rosliny/powiadomienia.json.
 
     `stany` to wyniki stan_rosliny() z tego przebiegu, `poprzednie` — dotychczasowa
     zawartość pliku (albo None), `tryb` — "wlaczone" albo "na-sucho" (cokolwiek innego
-    to na sucho), `przebieg` — "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT". Plik jest publiczny,
-    więc nie ma w nim adresów subskrypcji. Wszystko liczy się od `teraz_ms`, a bez
-    zmian w stanach wynik jest ten sam — plik nie zmienia się co przebieg.
+    to na sucho), `przebieg` — "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT", `ustawienia` —
+    {"android": {...}, "iphone": {...}} z telefony.ustawienia_z_env (None: obu telefonom
+    telefony.DOMYSLNE). Plik jest publiczny, więc nie ma w nim adresów subskrypcji.
+    Wszystko liczy się od `teraz_ms`, a bez zmian w stanach wynik jest ten sam — plik nie
+    zmienia się co przebieg.
 
     Reguły (ROSLINY.md, „Reguły powiadomień"):
-    - **podlej** — werdykt `podlej`/`pilne` trwa ≥ 2 godz. od `ponizej_od` (po nocy od
-      8:00). Epizod kończy wykryte podlanie po `ponizej_od` albo gleba ≥ próg + 6 pkt;
-      w paśmie histerezy (werdykt już `ok`, gleba jeszcze poniżej progu + 6) epizod
-      trwa, ale nic nie wychodzi. Ponowienie co 24 godz. (azalia co 12), najwyżej
-      3 razy na epizod, najwyżej 2 takie wpisy na lokalną dobę. `nauka` kończy epizod.
+    - **podlej** — werdykt `podlej`/`pilne` trwa ≥ 2 godz. od `ponizej_od` (po wspólnej
+      nocy telefonów od jej końca). Epizod kończy wykryte podlanie po `ponizej_od` albo
+      gleba ≥ próg + 6 pkt; w paśmie histerezy (werdykt już `ok`, gleba jeszcze poniżej
+      progu + 6) epizod trwa, ale nic nie wychodzi. Ponowienie co 24 godz. (azalia co 12),
+      najwyżej 3 razy na epizod, najwyżej 2 takie wpisy na lokalną dobę. `nauka` kończy
+      epizod.
     - **czujnik** — każdy powód z `do_zgloszenia` raz; gdy zniknie, znika ze stanu
-      i może wrócić. W nocy trafia do `noc` i wychodzi rano — także gdy w nocy minął.
-    - **podsumowanie** — pierwszy przebieg w niedzielę od 10:00, zawsze.
-    - **cisza nocna** 21:00–8:00: nic nie wychodzi.
+      i może wrócić. We wspólnej nocy trafia do `noc` i wychodzi rano — także gdy minął.
+    - **przestaw** — `swiatlo_ocena` z kierunkiem „jasniej"/„ciemniej" otwiera epizod
+      (inny kierunek niż zapisany — nowy epizod); kończy go „ok" albo u ≥ 0,45. Bez oceny
+      (np. werdykt „czujnik") epizod stoi. Jedna wysyłka na epizod, bez ponowień: okna są
+      północne i zimą „bliżej okna" będzie prawdą miesiącami (ROSLINY.md, „W skrócie").
+    - **podsumowanie** — pierwszy przebieg w niedzielę od 10:00. Wpis powstaje zawsze, ale
+      domyślnie nie idzie do nikogo (`telefony: []`): przełącznik jest domyślnie wyłączony.
+    - **wspólna noc** (wszystkie telefony w ciszy, domyślnie 21:00–8:00): nic nie wychodzi.
     - **na sucho** — te same decyzje, wpisy z `na_sucho: true`, a w stanie reguł
       znaczniki `na_sucho` zamiast `wyslano`. Na sucho liczą się jedne i drugie (tak
       by było, gdyby wysyłka była włączona), po włączeniu tylko prawdziwe wysyłki.
       Pierwszy dzienny przebieg po włączeniu daje jeden wpis `wlaczone` z tym, co już
-      trwa (podlej i czujnik), zamiast osobnych — i zawsze, także gdy nic nie trwa:
-      to pierwsze prawdziwe powiadomienie, po nim widać, czy telefon je dostaje.
+      trwa (podlej, czujnik, przestaw), zamiast osobnych — i zawsze, także gdy nic nie
+      trwa: to pierwsze prawdziwe powiadomienie, po nim widać, czy telefon je dostaje.
 
-    Jeden przebieg dokłada najwyżej jeden wpis na regułę („Podlej: azalia,
+    Telefony: każdy wpis ma pole `telefony` — komu nadawca wysyła go teraz (reguła
+    włączona, telefon poza ciszą). Telefon z włączoną regułą, ale w ciszy, dostaje pozycję
+    w kolejce `telefony.<t>.odlozone`; w pierwszym przebiegu po końcu jego ciszy pozycje
+    sprawdza się na świeżym stanie (nieaktualne odpadają) i wychodzą jako wpis z
+    `telefony: [t]`, `odlozone: true`, a kolejka czyści się w tym samym wyniku — więc
+    „co najwyżej raz" działa jak dotąd: stan i wpis powstają w jednym commicie. Powitanie
+    nigdy nie czeka w kolejce. Decyzje reguł (epizody, liczniki, limity) nie zależą od
+    ustawień — ustawienia mówią tylko, kto dostaje wpis. Telefon, któremu doręczono
+    odłożone „podlej", dostaje następne „podlej" tej rośliny (świeże albo z kolejki) dopiero
+    po odstępie gatunku od tego doręczenia — chwila leży w `stan_regul[n].podlej_dla`
+    i znika z końcem epizodu.
+
+    Jeden przebieg dokłada najwyżej jeden świeży wpis na regułę („Podlej: azalia,
     skrzydłokwiat" to jeden wpis), a nie jeden wpis na wszystko: znacznik zastępuje na
     telefonie poprzednie powiadomienie o tym samym, a zbiorczy wpis „podlej + czujnik"
     zniknąłby pod następnym „podlej" razem z nieprzeczytanym alarmem czujnika. Limit
@@ -735,10 +1009,13 @@ def zaplanuj_powiadomienia(stany: list[dict], poprzednie: dict | None, teraz_ms:
     na_sucho = tryb != "wlaczone"
     tryb = "na-sucho" if na_sucho else "wlaczone"
     poprz = poprzednie if isinstance(poprzednie, dict) else {}
+    ust = _ustawienia(ustawienia)
     lokalnie = datetime.fromtimestamp(teraz_ms / 1000, strefa)
-    noc = lokalnie.hour >= NOC_OD_H or lokalnie.hour < NOC_DO_H
+    noc = telefony.noc_wszystkich(ust, lokalnie)
     dzis = lokalnie.date()
-    rano_ms = int(datetime(dzis.year, dzis.month, dzis.day, NOC_DO_H, tzinfo=strefa).timestamp() * 1000)
+    # Dawne „8:00 dziś", od którego „podlej" odlicza poranne 2 godz. None: dziś wspólnej
+    # nocy nie było (jeden telefon bez ciszy) — wtedy liczy się sam początek epizodu.
+    rano_ms = telefony.koniec_nocy_ms(ust, teraz_ms, strefa)
     teraz_iso = iso(teraz_ms)
     znacznik_wysylki = "na_sucho" if na_sucho else "wyslano"
 
@@ -748,8 +1025,8 @@ def zaplanuj_powiadomienia(stany: list[dict], poprzednie: dict | None, teraz_ms:
         if ts is not None and teraz_ms - ts <= DNI_POWIADOMIEN * DOBA:
             historia.append(w)
 
-    # Włączenie: pierwszy przebieg w trybie "wlaczone", który może coś wysłać. W nocy
-    # `wlaczone_od` zostaje puste i powitanie wychodzi rano.
+    # Włączenie: pierwszy przebieg w trybie "wlaczone", który może coś wysłać. We wspólnej
+    # nocy `wlaczone_od` zostaje puste i powitanie wychodzi rano.
     if na_sucho:
         wlaczone_od, wlaczanie = None, False
     elif poprz.get("tryb") == "wlaczone" and poprz.get("wlaczone_od"):
@@ -763,17 +1040,27 @@ def zaplanuj_powiadomienia(stany: list[dict], poprzednie: dict | None, teraz_ms:
     stan_regul = poprz.get("stan_regul") if isinstance(poprz.get("stan_regul"), dict) else {}
     stan_regul = {n: v for n, v in stan_regul.items() if isinstance(v, dict)}
 
+    # Kopia: pozycje kolejki zmieniają się w miejscu (_odloz), a `poprzednie` ma zostać
+    # nietknięte — kolektor porównuje z nim wynik, żeby nie pisać pliku bez zmian.
+    kolejki = copy.deepcopy(telefony.stan_telefonow(poprz.get("telefony")))
+    for t in telefony.TELEFONY:
+        kolejki[t]["odlozone"] = telefony.przytnij_odlozone(kolejki[t]["odlozone"], teraz_ms, _ms)
+
     rosliny_teraz, do_podlania, ponizej, czujnik_nowe, czujnik_trwa = [], [], [], [], []
+    do_przestawienia, przestaw_trwa = [], []
+    obecne, powody_teraz = {}, {}
     for s in _lista(stany):
         if not isinstance(s, dict) or not isinstance(s.get("nazwa"), str) or not s["nazwa"]:
             continue
         nazwa, werdykt = s["nazwa"], s.get("werdykt")
         przed = stan_regul.get(nazwa) or {}
         rosliny_teraz.append(s)
+        obecne[nazwa] = s
 
         # podlej: epizod
         od = _ms(przed.get("ponizej_od")) if przed.get("ponizej_od") else None
         wyslano, sucho = _lista_ms(przed.get("wyslano")), _lista_ms(przed.get("na_sucho"))
+        dla = _podlej_dla(przed.get("podlej_dla"))
         if od is not None:
             gleba, prog = _gleba(s), _liczba(s.get("prog_gleba"))
             podlana = any((_ms(p.get("ts")) or 0) > od for p in _lista(s.get("podlania")) if isinstance(p, dict))
@@ -783,19 +1070,19 @@ def zaplanuj_powiadomienia(stany: list[dict], poprzednie: dict | None, teraz_ms:
             if podlana or mokro or bez_histerezy or werdykt == "nauka":
                 od = None
         if od is None:
-            wyslano, sucho = [], []
+            wyslano, sucho, dla = [], [], {}
             od = teraz_ms if werdykt in PONIZEJ else None
         moja = {"ponizej_od": iso(od) if od is not None else None,
                 "wyslano": [iso(m) for m in wyslano], "na_sucho": [iso(m) for m in sucho]}
         if od is not None and werdykt in PONIZEJ:
             ponizej.append(s)
             licz = sorted(wyslano + sucho) if na_sucho else wyslano
-            gatunek = s.get("gatunek")
-            odstep = PONOWIENIE_GATUNKU_MS.get(gatunek, PONOWIENIE_MS) if isinstance(gatunek, str) else PONOWIENIE_MS
-            # Poranne 2 godz. od 8:00 dotyczą tylko pierwszej wysyłki epizodu. Ponowienie
-            # czekało na nie także, więc „azalia co 12 godz." w praktyce wypadało raz na dobę
-            # około 10:00, jak u pozostałych (przegląd 9.10).
-            if (not noc and (licz or teraz_ms - max(od, rano_ms) >= TRWA_PONIZEJ_MS - ZAPAS_PRZEBIEGU_MS)
+            odstep = _odstep(s)
+            # Poranne 2 godz. od końca nocy dotyczą tylko pierwszej wysyłki epizodu.
+            # Ponowienie czekało na nie także, więc „azalia co 12 godz." w praktyce
+            # wypadało raz na dobę około 10:00, jak u pozostałych (przegląd 9.10).
+            start = od if rano_ms is None else max(od, rano_ms)
+            if (not noc and (licz or teraz_ms - start >= TRWA_PONIZEJ_MS - ZAPAS_PRZEBIEGU_MS)
                     and len(licz) < MAKS_WYSYLEK_EPIZODU
                     and (not licz or teraz_ms - licz[-1] >= odstep - ZAPAS_PRZEBIEGU_MS)):
                 do_podlania.append(s)
@@ -819,79 +1106,254 @@ def zaplanuj_powiadomienia(stany: list[dict], poprzednie: dict | None, teraz_ms:
             for n in nocne:
                 if n["powod"] in trzymaj and n["powod"] not in powody:
                     powody[n["powod"]] = str(n.get("tekst", ""))
+        powody_teraz[nazwa] = (powody, trzymaj)
         nowe = [p for p in powody if not (czujnik.get(p, {}).get("wyslano")
                                           or (na_sucho and czujnik.get(p, {}).get("na_sucho")))]
         if noc:
             znane = {n["powod"] for n in nocne}
             nocne += [{"powod": p, "tekst": powody[p], "ts": teraz_iso} for p in nowe if p not in znane]
         else:
-            linie = [f"{nazwa}: {_mala(powody[p])}" for p in nowe]
             minione = [f"{nazwa}: w nocy ({_lokalnie(_ms(n.get('ts')) or teraz_ms, strefa)}) "
                        f"{_mala(str(n.get('tekst', '')))} Do rana minęło."
                        for n in nocne if n["powod"] not in powody]
-            if linie or minione:
+            if nowe or minione:
                 # Wpis niesie wszystkie trwające powody, nie tylko nowe: ten sam tag podmienia
                 # na telefonie poprzedni alarm tej rośliny, więc inaczej nieprzeczytana
                 # „bateria" znikałaby pod nowym „sonda wyjęta".
-                czujnik_nowe.append((nazwa, [f"{nazwa}: {_mala(t)}" for t in powody.values()] + minione))
+                czujnik_nowe.append((nazwa, dict(powody), minione))
             if powody or minione:
-                czujnik_trwa.append((nazwa, [f"{nazwa}: {_mala(t)}" for t in powody.values()] + minione))
+                czujnik_trwa.append((nazwa, dict(powody), minione))
             nocne = []                   # rano noc wychodzi — w tym wpisie albo w powitaniu
             for p in (powody if wlaczanie else nowe):
                 czujnik.setdefault(p, {})[znacznik_wysylki] = teraz_iso
         moja.update({"czujnik": czujnik, "noc": nocne})
+
+        # przestaw: epizod kierunku, jedna wysyłka
+        kierunek, u, szczyt = _ocena(s)
+        epizod = przed.get("przestaw")
+        epizod = dict(epizod) if isinstance(epizod, dict) and epizod.get("kierunek") in KIERUNKI_PRZESTAW else None
+        if kierunek in KIERUNKI_PRZESTAW:
+            if epizod is None or epizod["kierunek"] != kierunek:
+                epizod = {"kierunek": kierunek, "od": teraz_iso}
+        elif kierunek is not None and epizod is not None and (kierunek == "ok" or (
+                u is not None and u >= PRZESTAW_KONIEC_U)):
+            epizod = None
+        if epizod is not None:
+            moja["przestaw"] = epizod
+            # Treść potrzebuje świeżej oceny w kierunku epizodu: w paśmie histerezy („malo",
+            # u < 0,45) epizod trwa, ale „przestaw bliżej okna" przy 40% już by kłamało.
+            if kierunek == epizod["kierunek"]:
+                przestaw_trwa.append((s, epizod, u, szczyt))
+                if not (epizod.get("wyslano") or (na_sucho and epizod.get("na_sucho"))) and not noc:
+                    do_przestawienia.append((s, epizod, u, szczyt))
+        # Na końcu słownika: doręczenie w tym przebiegu dopisuje klucz na końcu, a następny
+        # przebieg musi go odtworzyć w tym samym miejscu — inaczej plik zmieniałby się raz
+        # bez zmiany danych. Bez doręczeń klucza nie ma wcale (plik jak dotąd).
+        if dla:
+            moja["podlej_dla"] = dla
         stan_regul[nazwa] = moja
 
     nowe_wpisy = []
     zajete = {w.get("id") for w in historia if isinstance(w.get("id"), str)}
 
-    def wpis(regula: str, nazwy: list[str], tytul: str, tresc: str, tag: str, url: str | None = None) -> None:
+    def wpis(regula: str, nazwy: list[str], tytul: str, tresc: str, tag: str, do_kogo: list[str],
+             url: str | None = None, odlozone: bool = False) -> dict:
         baza = datetime.fromtimestamp(teraz_ms / 1000, timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + regula
         ident, n = baza, 1
         while ident in zajete:           # „Re-run" w tej samej sekundzie albo zegar cofnięty
             n += 1
             ident = f"{baza}-{n}"
         zajete.add(ident)
-        nowe_wpisy.append({"id": ident, "ts": teraz_iso, "przebieg": str(przebieg), "regula": regula,
-                           "rosliny": nazwy, "tytul": tytul, "tresc": tresc, "tag": tag,
-                           "url": url or _adres(nazwy[0] if nazwy else None), "na_sucho": na_sucho})
+        w = {"id": ident, "ts": teraz_iso, "przebieg": str(przebieg), "regula": regula,
+             "rosliny": nazwy, "tytul": tytul, "tresc": tresc, "tag": tag,
+             "url": url or _adres(nazwy[0] if len(nazwy) == 1 else None), "na_sucho": na_sucho,
+             "telefony": list(do_kogo)}
+        if odlozone:
+            w["odlozone"] = True
+        nowe_wpisy.append(w)
+        return w
+
+    def rozeslij(regula: str, pozycje: list[dict]) -> list[str]:
+        """Telefony, które dostają wpis teraz; tym w ciszy (z włączoną regułą) kolejka."""
+        teraz_t, w_ciszy = telefony.adresaci(KLUCZ_USTAWIEN[regula], ust, lokalnie)
+        for p in pozycje:
+            _odloz(kolejki, w_ciszy, p)
+        return teraz_t
 
     def wyslano_podlej(lista: list[dict]) -> None:
         for s in lista:
             stan_regul[s["nazwa"]][znacznik_wysylki].append(teraz_iso)
 
+    def niedawno_doreczone(s: dict, t: str) -> bool:
+        """Telefon `t` dostał odłożone „podlej" tej rośliny mniej niż odstęp gatunku temu.
+
+        Ponowienia epizodu liczą się od wysyłki do telefonów poza ciszą, a odłożone wychodzi
+        dopiero po ciszy danego telefonu — bez tego Android z ciszą 21–8 dostawał „Podlej:
+        azalia" o 8:01 jako odłożone i znowu o 9:01 jako świeże ponowienie, 12 godz. po
+        wysyłce do iPhone'a z ciszą 23–7 (przegląd, C3)."""
+        kiedy = _ms((stan_regul.get(s["nazwa"]) or {}).get("podlej_dla", {}).get(t))
+        return kiedy is not None and teraz_ms - kiedy < _odstep(s) - ZAPAS_PRZEBIEGU_MS
+
     if wlaczanie:
-        nazwy = list(dict.fromkeys([s["nazwa"] for s in ponizej] + [n for n, _ in czujnik_trwa]))
-        linie = [_linia_podlej(s) for s in ponizej] + [x for _, ls in czujnik_trwa for x in ls]
+        nazwy = list(dict.fromkeys([s["nazwa"] for s in ponizej] + [n for n, _, _ in czujnik_trwa]
+                                   + [s["nazwa"] for s, *_ in przestaw_trwa]))
+        linie = ([_linia_podlej(s) for s in ponizej]
+                 + [x for n, p, m in czujnik_trwa for x in _linie_czujnika(n, p, m)]
+                 + [_linia_przestaw(s, e["kierunek"], u, sz) for s, e, u, sz in przestaw_trwa])
+        # bez kolejki: powitanie po nocy byłoby już nieaktualne, a „Już trwa" i tak niesie
+        # wszystko, co trwa
+        do_kogo, _ = telefony.adresaci(None, ust, lokalnie)
         wpis("wlaczone", nazwy, "Powiadomienia włączone",
-             ("Już trwa:\n" + "\n".join(linie)) if linie else "Teraz nic nie wymaga uwagi.", "wlaczone")
+             ("Już trwa:\n" + "\n".join(linie)) if linie else "Teraz nic nie wymaga uwagi.", "wlaczone", do_kogo)
         wyslano_podlej(ponizej)
+        for _, e, _, _ in przestaw_trwa:
+            e[znacznik_wysylki] = teraz_iso
     elif not noc:
         if do_podlania:
-            dzis_podlej = sum(1 for w in historia
-                              if w.get("regula") == "podlej" and (na_sucho or w.get("na_sucho") is False)
-                              and datetime.fromtimestamp(_ms(w["ts"]) / 1000, strefa).date() == dzis)
+            # Odłożone („dostaniesz po ciszy") nie zjadają limitu dnia — to ta sama decyzja,
+            # która już raz się w nim policzyła. Liczone po przebiegach (`ts`), a nie po
+            # wpisach: telefon, któremu niedawno doręczono jedną z roślin, dostaje w tym samym
+            # przebiegu osobny wpis z resztą — to wciąż jedna decyzja.
+            dzis_podlej = len({w["ts"] for w in historia
+                               if w.get("regula") == "podlej" and not w.get("odlozone")
+                               and (na_sucho or w.get("na_sucho") is False)
+                               and datetime.fromtimestamp(_ms(w["ts"]) / 1000, strefa).date() == dzis})
             if dzis_podlej < MAKS_PODLEJ_NA_DOBE:
                 nazwy = [s["nazwa"] for s in do_podlania]
-                tytul = ", ".join(_mala(s["nazwa"]) + (" (pilne)" if s.get("werdykt") == "pilne" else "")
-                                  for s in do_podlania)
-                wpis("podlej", nazwy, f"Podlej: {tytul}", "\n".join(_linia_podlej(s) for s in do_podlania),
-                     _znacznik("podlej", nazwy))
+                do_kogo = rozeslij("podlej", [{"regula": "podlej", "obiekt": s["nazwa"], "ts": teraz_iso,
+                                               "ponizej_od": stan_regul[s["nazwa"]]["ponizej_od"]}
+                                              for s in do_podlania])
+                # Wpis decyzji idzie do telefonów, którym żadnej z tych roślin nie doręczono
+                # niedawno jako odłożonej (może zostać z pustą listą — epizod i tak liczy
+                # wysyłkę, jak przy wyłączonej regule). Telefon z takim doręczeniem dostaje
+                # osobny wpis z pozostałymi roślinami albo nic. Kolejka bez zmian: telefon
+                # w ciszy dostanie pozycję, a sprawdzenie zapada przy doręczeniu.
+                pelne = [t for t in do_kogo if not any(niedawno_doreczone(s, t) for s in do_podlania)]
+                wpis("podlej", nazwy, *_tresc_podlej(do_podlania), _znacznik("podlej", nazwy), pelne)
+                czesciowe: dict[tuple, list[str]] = {}
+                for t in do_kogo:
+                    moje = tuple(s["nazwa"] for s in do_podlania if not niedawno_doreczone(s, t))
+                    if moje and t not in pelne:
+                        czesciowe.setdefault(moje, []).append(t)
+                for moje, kto in czesciowe.items():
+                    lista = [s for s in do_podlania if s["nazwa"] in moje]
+                    wpis("podlej", list(moje), *_tresc_podlej(lista), _znacznik("podlej", list(moje)), kto)
                 wyslano_podlej(do_podlania)
         if czujnik_nowe:
-            nazwy = [n for n, _ in czujnik_nowe]
+            nazwy = [n for n, _, _ in czujnik_nowe]
+            do_kogo = rozeslij("czujnik", [{"regula": "czujnik", "obiekt": n, "ts": teraz_iso,
+                                            "powody": [{"powod": k, "tekst": tekst, "ts": teraz_iso}
+                                                       for k, tekst in p.items()],
+                                            "minione": list(m)} for n, p, m in czujnik_nowe])
             wpis("czujnik", nazwy, "Czujnik: " + ", ".join(_mala(n) for n in nazwy),
-                 "\n".join(x for _, ls in czujnik_nowe for x in ls), _znacznik("czujnik", nazwy))
+                 "\n".join(x for n, p, m in czujnik_nowe for x in _linie_czujnika(n, p, m)),
+                 _znacznik("czujnik", nazwy), do_kogo)
+        if do_przestawienia:
+            nazwy = [s["nazwa"] for s, *_ in do_przestawienia]
+            do_kogo = rozeslij("przestaw", [{"regula": "przestaw", "obiekt": s["nazwa"], "ts": teraz_iso,
+                                             "kierunek": e["kierunek"]} for s, e, _, _ in do_przestawienia])
+            wpis("przestaw", nazwy, *_tresc_przestaw([(s, e["kierunek"], u, sz) for s, e, u, sz in do_przestawienia]),
+                 _znacznik("przestaw", nazwy), do_kogo)
+            for _, e, _, _ in do_przestawienia:
+                e[znacznik_wysylki] = teraz_iso
 
     podsumowanie = poprz.get("podsumowanie_ostatnie")
     podsumowanie = podsumowanie if isinstance(podsumowanie, str) else None
+
+    def tresc_podsumowania() -> str:
+        return ("\n".join(_linia_podsumowania(s, dzis, strefa) for s in rosliny_teraz)
+                or "Brak stanu roślin — sprawdź kolektor.")
+
     # Przebieg z powitaniem to jeden wpis; podsumowanie pójdzie w następnym.
     if (not noc and not wlaczanie and lokalnie.weekday() == 6 and lokalnie.hour >= PODSUMOWANIE_OD_H
             and podsumowanie != dzis.isoformat()):
-        tresc = "\n".join(_linia_podsumowania(s, dzis, strefa) for s in rosliny_teraz)
+        do_kogo = rozeslij("podsumowanie", [{"regula": "podsumowanie", "obiekt": None, "ts": teraz_iso}])
         wpis("podsumowanie", [s["nazwa"] for s in rosliny_teraz], "Rośliny — podsumowanie tygodnia",
-             tresc or "Brak stanu roślin — sprawdź kolektor.", "podsumowanie", url="rosliny.html")
+             tresc_podsumowania(), "podsumowanie", do_kogo, url="#rosliny")
         podsumowanie = dzis.isoformat()
 
+    # Koniec ciszy telefonu: kolejka wychodzi raz, sprawdzona na świeżym stanie.
+    swieze = list(nowe_wpisy)
+    for t in telefony.TELEFONY:
+        kolejka = kolejki[t]["odlozone"]
+        if not kolejka or telefony.w_ciszy(ust[t], lokalnie):
+            continue
+        kolejki[t]["odlozone"] = []
+        if wlaczanie:
+            continue                     # powitanie „Już trwa" niesie to, co jeszcze trwa
+
+        def czeka(regula: str, t=t, kolejka=kolejka) -> list[dict]:
+            """Pozycje reguły, której telefon dalej chce, i których świeży wpis tego
+            przebiegu dla tego telefonu jeszcze nie niesie."""
+            if not ust[t].get(KLUCZ_USTAWIEN[regula]):
+                return []
+            return [p for p in kolejka if p.get("regula") == regula
+                    and (p.get("obiekt") is None or isinstance(p.get("obiekt"), str))
+                    and not any(w["regula"] == regula and t in w["telefony"]
+                                and (p.get("obiekt") is None or p.get("obiekt") in w["rosliny"]) for w in swieze)]
+
+        podlej = []
+        for p in czeka("podlej"):
+            s = obecne.get(p.get("obiekt"))
+            # podlana w nocy albo nowy epizod — to już nie ta sama sprawa
+            if (s is not None and s.get("werdykt") in PONIZEJ and s["nazwa"] not in [x["nazwa"] for x in podlej]
+                    and (stan_regul.get(s["nazwa"]) or {}).get("ponizej_od") == p.get("ponizej_od")
+                    and not niedawno_doreczone(s, t)):
+                podlej.append(s)
+        if podlej:
+            nazwy = [s["nazwa"] for s in podlej]
+            wpis("podlej", nazwy, *_tresc_podlej(podlej), _znacznik("podlej", nazwy), [t], odlozone=True)
+            # Chwila doręczenia, od której liczy się następne ponowienie dla tego telefonu.
+            # Znika z końcem epizodu (nowe `ponizej_od`), więc bez doręczeń plik się nie zmienia.
+            for s in podlej:
+                stan_regul[s["nazwa"]].setdefault("podlej_dla", {})[t] = teraz_iso
+
+        czujnik = []
+        for p in czeka("czujnik"):
+            nazwa = p.get("obiekt")
+            if nazwa not in obecne or nazwa in [n for n, _ in czujnik]:
+                continue
+            akt, trzymaj = powody_teraz[nazwa]
+            linie = []
+            for r in _lista(p.get("powody")):
+                if not isinstance(r, dict) or not isinstance(r.get("powod"), str):
+                    continue
+                tekst = str(r.get("tekst", ""))
+                if r["powod"] in akt:
+                    linie.append(f"{nazwa}: {_mala(akt[r['powod']])}")
+                elif r["powod"] in trzymaj:
+                    linie.append(f"{nazwa}: {_mala(tekst)}")
+                else:
+                    linie.append(f"{nazwa}: w nocy ({_lokalnie(_ms(r.get('ts')) or teraz_ms, strefa)}) "
+                                 f"{_mala(tekst)} Do rana minęło.")
+            linie += [x for x in _lista(p.get("minione")) if isinstance(x, str)]
+            if linie:
+                czujnik.append((nazwa, list(dict.fromkeys(linie))))
+        if czujnik:
+            nazwy = [n for n, _ in czujnik]
+            wpis("czujnik", nazwy, "Czujnik: " + ", ".join(_mala(n) for n in nazwy),
+                 "\n".join(x for _, ls in czujnik for x in ls), _znacznik("czujnik", nazwy), [t], odlozone=True)
+
+        przestaw = []
+        for p in czeka("przestaw"):
+            s = obecne.get(p.get("obiekt"))
+            if s is None or s["nazwa"] in [x[0]["nazwa"] for x in przestaw]:
+                continue
+            kierunek, u, szczyt = _ocena(s)
+            epizod = (stan_regul.get(s["nazwa"]) or {}).get("przestaw")
+            if (kierunek == p.get("kierunek") and isinstance(epizod, dict)
+                    and epizod.get("kierunek") == kierunek):
+                przestaw.append((s, kierunek, u, szczyt))
+        if przestaw:
+            nazwy = [s["nazwa"] for s, *_ in przestaw]
+            wpis("przestaw", nazwy, *_tresc_przestaw(przestaw), _znacznik("przestaw", nazwy), [t], odlozone=True)
+
+        if czeka("podsumowanie"):
+            wpis("podsumowanie", [s["nazwa"] for s in rosliny_teraz], "Rośliny — podsumowanie tygodnia",
+                 tresc_podsumowania(), "podsumowanie", [t], url="#rosliny", odlozone=True)
+
+    for t in telefony.TELEFONY:
+        kolejki[t]["odlozone"] = telefony.przytnij_odlozone(kolejki[t]["odlozone"], teraz_ms, _ms)
+
     return {"tryb": tryb, "wlaczone_od": wlaczone_od, "historia": historia + nowe_wpisy,
-            "stan_regul": stan_regul, "podsumowanie_ostatnie": podsumowanie}
+            "stan_regul": stan_regul, "podsumowanie_ostatnie": podsumowanie, "telefony": kolejki}

@@ -10,9 +10,15 @@ robi, sprawdza klasa TestPrawdziwaBiblioteka na końcu — w CI pominięta, loka
     python3 -m venv /tmp/venv-push && /tmp/venv-push/bin/pip install -r requirements-powiadomienia.txt
     /tmp/venv-push/bin/python -m unittest discover -s tests -p test_wyslij.py -v
 
-wyslij.py jest nowy, więc wersja sprzed zmiany nie przechodzi żadnego testu; każdy test
-niżej odrzuca też konkretną, łatwą do popełnienia pomyłkę — jaką, mówi jego opis.
-Jedyny strażnik (przechodzi także bez stałej na stronie) jest tak podpisany.
+Każdy test niżej odrzuca konkretną, łatwą do popełnienia pomyłkę — jaką, mówi jego opis.
+Testy filtra `telefony`, kilku plików, limitu na telefon, zamykania zgłoszenia, adresów
+nowej aplikacji i kroków workflowów puszczone na wersję sprzed tej zmiany (wyslij.py
+i workflowy z 11.10) padają. Strażnicy — testy, które przechodzą w obie strony, bo pilnują
+czegoś, co już działało — mają w opisie słowo STRAŻNIK.
+
+Strażnik stałej VAPID w index.html jest ostry: pada, dopóki stałej tam nie ma (przenosi
+ją druga część wdrożenia nowej aplikacji). Przejście „po cichu, gdy stałej nie ma"
+schowałoby dokładnie tę pomyłkę, która zatrzymałaby wszystkie powiadomienia.
 """
 
 from __future__ import annotations
@@ -22,6 +28,8 @@ import importlib.util
 import io
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -75,10 +83,16 @@ TAJNE = [ANDROID, IPHONE, urlsplit(ANDROID).path, urlsplit(IPHONE).path,
          "dTajnyTokenAndroida", "QGtajnyTokenIphonea",
          SUB_ANDROID["keys"]["auth"], SUB_IPHONE["keys"]["auth"]]
 
+# Wpis bez pola `telefony` — tak wyglądały wszystkie przed ustawieniami per telefon
+# i nadal mają iść na oba telefony.
 WPIS = {"id": "20261009T140112Z-podlej", "ts": "2026-10-09T14:01:12Z", "przebieg": "123-1",
         "regula": "podlej", "rosliny": ["Azalia"], "tytul": "Podlej: azalia",
         "tresc": "Azalia: gleba 41% (podlewaj przy ok. 45%).", "tag": "podlej",
-        "url": "rosliny.html#roslina=Azalia", "na_sucho": False}
+        "url": "#azalia", "na_sucho": False}
+# Klucz publiczny VAPID, przy którym oba telefony założyły subskrypcje (9.10 i 10.10).
+# Nie tajny — stoi na publicznej stronie. Inna wartość na stronie = obie subskrypcje do
+# wyrzucenia i sekrety PUSH_* do podmiany, więc zmiana ma być świadoma, a nie przypadkowa.
+KLUCZ_TELEFONOW = "BCkTpyOmwR5sNru3hotnkn_Im8wtcOuDqzQJEk3Izi0ywWbfwWHSNsdZTbjy1H6EZTaEiaILDjnU_QipTQ2EJIM"
 
 
 def wpis(**zmiany) -> dict:
@@ -173,7 +187,7 @@ class Baza(unittest.TestCase):
     def setUp(self):
         self.katalog = Path(tempfile.mkdtemp())
         self.addCleanup(lambda: __import__("shutil").rmtree(self.katalog, ignore_errors=True))
-        self.strona = self.katalog / "rosliny.html"
+        self.strona = self.katalog / "index.html"
         self.ustaw_strone(PUBLICZNY)
         self.plik = self.katalog / "powiadomienia.json"
         self.ustaw_historie([WPIS])
@@ -249,13 +263,27 @@ class TestKlucz(Baza):
                 with self.assertRaises(wyslij.BladKonfiguracji):
                     wyslij.klucz_ze_strony(self.strona)
 
+    def test_nadawca_czyta_klucz_z_index_html(self):
+        """Stała przenosi się z rosliny.html (zostaje z niej przekierowanie bez skryptów)
+        do index.html. Nadawca czytający starą stronę kończyłby każdy przebieg kodem 1
+        i zgłoszeniem — odrzuca to STRONA i domyślne --strona."""
+        self.assertEqual(wyslij.STRONA, REPO / "index.html")
+        self.assertEqual(wyslij._parser().parse_args(["--test"]).strona, REPO / "index.html")
+
     def test_strona_w_repozytorium_ma_czytelna_stala(self):
-        """STRAŻNIK: przechodzi też dziś, gdy rosliny.html stałej jeszcze nie ma. Pilnuje,
-        żeby po jej dopisaniu zapis dał się przeczytać nadawcy (jedna linia, apostrofy,
-        średnik; pusta albo klucz 65 B) — inaczej każdy przebieg kończyłby się błędem."""
-        html = (REPO / "rosliny.html").read_text(encoding="utf-8")
-        if "VAPID_PUBLICZNY" in html:
-            wyslij.klucz_ze_strony(REPO / "rosliny.html")
+        """STRAŻNIK, ostry: w index.html stała musi być DOKŁADNIE raz, w zapisie, który czyta
+        nadawca (apostrofy, średnik), mieć 87 znaków (65 B base64url) i być tym kluczem, przy
+        którym telefony założyły subskrypcje. Pada, dopóki stałej w index.html nie ma —
+        cicha zgoda na jej brak to zatrzymane powiadomienia na obu telefonach."""
+        strona = REPO / "index.html"
+        html = strona.read_text(encoding="utf-8")
+        znalezione = wyslij.WZOR_STALEJ.findall(html)
+        self.assertEqual(len(znalezione), 1,
+                         "index.html: const VAPID_PUBLICZNY='…'; ma być dokładnie raz")
+        self.assertEqual(len(re.findall(r"VAPID_PUBLICZNY\s*=", html)), 1,
+                         "drugi zapis stałej (np. przykład w komentarzu) myli nadawcę i stronę")
+        self.assertEqual(len(znalezione[0]), 87)
+        self.assertEqual(wyslij.klucz_ze_strony(strona), KLUCZ_TELEFONOW)
 
 
 class TestBrakSubskrypcji(Baza):
@@ -393,14 +421,43 @@ class TestWyborWpisow(Baza):
         self.assertEqual(kod, 1)
         self.assertEqual(atrapa.wywolania, [])
 
-    def test_najwyzej_trzy_wpisy_na_przebieg(self):
-        """Błąd w regułach nie zasypie telefonów: z pięciu wpisów idą trzy, reszta do
-        zgłoszenia — ale kolektor zostaje zielony."""
-        self.ustaw_historie([wpis(id=str(i)) for i in range(5)])
+    def test_limit_wpisow_na_telefon(self):
+        """Błąd w regułach nie zasypie telefonu: z MAKS_WPISOW + 2 wpisów każdy telefon
+        dostaje pierwsze MAKS_WPISOW, reszta do zgłoszenia — ale kolektor zostaje zielony.
+        Odrzuca stary limit 3 na przebieg, który w niedzielę z regułami domu uciąłby
+        prawdziwe powiadomienia."""
+        m = wyslij.MAKS_WPISOW
+        self.ustaw_historie([wpis(id=str(i)) for i in range(m + 2)])
         kod, _, atrapa = self.uruchom()
         self.assertEqual(kod, 0)
-        self.assertEqual(len(atrapa.wywolania), 3 * 2)
+        wyslane = [(w["endpoint"], json.loads(w["dane"])["id"]) for w in atrapa.wywolania]
+        for adres in (ANDROID, IPHONE):
+            self.assertEqual([i for a, i in wyslane if a == adres], [str(i) for i in range(m)])
         self.assertIn("Reguły", self.gh.tresci())
+        self.assertIn(f"{m + 2} wpisów dla telefonu Android", self.gh.tresci())
+
+    def test_limit_liczy_sie_osobno_dla_kazdego_telefonu(self):
+        """MAKS_WPISOW wpisów tylko dla Androida i tyle samo tylko dla iPhone'a to pełny
+        limit na telefon — wszystko idzie, bez zgłoszenia. Odrzuca limit liczony na cały
+        przebieg (ten uciąłby połowę), a wpis Androida ponad limit nie zabiera nic
+        iPhone'owi."""
+        m = wyslij.MAKS_WPISOW
+        historia = ([wpis(id=f"a{i}", telefony=["android"]) for i in range(m)]
+                    + [wpis(id=f"i{i}", telefony=["iphone"]) for i in range(m)])
+        self.ustaw_historie(historia)
+        kod, _, atrapa = self.uruchom()
+        self.assertEqual(kod, 0)
+        self.assertEqual(len(atrapa.wywolania), 2 * m)
+        self.assertNotIn("issue create", self.gh.polecenia())
+
+        self.ustaw_historie(historia + [wpis(id=f"a{m}", telefony=["android"])])
+        kod, _, atrapa = self.uruchom()
+        self.assertEqual(kod, 0)
+        wyslane = [(w["endpoint"], json.loads(w["dane"])["id"]) for w in atrapa.wywolania]
+        self.assertEqual(sum(a == IPHONE for a, _ in wyslane), m)
+        self.assertNotIn((ANDROID, f"a{m}"), wyslane)
+        self.assertIn(f"{m + 1} wpisów dla telefonu Android", self.gh.tresci())
+        self.assertNotIn("iPhone", self.gh.tresci())
 
 
 class TestPulapki(Baza):
@@ -455,8 +512,18 @@ class TestPulapki(Baza):
         dane = atrapa.wywolania[0]["dane"]
         self.assertEqual(json.loads(dane), {"title": "Podlej: azalia",
                                             "body": "Azalia: gleba 41% (podlewaj przy ok. 45%).",
-                                            "tag": "podlej", "url": "rosliny.html#roslina=Azalia",
+                                            "tag": "podlej", "url": "#azalia",
                                             "id": "20261009T140112Z-podlej"})
+
+    def test_domyslne_pola_tresci_dla_nowej_aplikacji(self):
+        """Wpis bez url/tytułu/tagu (planery zawsze je dają, to tylko siatka) prowadzi do
+        zakładki Dom nowej aplikacji, a nie do rosliny.html, z której zostało samo
+        przekierowanie. Wpis może być z domu, więc tytuł to nazwa aplikacji, nie „Rośliny”."""
+        dane = json.loads(wyslij.tresc_push({"tresc": "x"}))
+        self.assertEqual(dane["url"], "#dom")
+        self.assertEqual(dane["title"], "Smart Home")
+        self.assertTrue(wyslij.WZOR_TOPIC.fullmatch(dane["tag"]))
+        self.assertNotIn("rosliny.html", json.dumps(dane))
 
     def test_dluga_tresc_przycieta_do_granicy(self):
         """Ciało powyżej 4096 B to 413 i powiadomienie przepada; przycinamy samą treść."""
@@ -573,7 +640,17 @@ class TestTrybTestowy(Baza):
         tresc = json.loads(atrapa.wywolania[0]["dane"])
         self.assertEqual(tresc["title"], "Powiadomienia działają")
         self.assertEqual(tresc["id"], "test-99-1")
-        self.assertEqual(tresc["url"], "rosliny.html")
+        # zakładka z ustawieniami i „Ten telefon” — tam właściciel sprawdza, co dalej
+        self.assertEqual(tresc["url"], "#powiadomienia")
+
+    def test_test_ignoruje_pliki_i_pole_telefony(self):
+        """STRAŻNIK (stary nadawca też nie czytał plików przy --test): test idzie na każdy
+        podpięty telefon niezależnie od ustawień — wpis „tylko Android” go nie ogranicza."""
+        self.ustaw_historie([wpis(przebieg="99-1", telefony=["android"])])
+        kod, _, atrapa = self.uruchom("--test", "--przebieg", "99-1", "--plik", str(self.plik))
+        self.assertEqual(kod, 0)
+        self.assertEqual([w["endpoint"] for w in atrapa.wywolania], [ANDROID, IPHONE])
+        self.assertEqual({json.loads(w["dane"])["tag"] for w in atrapa.wywolania}, {"test"})
 
     def test_blad_w_trybie_testowym_na_czerwono(self):
         """Martwa subskrypcja przy ręcznym teście to czerwony przebieg, nie tylko zgłoszenie."""
@@ -581,10 +658,698 @@ class TestTrybTestowy(Baza):
         self.assertEqual(kod, 1)
         self.assertIn("::error::iPhone", log)
 
-    def test_bez_test_potrzebny_plik_i_przebieg(self):
-        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as kontekst:
-            wyslij.main(["--przebieg", "1-1"], env={}, gh=AtrapaGh())
-        self.assertEqual(kontekst.exception.code, 2)
+    def test_bez_test_potrzebny_przebieg(self):
+        """STRAŻNIK (stary nadawca też tak robił): bez numeru przebiegu nie ma jak wybrać
+        wpisów — argparse, kod 2. (--plik ma już wartość domyślną, więc jego brak nie jest
+        błędem: patrz TestKilkaPlikow.)"""
+        for argv in ([], ["--plik", str(self.plik)]):
+            with self.subTest(argv=argv), redirect_stderr(io.StringIO()), \
+                    self.assertRaises(SystemExit) as kontekst:
+                wyslij.main(argv, env={}, gh=AtrapaGh())
+            self.assertEqual(kontekst.exception.code, 2)
+
+
+class TestFiltrTelefonow(Baza):
+    """Pole `telefony` wpisu: komu ten przebieg wysyła (ustawienia i cisza nocna telefonu
+    rozstrzygnięte w kolektorze). Nadawca sprzed tej zmiany wysyłał każdy wpis na każdy
+    telefon — każdy test niżej to odrzuca."""
+
+    def test_tylko_wskazany_telefon(self):
+        """Wpis „tylko Android” nie budzi iPhone'a w jego ciszy nocnej; iPhone dostaje
+        w logu jedną linię bez powodu (ustawienia czy cisza — to rozstrzygnął kolektor)."""
+        self.ustaw_historie([wpis(telefony=["android"])])
+        kod, log, atrapa = self.uruchom()
+        self.assertEqual(kod, 0)
+        self.assertEqual([w["endpoint"] for w in atrapa.wywolania], [ANDROID])
+        o_iphonie = [l for l in self.log_bez_masek(log).splitlines() if "iPhone" in l]
+        self.assertEqual(o_iphonie, ["iPhone: nic w tym przebiegu."])
+        self.assertNotIn("issue create", self.gh.polecenia())
+
+        self.ustaw_historie([wpis(telefony=["iphone"])])
+        kod, log, atrapa = self.uruchom()
+        self.assertEqual([w["endpoint"] for w in atrapa.wywolania], [IPHONE])
+        self.assertIn("Android: nic w tym przebiegu.", log)
+
+    def test_pusta_lista_to_nikt_i_bez_zgloszenia(self):
+        """`telefony: []` (reguła wyłączona albo cisza na obu) — nic nie idzie, nie ma
+        czego zgłaszać ani zamykać, a brak biblioteki nie jest wtedy błędem."""
+        self.ustaw_historie([wpis(telefony=[])])
+        kod, log, atrapa = self.uruchom(gh=AtrapaGh(otwarte="17"))
+        self.assertEqual(kod, 0)
+        self.assertEqual(atrapa.wywolania, [])
+        self.assertEqual(self.gh.wywolania, [])
+        self.assertIn("Android: nic w tym przebiegu.", log)
+        self.assertIn("iPhone: nic w tym przebiegu.", log)
+        kod, log, _ = self.uruchom(atrapa=None)
+        self.assertEqual(kod, 0, log)
+        self.assertNotIn("pywebpush", log)
+
+    def test_mieszane_wpisy_brak_pola_to_oba(self):
+        """Brak pola = oba telefony (wpisy sprzed ustawień per telefon); kolejność wysyłek
+        idzie za wpisami, a w obrębie wpisu Android, potem iPhone — niezależnie od kolejności
+        na liście."""
+        self.ustaw_historie([wpis(id="stary"), wpis(id="a", telefony=["android"]),
+                             wpis(id="oba", telefony=["iphone", "android"])])
+        kod, _, atrapa = self.uruchom()
+        self.assertEqual(kod, 0)
+        wyslane = [(w["endpoint"], json.loads(w["dane"])["id"]) for w in atrapa.wywolania]
+        self.assertEqual(wyslane, [(ANDROID, "stary"), (IPHONE, "stary"), (ANDROID, "a"),
+                                   (ANDROID, "oba"), (IPHONE, "oba")])
+
+    def test_zly_typ_pomija_wpis_i_zglasza(self):
+        """Zepsute pole `telefony` to błąd planera: ten wpis nie idzie nigdzie (zgadywanie
+        mogłoby obudzić telefon w ciszy), reszta idzie, zgłoszenie „Reguły”, kolektor
+        zielony, żadnej wywrotki."""
+        for zle in ("android", None, 5, True, {"android": True}, ["android", 1], ["ipad"],
+                    [["android"]]):
+            with self.subTest(telefony=zle):
+                self.ustaw_historie([wpis(id="zepsuty", telefony=zle), wpis(id="dobry")])
+                kod, log, atrapa = self.uruchom()
+                self.assertEqual(kod, 0, log)
+                self.assertEqual([json.loads(w["dane"])["id"] for w in atrapa.wywolania],
+                                 ["dobry", "dobry"])
+                self.assertIn("Reguły", self.gh.tresci())
+                self.assertIn("zepsuty", self.gh.tresci())
+                self.assertIn("::warning::Reguły", log)
+
+    def test_powtorzony_telefon_dostaje_raz(self):
+        self.ustaw_historie([wpis(telefony=["android", "android"])])
+        _, _, atrapa = self.uruchom()
+        self.assertEqual([w["endpoint"] for w in atrapa.wywolania], [ANDROID])
+
+    def test_wpis_dla_niepodpietego_telefonu(self):
+        """iPhone bez subskrypcji (pusty sekret): wpis tylko dla niego nie idzie nigdzie
+        i nie jest błędem — telefonu po prostu nie ma."""
+        self.ustaw_historie([wpis(telefony=["iphone"])])
+        kod, log, atrapa = self.uruchom(env=srodowisko(PUSH_IPHONE=""))
+        self.assertEqual(kod, 0)
+        self.assertEqual(atrapa.wywolania, [])
+        self.assertNotIn("issue create", self.gh.polecenia())
+        self.assertIn("Android: nic w tym przebiegu.", log)
+
+    def test_id_telefonow_jak_w_telefony_py(self):
+        """STRAŻNIK: id w polu `telefony` pisze kolektor z telefony.TELEFONY. Literówka
+        po jednej stronie po cichu odcięłaby telefon (nadawca uznałby wpis za zepsuty)."""
+        import telefony
+        self.assertEqual(wyslij.ID_TELEFONOW, telefony.TELEFONY)
+
+
+class TestZamykanieZgloszenia(Baza):
+    """Zgłoszenie zamyka się tylko, gdy w tym przebiegu każdy podpięty telefon dostał
+    co najmniej jedno powiadomienie i nic nie zawiodło."""
+
+    def test_wysylka_na_czesc_telefonow_nie_zamyka(self):
+        """Przebieg tylko na Androida nic nie mówi o martwej subskrypcji iPhone'a — stary
+        nadawca zamykał zgłoszenie po każdej udanej wysyłce i chował ją."""
+        self.ustaw_historie([wpis(telefony=["android"])])
+        kod, _, _ = self.uruchom(gh=AtrapaGh(otwarte="17"))
+        self.assertEqual(kod, 0)
+        self.assertNotIn("issue close", self.gh.polecenia())
+
+    def test_kazdy_telefon_cos_dostal_zamyka(self):
+        """STRAŻNIK (stary nadawca zamykał zawsze po wysyłce): różne wpisy, ale każdy
+        telefon coś dostał — zamyka. Odrzuca warunek „każdy wpis na każdy telefon”."""
+        self.ustaw_historie([wpis(id="a", telefony=["android"]), wpis(id="i", telefony=["iphone"])])
+        self.uruchom(gh=AtrapaGh(otwarte="17"))
+        self.assertIn(["issue", "close", "17"], [a[:3] for a in self.gh.wywolania])
+
+    def test_jedyny_podpiety_telefon_zamyka(self):
+        """STRAŻNIK (stary nadawca też zamykał): liczą się telefony z subskrypcją, nie
+        wszystkie znane — bez iPhone'a w sekretach zgłoszenie zamyka sama wysyłka na Androida."""
+        self.ustaw_historie([wpis(telefony=["android"])])
+        self.uruchom(env=srodowisko(PUSH_IPHONE=None), gh=AtrapaGh(otwarte="17"))
+        self.assertIn(["issue", "close", "17"], [a[:3] for a in self.gh.wywolania])
+
+    def test_blad_regul_nie_zamyka(self):
+        """Oba telefony dostały dobry wpis, ale inny był zepsuty — zgłoszenie się odświeża,
+        nie zamyka."""
+        self.ustaw_historie([wpis(id="zepsuty", telefony="android"), wpis(id="dobry")])
+        self.uruchom(gh=AtrapaGh(otwarte="17"))
+        self.assertNotIn("issue close", self.gh.polecenia())
+        self.assertIn(["issue", "edit", "17"], [a[:3] for a in self.gh.wywolania])
+
+
+class TestKilkaPlikow(Baza):
+    """Rośliny i dom mają osobne pliki powiadomień; krok wysyłki podaje oba (--plik dwa
+    razy). Stary nadawca brał jeden --plik — przy dwóch wygrywał ostatni."""
+
+    def setUp(self):
+        super().setUp()
+        (self.katalog / "rosliny").mkdir()
+        (self.katalog / "dom").mkdir()
+        self.plik = self.katalog / "rosliny" / "powiadomienia.json"
+        self.plik_dom = self.katalog / "dom" / "powiadomienia.json"
+        self.ustaw_historie([wpis(id="r")])
+        self.ustaw_dom([wpis(id="d", regula="przewietrz", rosliny=None, pokoje=["Łazienka"],
+                             tag="przewietrz-lazienka", url="#lazienka")])
+
+    def ustaw_dom(self, historia):
+        self.plik_dom.write_text(json.dumps({"tryb": "wlaczone", "historia": historia},
+                                            ensure_ascii=False), encoding="utf-8")
+
+    def oba(self, *reszta):
+        return ("--plik", str(self.plik), "--plik", str(self.plik_dom), "--przebieg", "123-1",
+                *reszta)
+
+    def wyslane(self, atrapa):
+        return [(w["endpoint"], json.loads(w["dane"])["id"]) for w in atrapa.wywolania]
+
+    def test_wpisy_z_obu_plikow_po_kolei(self):
+        kod, _, atrapa = self.uruchom(*self.oba())
+        self.assertEqual(kod, 0)
+        self.assertEqual(self.wyslane(atrapa), [(ANDROID, "r"), (IPHONE, "r"),
+                                                (ANDROID, "d"), (IPHONE, "d")])
+        self.assertEqual(json.loads(atrapa.wywolania[2]["dane"])["url"], "#lazienka")
+
+    def test_brak_pliku_domu_to_nic_z_niego(self):
+        """Zanim dom.py zapisze pierwszy plik, krok wysyłki go nie poda — a gdyby podał
+        nieistniejący, to „pusto”, nie błąd."""
+        self.plik_dom.unlink()
+        kod, log, atrapa = self.uruchom(*self.oba())
+        self.assertEqual(kod, 0)
+        self.assertEqual(self.wyslane(atrapa), [(ANDROID, "r"), (IPHONE, "r")])
+        self.assertNotIn("issue create", self.gh.polecenia())
+
+    def test_domyslnie_oba_pliki_z_data(self):
+        with mock.patch.object(wyslij, "PLIKI", (self.plik, self.plik_dom)):
+            kod, _, atrapa = self.uruchom("--przebieg", "123-1")
+        self.assertEqual(kod, 0)
+        self.assertEqual([i for _, i in self.wyslane(atrapa)], ["r", "r", "d", "d"])
+
+    def test_jawny_plik_nie_dokleja_domyslnych(self):
+        """Pułapka argparse: action="append" z listą domyślną DOKŁADA podane --plik do
+        domyślnych. Jawne --plik ma czytać tylko to, co podano."""
+        with mock.patch.object(wyslij, "PLIKI", (self.plik,)):
+            kod, _, atrapa = self.uruchom("--plik", str(self.plik_dom), "--przebieg", "123-1")
+        self.assertEqual(kod, 0)
+        self.assertEqual([i for _, i in self.wyslane(atrapa)], ["d", "d"])
+
+    def test_zepsuty_plik_nie_zatrzymuje_drugiego(self):
+        """Zepsuty plik domu nie zabiera powiadomień o roślinach: te idą, a przebieg kończy
+        się kodem 1 i zgłoszeniem, które mówi, który plik."""
+        self.plik_dom.write_text("{nie json", encoding="utf-8")
+        kod, log, atrapa = self.uruchom(*self.oba())
+        self.assertEqual(kod, 1)
+        self.assertEqual(self.wyslane(atrapa), [(ANDROID, "r"), (IPHONE, "r")])
+        self.assertIn("dom/powiadomienia.json", self.gh.tresci())
+        self.assertIn("::error::Dane", log)
+
+    def test_limit_liczy_wpisy_z_obu_plikow(self):
+        """Limit na telefon to suma z obu plików — inaczej dwa pliki dawałyby dwa limity."""
+        polowa = wyslij.MAKS_WPISOW // 2 + 1          # każdy plik osobno mieści się w limicie
+        self.ustaw_historie([wpis(id=f"r{i}") for i in range(polowa)])
+        self.ustaw_dom([wpis(id=f"d{i}") for i in range(polowa)])
+        kod, _, atrapa = self.uruchom(*self.oba())
+        self.assertEqual(kod, 0)
+        self.assertEqual(len(atrapa.wywolania), 2 * wyslij.MAKS_WPISOW)
+        self.assertIn(f"{2 * polowa} wpisów dla telefonu Android", self.gh.tresci())
+
+    def test_najgorszy_przebieg_obu_planerow_miesci_sie_w_limicie(self):
+        """MAKS_WPISOW to realna górna granica, a nie zgadywanie: prawdziwe planery
+        (rosliny.py, dom.py) w pierwszym przebiegu po ciszy Androida dają mu 13 wpisów —
+        7 roślin (świeże podlej, czujnik i przestaw jednej rośliny, odłożone podlej, czujnik
+        i przestaw drugiej, odłożone podsumowanie) i 6 domu (świeże przewietrz, przed snem,
+        okno, czujniki, odłożone przewietrz i czujniki). Dawny limit 10 obcinał trzy z nich
+        i zakładał zgłoszenie „Reguły" (przegląd, B5).
+
+        Android: cisza 14–12 (koniec ciszy w oknie „przed snem" 12–14), podsumowanie
+        włączone; iPhone bez ciszy, więc reguły idą świeżo także w ciszy Androida.
+        Niedziela 18.10, przebiegi 9:01–12:01."""
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        import dom
+        import rosliny
+        import telefony
+        strefa = ZoneInfo("Europe/Warsaw")
+        ust = {"android": {**telefony.DOMYSLNE, "od": 14, "do": 12, "podsumowanie": True},
+               "iphone": {**telefony.DOMYSLNE, "cisza": False}}
+
+        def chwila(godz: int) -> int:
+            return int(datetime(2026, 10, 18, godz, 1, tzinfo=strefa).timestamp() * 1000)
+
+        def roslina(nazwa: str, gatunek: str, sucha: bool, bateria: bool, przestaw: bool) -> dict:
+            return {"nazwa": nazwa, "gatunek": gatunek, "werdykt": "podlej" if sucha else "ok",
+                    "ostatnie": {"gleba": {"v": 21.0 if sucha else 40.0},
+                                 "bateria": {"v": "low" if bateria else "high"}},
+                    "prog_gleba": 24, "podlania": [], "uwagi": [],
+                    "do_zgloszenia": ["Bateria na wyczerpaniu."] if bateria else [],
+                    "swiatlo_ocena": ({"kierunek": "jasniej", "u": 0.2, "proc": 20, "doby": [], "szczyt_lx": 50}
+                                      if przestaw else None),
+                    "swiatlo_dobowe": [], "swiatlo_potrzeba_lxh": 20000}
+
+        def pokoj(**pola) -> dict:
+            return {"przewietrz": None, "okno": None, "noc": None, "milczy_od": None, "bateria": "middle", **pola}
+
+        przewietrz = {"od": "2026-10-18T06:00:00Z", "wilg": 71.0, "granica": 63.2}
+        okno = {"od": "2026-10-18T09:40:00Z", "przed": 21.2, "teraz": 18.4, "spadek": 2.8}
+        noc = {"noc": "2026-10-18", "t_min": 4.0, "granica": 60.4, "zwykle": 60.9, "ostrz": True}
+        # godzina → (fikus, skrzydłokwiat) jako (sucha, słaba bateria, „jaśniej") i pokoje:
+        # o 11:01 Android śpi — fikus i kuchnia idą świeżo do iPhone'a, a Androidowi do kolejki
+        # (podsumowanie już o 10:01); o 12:01 skrzydłokwiat i pozostałe pokoje idą świeżo do obu.
+        przebiegi = {
+            9: (((True, False, False), (False, False, False)), {}),
+            10: (((True, False, False), (True, False, False)), {}),
+            11: (((True, True, True), (True, False, False)),
+                 {"kuchnia": pokoj(przewietrz=przewietrz, bateria="low")}),
+            12: (((True, True, True), (True, True, True)),
+                 {"kuchnia": pokoj(przewietrz=przewietrz, bateria="low"),
+                  "lazienka": pokoj(przewietrz=przewietrz, noc=noc),
+                  "salon": pokoj(bateria="low"), "sypialnia": pokoj(okno=okno)}),
+        }
+        plik_r = {"tryb": "wlaczone", "wlaczone_od": "2026-10-01T00:00:00Z", "historia": [], "stan_regul": {},
+                  "podsumowanie_ostatnie": None}
+        plik_d = {"tryb": "wlaczone", "wlaczone_od": "2026-10-01T00:00:00Z", "historia": [], "stan_regul": {}}
+        for godz, ((fikus, skrzydlokwiat), pokoje) in przebiegi.items():
+            stany = [roslina("Fikus", "fikus", *fikus), roslina("Skrzydłokwiat", "skrzydlokwiat", *skrzydlokwiat)]
+            nr = "123-1" if godz == 12 else f"{godz}-1"
+            plik_r = json.loads(json.dumps(rosliny.zaplanuj_powiadomienia(
+                stany, plik_r, chwila(godz), strefa, "wlaczone", nr, ust)))
+            stan = {"updated": "", "pokoje": {d: pokoje.get(d, pokoj())
+                                              for d in ("lazienka", "kuchnia", "salon", "sypialnia")}}
+            plik_d = json.loads(json.dumps(dom.zaplanuj_powiadomienia(
+                stan, plik_d, chwila(godz), strefa, "wlaczone", nr, ust)))
+        self.plik.write_text(json.dumps(plik_r, ensure_ascii=False), encoding="utf-8")
+        self.plik_dom.write_text(json.dumps(plik_d, ensure_ascii=False), encoding="utf-8")
+        android = [(w["regula"], bool(w.get("odlozone"))) for p in (plik_r, plik_d) for w in p["historia"]
+                   if w["przebieg"] == "123-1" and "android" in w["telefony"]]
+        self.assertEqual(sorted(android), sorted([
+            ("podlej", False), ("czujnik", False), ("przestaw", False),
+            ("podlej", True), ("czujnik", True), ("przestaw", True), ("podsumowanie", True),
+            ("przewietrz", False), ("przed-snem", False), ("okno", False), ("czujniki", False),
+            ("przewietrz", True), ("czujniki", True)]))
+        self.assertEqual(len(android), wyslij.MAKS_WPISOW, "limit = najgorszy przypadek, nie mniej i nie więcej")
+
+        kod, log, atrapa = self.uruchom(*self.oba())
+        self.assertEqual(kod, 0, log)
+        self.assertEqual(sum(a == ANDROID for a, _ in self.wyslane(atrapa)), 13)
+        self.assertNotIn("Reguły", self.gh.tresci())
+        self.assertNotIn("issue create", self.gh.polecenia())
+
+
+WORKFLOWY = REPO / ".github" / "workflows"
+
+
+def kroki(plik: Path) -> list[dict]:
+    """Kroki workflowu bez PyYAML (w CI testy mają tylko requests). Na nasze pliki
+    wystarczy: lista pod `steps:`, klucze kroku dwie spacje za „- ”, `env:` jako
+    NAZWA: wartość, `run:` w jednej linii albo jako blok `|`.
+    Wynik: [{"nazwa", "klucze": set, "env": {…}, "run": tekst, "tekst": surowy krok}]."""
+    linie = plik.read_text(encoding="utf-8").splitlines()
+    surowe, i = [], 0
+    while i < len(linie):
+        m = re.match(r"^(\s*)steps:\s*$", linie[i])
+        i += 1
+        if not m:
+            continue
+        poziom = len(m.group(1)) + 2
+        while i < len(linie):
+            linia, bez = linie[i], linie[i].strip()
+            wciecie = len(linia) - len(linia.lstrip())
+            if bez and not bez.startswith("#") and wciecie < poziom:
+                break
+            if wciecie == poziom and bez.startswith("- "):
+                surowe.append([" " * (poziom + 2) + linia[poziom + 2:]])
+            elif surowe and (wciecie > poziom or not bez):
+                surowe[-1].append(linia)
+            i += 1
+    wynik = []
+    for krok in surowe:
+        opis = {"nazwa": "", "klucze": set(), "env": {}, "run": "", "tekst": "\n".join(krok)}
+        k = 0
+        while k < len(krok):
+            m = re.match(r"^\s*([A-Za-z_-]+):\s*(.*)$", krok[k])
+            k += 1
+            if not m or len(krok[k - 1]) - len(krok[k - 1].lstrip()) != len(krok[0]) - len(krok[0].lstrip()):
+                continue
+            klucz, wartosc = m.group(1), m.group(2).strip()
+            opis["klucze"].add(klucz)
+            glebiej = []
+            while k < len(krok) and (not krok[k].strip() or
+                                     len(krok[k]) - len(krok[k].lstrip()) > len(krok[0]) - len(krok[0].lstrip())):
+                glebiej.append(krok[k])
+                k += 1
+            if klucz == "name":
+                opis["nazwa"] = wartosc
+            elif klucz == "env":
+                for l in glebiej:
+                    me = re.match(r"^\s*([A-Z0-9_]+):\s*(.*?)\s*$", l)
+                    if me and not l.strip().startswith("#"):
+                        opis["env"][me.group(1)] = me.group(2)
+            elif klucz == "run":
+                if wartosc == "|":
+                    niepuste = [l for l in glebiej if l.strip()]
+                    odsuniecie = min(len(l) - len(l.lstrip()) for l in niepuste)
+                    opis["run"] = "\n".join(l[odsuniecie:] for l in glebiej).strip("\n") + "\n"
+                else:
+                    opis["run"] = wartosc
+        wynik.append(opis)
+    return wynik
+
+
+def krok(plik: Path, poczatek_nazwy: str) -> dict:
+    pasujace = [k for k in kroki(plik) if k["nazwa"].startswith(poczatek_nazwy)]
+    if len(pasujace) != 1:
+        raise AssertionError(f"{plik.name}: kroków „{poczatek_nazwy}…” jest {len(pasujace)}")
+    return pasujace[0]
+
+
+ZBIERAJ = WORKFLOWY / "zbieraj.yml"
+KROK_POBIERZ = "Pobierz odczyty"
+KROK_WYSYLKI = "Wyślij powiadomienia"
+
+
+class TestWorkflowy(Baza):
+    def test_ustawienia_telefonow_tylko_przez_env_kroku_pobierz(self):
+        """Kolektor dostaje zmienne repozytorium POWIADOMIENIA_ANDROID/IPHONE (nazwy
+        z telefony.ZMIENNE) w env: kroku „Pobierz…”, i tylko tam. Żaden run: w żadnym
+        workflowie nie wkleja `vars.` — treść zmiennej ustawia każdy, kto ma klucz
+        z telefonu, a wklejona w skrypt byłaby kodem powłoki."""
+        import telefony
+        pobierz = krok(ZBIERAJ, KROK_POBIERZ)
+        for nazwa in telefony.ZMIENNE.values():
+            self.assertEqual(pobierz["env"].get(nazwa), "${{ vars.%s }}" % nazwa)
+        # globalny wyłącznik zostaje obok (jego wartość to decyzja właściciela, nie testu)
+        self.assertIn("POWIADOMIENIA", pobierz["env"])
+        for plik in sorted(WORKFLOWY.glob("*.yml")):
+            for k in kroki(plik):
+                with self.subTest(plik=plik.name, krok=k["nazwa"]):
+                    self.assertNotIn("vars.", k["run"])
+                    if k["nazwa"] != pobierz["nazwa"] and plik == ZBIERAJ:
+                        self.assertNotIn("vars.", k["tekst"])
+
+    def test_sekrety_tylko_w_kroku_wysylki_po_zapisie(self):
+        """STRAŻNIK (tak było i ma zostać): sekrety powiadomień ma wyłącznie krok wysyłki,
+        stoi po kroku z zapisz.sh i nie ma `if:` — `if: always()` wysłałby po nieudanym
+        zapisie, czyli wpisy, których nie ma na main."""
+        nazwy = [k["nazwa"] for k in kroki(ZBIERAJ)]
+        wysylka = krok(ZBIERAJ, KROK_WYSYLKI)
+        for k in kroki(ZBIERAJ):
+            for sekret in ("VAPID_KLUCZ_PRYWATNY", "PUSH_ANDROID", "PUSH_IPHONE"):
+                with self.subTest(krok=k["nazwa"], sekret=sekret):
+                    if k["nazwa"] == wysylka["nazwa"]:
+                        self.assertEqual(k["env"].get(sekret), "${{ secrets.%s }}" % sekret)
+                    else:
+                        self.assertNotIn(f"secrets.{sekret}", k["tekst"])
+        self.assertGreater(nazwy.index(wysylka["nazwa"]),
+                           nazwy.index(krok(ZBIERAJ, KROK_POBIERZ)["nazwa"]))
+        self.assertIn("sh zapisz.sh", krok(ZBIERAJ, KROK_POBIERZ)["run"])
+        self.assertNotIn("if", wysylka["klucze"])
+
+    def test_powiadomienie_testowe_sprawdza_index_html(self):
+        """Ręczny test pomija się przy pushu tylko wtedy, gdy stała jest pusta — w tym
+        samym pliku i w tym samym zapisie, które czyta nadawca. Grep na rosliny.html
+        (sam stub) nigdy by nie trafił i test świeciłby na czerwono."""
+        k = krok(WORKFLOWY / "powiadomienie-testowe.yml", "Wyślij powiadomienie testowe")
+        m = re.search(r'grep -q "([^"]+)" (\S+?);', k["run"])
+        self.assertIsNotNone(m, k["run"])
+        wzorzec, plik = m.groups()
+        self.assertEqual(plik, "index.html")
+        self.assertEqual(plik, wyslij.STRONA.name)
+        self.ustaw_strone("")
+        self.assertIn(wzorzec, self.strona.read_text(encoding="utf-8"))
+        self.assertEqual(wyslij.klucz_ze_strony(self.strona), "")
+        self.assertIn("wyslij.py --test", k["run"])
+
+    def test_powiadomienie_testowe_nie_budzi_w_nocy(self):
+        """Push zmieniający powiadomienie-testowe.yml scalony między 21:00 a 8:00 czasu Warszawy
+        nie wysyła testu (domyślna cisza obu telefonów; wdrożenie 11.10 wypadło o 22:30),
+        a ręczne „Run workflow” wysyła o każdej porze. Krok uruchomiony naprawdę w bash,
+        z podstawionymi `date` i `python`."""
+        if shutil.which("bash") is None:
+            if os.environ.get("CI"):
+                self.fail("w CI musi być bash")
+            self.skipTest("brak bash")
+        k = krok(WORKFLOWY / "powiadomienie-testowe.yml", "Wyślij powiadomienie testowe")
+        robocze = self.katalog / "noc"
+        atrapy = robocze / "atrapy"
+        atrapy.mkdir(parents=True)
+        shutil.copy(REPO / "index.html", robocze / "index.html")
+        (atrapy / "date").write_text('#!/bin/sh\necho "$GODZINA_ATRAPY"\n', encoding="utf-8")
+        (atrapy / "python").write_text('#!/bin/sh\necho wyslano >> "$ZNACZNIK"\n', encoding="utf-8")
+        for plik in atrapy.iterdir():
+            plik.chmod(0o755)
+
+        def uruchom(zdarzenie, godzina):
+            znacznik = robocze / f"znacznik-{zdarzenie}-{godzina}"
+            env = dict(os.environ, PATH=f"{atrapy}:{os.environ['PATH']}", GITHUB_EVENT_NAME=zdarzenie,
+                       GODZINA_ATRAPY=str(godzina), ZNACZNIK=str(znacznik),
+                       GITHUB_RUN_ID="1", GITHUB_RUN_ATTEMPT="1")
+            wynik = subprocess.run(["bash", "-e", "-c", k["run"]], cwd=robocze, env=env,
+                                   capture_output=True, text=True, timeout=30)
+            self.assertEqual(wynik.returncode, 0, wynik.stdout + wynik.stderr)
+            return znacznik.exists(), wynik.stdout
+
+        for godzina in (21, 22, 0, 7):
+            with self.subTest(zdarzenie="push", godzina=godzina):
+                wyslano, log = uruchom("push", godzina)
+                self.assertFalse(wyslano)
+                self.assertIn("Cisza nocna", log)
+        for godzina in (8, 12, 20):
+            with self.subTest(zdarzenie="push", godzina=godzina):
+                self.assertTrue(uruchom("push", godzina)[0])
+        for godzina in (23, 3):
+            with self.subTest(zdarzenie="workflow_dispatch", godzina=godzina):
+                self.assertTrue(uruchom("workflow_dispatch", godzina)[0])
+
+    def test_testy_yml_pilnuje_plikow_strony(self):
+        """Strażnik „strona zostaje jednym plikiem” z testy.yml, wykonany naprawdę: brak
+        pokoje.json (strona go pobiera) to błąd; rosliny.html dalej jest i dalej podlega
+        zasadzie „skrypty tylko z HTTPS”."""
+        k = krok(WORKFLOWY / "testy.yml", "Pilnuj, czym ta strona jest")
+        m = re.search(r"python3 - <<'PY'\n(.*?)\nPY\n", k["run"], re.S)
+        self.assertIsNotNone(m, k["run"])
+        skrypt = m.group(1)
+        strona = self.katalog / "strona"
+        strona.mkdir()
+        for plik in ("index.html", "rosliny.html", "manifest.json", "sw.js", "ikona.svg",
+                     "ikona-192.png", "ikona-512.png", ".nojekyll"):
+            (strona / plik).write_text("<!doctype html>\n", encoding="utf-8")
+
+        def sprawdz():
+            return subprocess.run([sys.executable, "-"], input=skrypt, cwd=strona,
+                                  capture_output=True, text=True, timeout=60)
+
+        wynik = sprawdz()
+        self.assertEqual(wynik.returncode, 1)
+        self.assertIn("brak pliku pokoje.json", wynik.stdout)
+        (strona / "pokoje.json").write_text("{}", encoding="utf-8")
+        self.assertEqual(sprawdz().returncode, 0, sprawdz().stdout)
+        (strona / "rosliny.html").write_text('<script src="http://x/a.js"></script>', encoding="utf-8")
+        wynik = sprawdz()
+        self.assertEqual(wynik.returncode, 1)
+        self.assertIn("rosliny.html: skrypt spoza HTTPS", wynik.stdout)
+        # bez rosliny.html pętla stron wywraca się już na czytaniu — też na czerwono
+        (strona / "rosliny.html").unlink()
+        self.assertNotEqual(sprawdz().returncode, 0)
+
+
+def _wymagaj(*programy):
+    """Pomija test bez potrzebnych programów — ale nie w CI (ubuntu-latest ma jq, git
+    i bash): tam pominięcie byłoby cichym wyłączeniem testu kroku wysyłki."""
+    brak = [p for p in programy if not shutil.which(p)]
+    if brak and os.environ.get("CI"):
+        raise AssertionError(f"w CI brakuje programów: {', '.join(brak)}")
+    if brak:
+        raise unittest.SkipTest(f"brak programów: {', '.join(brak)} — strażnik tekstowy niżej")
+
+
+# Sam select(...) z kroku wysyłki — strażnik tekstowy, gdy nie ma jq (BRIEF5, 4.3).
+SELECT_JQ = ('select(.przebieg == $p and (.na_sucho | not) and '
+             '(((.telefony // ["android","iphone"]) | length) > 0))')
+
+
+class TestKrokWysylki(Baza):
+    """Skrypt kroku „Wyślij powiadomienia…” z zbieraj.yml uruchomiony naprawdę (bash -e,
+    jak w Actions): prawdziwy git i jq, a pip i python podmienione na rejestrujące atrapy."""
+
+    def setUp(self):
+        super().setUp()
+        self.skrypt = krok(ZBIERAJ, KROK_WYSYLKI)["run"]
+
+    def program_jq(self) -> str:
+        m = re.search(r"""jq --arg p "\$PRZEBIEG" '([^']+)'""", self.skrypt)
+        self.assertIsNotNone(m, "krok wysyłki nie liczy wpisów jq --arg p \"$PRZEBIEG\" '…'")
+        return m.group(1)
+
+    def test_straznik_tekstowy_wyrazenia_jq(self):
+        """STRAŻNIK tekstowy (działa też bez jq): krok liczy wpisy z polem `telefony`,
+        jak w BRIEF5, a domyślna lista to wszystkie telefony nadawcy."""
+        self.assertIn(SELECT_JQ, self.program_jq())
+        self.assertEqual(json.loads(re.search(r"\.telefony // (\[[^\]]*\])", SELECT_JQ).group(1)),
+                         list(wyslij.ID_TELEFONOW))
+
+    def test_jq_nie_gubi_niczego_co_wyslalby_nadawca(self):
+        """jq oszczędza pip install w pustych przebiegach. Musi liczyć dokładnie te wpisy,
+        które nadawca wyśle albo zgłosi (na poprawnych wpisach), i nigdy nie może być
+        ostrzejszy od wysyłki — inaczej wpis przepada po cichu. Luźniejszy wolno: wpis bez
+        `na_sucho` jq liczy, nadawca nie wysyła (co najwyżej raz), a „pusty” zły typ
+        (`{}`, "", 0) jq uznaje za nikogo — nadawca też by go nie wysłał, przepada tylko
+        zgłoszenie."""
+        _wymagaj("jq")
+        program = self.program_jq()
+
+        def jq(historia) -> int:
+            plik = self.katalog / "jq.json"
+            plik.write_text(json.dumps({"historia": historia}), encoding="utf-8")
+            wynik = subprocess.run(["jq", "--arg", "p", "123-1", program, str(plik)],
+                                   capture_output=True, text=True, timeout=30)
+            self.assertEqual(wynik.returncode, 0, wynik.stderr)
+            return int(wynik.stdout)
+
+        def nadawca(historia) -> tuple[int, int]:
+            """(wpisy, które nadawca wyśle komuś, wpisy, które wyśle albo zgłosi)."""
+            self.ustaw_historie(historia)
+            wpisy = wyslij.wpisy_przebiegu(self.plik, "123-1")
+            komu = [wyslij.adresaci(w) for w in wpisy]
+            return sum(bool(k) for k in komu), sum(k is None or bool(k) for k in komu)
+
+        bez_na_sucho = {k: v for k, v in wpis().items() if k != "na_sucho"}
+        poprawne = [wpis(), wpis(telefony=["android"]), wpis(telefony=["iphone"]),
+                    wpis(telefony=["android", "iphone"]), wpis(telefony=[]),
+                    wpis(na_sucho=True), wpis(na_sucho=True, telefony=["android"]),
+                    wpis(przebieg="123-2"), wpis(przebieg="122-1", telefony=["iphone"]),
+                    wpis(telefony="android"), wpis(telefony=None), wpis(telefony=["ipad"]),
+                    wpis(telefony=[1])]
+        luzniejsze = [bez_na_sucho, wpis(na_sucho=None)]
+        puste_zle = [wpis(telefony={}), wpis(telefony=""), wpis(telefony=0)]
+        for w in poprawne:
+            with self.subTest(wpis={k: w.get(k) for k in ("przebieg", "na_sucho", "telefony")}):
+                self.assertEqual(jq([w]), nadawca([w])[1])
+        for w in luzniejsze + puste_zle:
+            with self.subTest(wpis={k: w.get(k) for k in ("przebieg", "na_sucho", "telefony")}):
+                self.assertGreaterEqual(jq([w]), nadawca([w])[0])
+        for w in luzniejsze:
+            self.assertEqual(jq([w]), 1)
+        self.assertEqual(jq(poprawne), nadawca(poprawne)[1])
+        self.assertGreaterEqual(jq(poprawne + luzniejsze + puste_zle),
+                                nadawca(poprawne + luzniejsze + puste_zle)[0])
+        self.assertEqual(jq([]), 0)
+
+    # --- cały krok na prawdziwym git i jq ---
+
+    def przygotuj_repo(self):
+        _wymagaj("jq", "git", "bash")
+        self.gitenv = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+                       "GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@example.com",
+                       "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@example.com"}
+        self.zdalne, self.praca = self.katalog / "zdalne", self.katalog / "praca"
+        self.git("init", "-q", "-b", "main", str(self.zdalne))
+        (self.zdalne / "README").write_text("x\n", encoding="utf-8")
+        self.git("add", "-A", cwd=self.zdalne)
+        self.git("commit", "-qm", "start", cwd=self.zdalne)
+        self.git("clone", "-q", str(self.zdalne), str(self.praca))
+        # atrapy pip i python: zapisują wywołanie, nic nie instalują i nie wysyłają
+        self.atrapy = self.katalog / "bin"
+        self.atrapy.mkdir()
+        self.zapis = self.katalog / "wywolania.txt"
+        for program in ("pip", "python"):
+            sciezka = self.atrapy / program
+            sciezka.write_text('#!/bin/sh\nprintf "%s\\n" "' + program + '" "$@" "--" >> "$ZAPIS"\n',
+                               encoding="utf-8")
+            sciezka.chmod(0o755)
+
+    def git(self, *argumenty, cwd=None):
+        subprocess.run(["git", *argumenty], cwd=cwd, env=self.gitenv, check=True,
+                       capture_output=True, text=True, timeout=60)
+
+    def opublikuj(self, **pliki):
+        """Commit na „origin/main”: tor → historia (lista) albo surowy tekst; None usuwa."""
+        for tor, tresc in pliki.items():
+            sciezka = self.zdalne / "data" / tor / "powiadomienia.json"
+            if tresc is None:
+                sciezka.unlink(missing_ok=True)
+                continue
+            sciezka.parent.mkdir(parents=True, exist_ok=True)
+            sciezka.write_text(tresc if isinstance(tresc, str) else
+                               json.dumps({"tryb": "wlaczone", "historia": tresc}), encoding="utf-8")
+        self.git("add", "-A", cwd=self.zdalne)
+        self.git("commit", "-qm", "dane", "--allow-empty", cwd=self.zdalne)
+
+    def uruchom_krok(self):
+        temp = self.katalog / "runner_temp"
+        temp.mkdir(exist_ok=True)
+        self.zapis.unlink(missing_ok=True)
+        env = {**self.gitenv, "PATH": f"{self.atrapy}{os.pathsep}{os.environ.get('PATH', '')}",
+               "PRZEBIEG": "123-1", "RUNNER_TEMP": str(temp), "ZAPIS": str(self.zapis)}
+        wynik = subprocess.run(["bash", "-e", "-c", self.skrypt], cwd=self.praca, env=env,
+                               capture_output=True, text=True, timeout=120)
+        wywolania, biezace = [], []
+        if self.zapis.exists():
+            for linia in self.zapis.read_text(encoding="utf-8").splitlines():
+                if linia == "--":
+                    wywolania.append(biezace)
+                    biezace = []
+                else:
+                    biezace.append(linia)
+        return wynik, wywolania, temp
+
+    def test_oba_pliki_z_origin_main(self):
+        """Wpisy tego przebiegu w obu plikach: nadawca dostaje oba, każdy osobnym --plik,
+        w treści z origin/main — nie z drzewa roboczego, które może być starsze."""
+        self.przygotuj_repo()
+        (self.praca / "data" / "dom").mkdir(parents=True)
+        (self.praca / "data" / "dom" / "powiadomienia.json").write_text("{}", encoding="utf-8")
+        self.opublikuj(rosliny=[wpis(id="r")], dom=[wpis(id="d", telefony=["iphone"])])
+        wynik, wywolania, temp = self.uruchom_krok()
+        self.assertEqual(wynik.returncode, 0, wynik.stdout + wynik.stderr)
+        r, d = temp / "rosliny" / "powiadomienia.json", temp / "dom" / "powiadomienia.json"
+        self.assertEqual(wywolania, [
+            ["pip", "install", "-q", "-r", "requirements-powiadomienia.txt"],
+            ["python", "wyslij.py", "--plik", str(r), "--plik", str(d), "--przebieg", "123-1"]])
+        self.assertEqual([w["id"] for w in json.loads(d.read_text(encoding="utf-8"))["historia"]], ["d"])
+        self.assertEqual([w["id"] for w in wyslij.wpisy_przebiegu(r, "123-1")], ["r"])
+
+    def test_brak_pliku_domu_pomija_go(self):
+        """Do pierwszego zapisu dom.py na main nie ma data/dom/powiadomienia.json —
+        rośliny i tak idą."""
+        self.przygotuj_repo()
+        self.opublikuj(rosliny=[wpis()])
+        wynik, wywolania, temp = self.uruchom_krok()
+        self.assertEqual(wynik.returncode, 0, wynik.stderr)
+        self.assertIn("nie ma data/dom/powiadomienia.json", wynik.stdout)
+        self.assertEqual(wywolania[-1], ["python", "wyslij.py", "--plik",
+                                         str(temp / "rosliny" / "powiadomienia.json"),
+                                         "--przebieg", "123-1"])
+
+    def test_tylko_dom_ma_wpisy(self):
+        """Pusty dla tego przebiegu plik roślin nie kończy kroku — liczy się suma."""
+        self.przygotuj_repo()
+        self.opublikuj(rosliny=[wpis(przebieg="122-1")], dom=[wpis(id="d")])
+        wynik, wywolania, _ = self.uruchom_krok()
+        self.assertEqual(wynik.returncode, 0, wynik.stderr)
+        self.assertEqual([w[0] for w in wywolania], ["pip", "python"])
+
+    def test_nic_do_wyslania_bez_pip_i_nadawcy(self):
+        """Inny przebieg, na sucho, `telefony: []` — nic dla nikogo: krok kończy się na
+        zielono, bez instalowania biblioteki i bez nadawcy. Stare jq liczyło `[]` jako
+        wpis do wysłania."""
+        self.przygotuj_repo()
+        self.opublikuj(rosliny=[wpis(przebieg="122-1"), wpis(na_sucho=True),
+                                wpis(id="nikt", telefony=[])],
+                       dom=[wpis(telefony=[]), wpis(id="x", telefony=[])])
+        wynik, wywolania, _ = self.uruchom_krok()
+        self.assertEqual(wynik.returncode, 0, wynik.stderr)
+        self.assertEqual(wywolania, [])
+        self.assertIn("nie ma powiadomień do wysłania", wynik.stdout)
+
+    def test_brak_obu_plikow(self):
+        """STRAŻNIK (stary krok też tak kończył): pusty main — zielono, bez nadawcy."""
+        self.przygotuj_repo()
+        wynik, wywolania, _ = self.uruchom_krok()
+        self.assertEqual(wynik.returncode, 0, wynik.stderr)
+        self.assertEqual(wywolania, [])
+
+    def test_zepsuty_plik_trafia_do_nadawcy(self):
+        """Pliku, którego jq nie przeczyta, krok nie połyka po cichu ani nie wywraca się
+        na nim (bash -e) — przekazuje go nadawcy, a ten zgłosi błąd i wyśle drugi plik."""
+        self.przygotuj_repo()
+        self.opublikuj(rosliny=[wpis()], dom="{nie json")
+        wynik, wywolania, temp = self.uruchom_krok()
+        self.assertEqual(wynik.returncode, 0, wynik.stderr)
+        self.assertEqual(wywolania[-1][:6], ["python", "wyslij.py",
+                                             "--plik", str(temp / "rosliny" / "powiadomienia.json"),
+                                             "--plik", str(temp / "dom" / "powiadomienia.json")])
 
 
 # Atrapa dla osobnego procesu: rozsiewa adres wszędzie, gdzie robią to biblioteki —
@@ -775,6 +1540,17 @@ class TestPrawdziwaBiblioteka(Baza):
                 jawne = http_ece.decrypt(kw["data"], private_key=klucz, auth_secret=auth,
                                          version="aes128gcm")
                 self.assertEqual(json.loads(jawne.decode("utf-8"))["title"], "Podlej: azalia")
+
+    def test_filtr_telefonow_na_prawdziwej_bibliotece(self):
+        """Wpis tylko dla iPhone'a: jedno żądanie, na adres Apple, z jego `aud` — filtr
+        nie psuje świeżego słownika roszczeń ani kolejności telefonów."""
+        self.ustaw_historie([wpis(telefony=["iphone"])])
+        kod, log = self.uruchom_naprawde()
+        self.assertEqual(kod, 0, log)
+        self.assertEqual([u for u, _ in self.wyslane], [IPHONE])
+        self.assertEqual(self.jwt(self.wyslane[0][1]["headers"])[0]["aud"],
+                         "https://web.push.apple.com")
+        self.assertIn("Android: nic w tym przebiegu.", log)
 
     def test_granica_rozmiaru(self):
         """Najdłuższa treść, jaką przepuści tresc_push(), mieści się w 4096 B ciała."""

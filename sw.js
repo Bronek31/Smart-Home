@@ -1,25 +1,30 @@
-/* Service worker: dashboard ma się otwierać natychmiast i pokazywać ostatnie odczyty
+/* Service worker: aplikacja ma się otwierać natychmiast i pokazywać ostatnie odczyty
    także bez zasięgu — w piwnicy, w windzie, w pociągu.
 
    Strategie dobrane tak, żeby cache nigdy nie zablokował poprawki:
    - strona (nawigacja): najpierw sieć, cache tylko gdy sieci nie ma. Dzięki temu
      nowy index.html trafia do Ciebie od razu po wypchnięciu na main.
-   - data/: najpierw sieć, cache jako zapas. Online widzisz świeże odczyty,
-     offline ostatnie znane.
-   - biblioteki z CDN i fonty: najpierw cache. Adresy zawierają numer wersji,
-     więc treść pod nimi się nie zmienia.
+   - data/ i pokoje.json: najpierw sieć, cache jako zapas. Online widzisz świeże odczyty
+     i świeży plan pokoi, offline ostatnie znane. Dla data/ zapas także przy odpowiedzi
+     z błędem (503/404 z Pages), jeśli plik już kiedyś przyszedł.
+   - fonty: najpierw cache. Adresy Google Fonts zawierają wersję kroju, więc treść pod
+     nimi się nie zmienia.
+   - api.github.com (ustawienia telefonów na zakładce Powiadomienia) i inne obce adresy:
+     worker ich nie dotyka. Zapamiętany odczyt zmiennej pokazałby ustawienia sprzed zmiany.
 
-   Od etapu 4 worker obsługuje też powiadomienia roślin (push i kliknięcie) — opis
-   przy obsługach na dole pliku.
+   Worker obsługuje też powiadomienia (push, licznik na ikonie i kliknięcie) — opis przy
+   obsługach na dole pliku.
 
    Po zmianie tej listy albo strategii podnieś WERSJA — stare cache lecą wtedy
-   do kosza przy aktywacji. */
-const WERSJA = 'smart-home-v5';
-const SZKIELET = ['./', './index.html', './rosliny.html', './ikona.svg', './ikona-192.png', './ikona-512.png', './manifest.json'];
-const OBCE = /(^|\.)jsdelivr\.net$|(^|\.)googleapis\.com$|(^|\.)gstatic\.com$/;
-// Cel kliknięcia w powiadomienie dla index.html (obejście WebKit 263687, niżej). Osobny
+   do kosza przy aktywacji. v6: rosliny.html to już tylko przekierowanie do index.html,
+   pokoje.json w szkielecie, kliknięcie w powiadomienie przy otwartej aplikacji idzie
+   wiadomością do jej routingu. */
+const WERSJA = 'smart-home-v6';
+const SZKIELET = ['./', './index.html', './rosliny.html', './pokoje.json', './ikona.svg', './ikona-192.png', './ikona-512.png', './manifest.json'];
+const OBCE = /(^|\.)googleapis\.com$|(^|\.)gstatic\.com$/;
+// Cel kliknięcia w powiadomienie dla zimnego startu (obejście WebKit 263687, niżej). Osobny
 // cache, którego aktywacja nowej wersji nie kasuje: cel zapisany tuż przed aktualizacją
-// workera ma dotrwać do startu strony.
+// workera ma dotrwać do startu aplikacji.
 const CEL = 'cel-powiadomienia';
 
 self.addEventListener('install', e => {
@@ -37,15 +42,23 @@ self.addEventListener('activate', e => {
     .then(() => self.clients.claim()));
 });
 
-// Odpowiedzi nieprzezroczyste (skrypty z CDN ładowane bez CORS) mają status 0,
+// Odpowiedzi nieprzezroczyste (zasoby z innego originu ładowane bez CORS) mają status 0,
 // więc res.ok jest fałszem mimo że treść jest w porządku.
 const wartaZapisu = res => res && (res.ok || res.type === 'opaque');
 
-async function siecPotemCache(req) {
+// `zapasPrzyBledzie` (data/): odpowiedź z błędem (503 albo 404 z Pages w trakcie wdrożenia) zastępuje ostatnia dobra
+// kopia z cache — dla aplikacji „brak pliku" i „serwer chwilowo nie odpowiada" to różne rzeczy, a pierwsze kasowałoby
+// widok. Bez kopii (plik jeszcze nigdy nie przyszedł, np. data/dom/stan.json przed pierwszą zbiórką) idzie oryginalna
+// odpowiedź: 404 pliku nieobowiązkowego zostaje 404.
+async function siecPotemCache(req, zapasPrzyBledzie) {
   const cache = await caches.open(WERSJA);
   try {
     const res = await fetch(req);
     if (wartaZapisu(res)) cache.put(req, res.clone());
+    else if (zapasPrzyBledzie && !res.ok) {
+      const zapas = await cache.match(req);
+      if (zapas) return zapas;
+    }
     return res;
   } catch (blad) {
     const zapas = await cache.match(req);
@@ -72,8 +85,10 @@ self.addEventListener('fetch', e => {
     e.respondWith(siecPotemCache(req).catch(() => caches.match('./index.html')));
     return;
   }
-  if (url.origin === location.origin && url.pathname.includes('/data/')) {
-    e.respondWith(siecPotemCache(req));
+  // pokoje.json zmienia się rzadko, ale gdy się zmieni (nowy pokój, inny slug), stara
+  // kopia z cache przypisałaby odczyty złym pokojom — więc jak dane: sieć, potem zapas
+  if (url.origin === location.origin && (url.pathname.includes('/data/') || url.pathname.endsWith('/pokoje.json'))) {
+    e.respondWith(siecPotemCache(req, url.pathname.includes('/data/')));
     return;
   }
   if (url.origin === location.origin || OBCE.test(url.hostname)) {
@@ -81,16 +96,19 @@ self.addEventListener('fetch', e => {
   }
 });
 
-/* --- powiadomienia (etap 4, ROSLINY.md) ---
+/* --- powiadomienia ---
 
    Nadawca (wyslij.py) wysyła JSON {title, body, tag, url, id} z wpisu
-   data/rosliny/powiadomienia.json. Testy (tests/frontend/rosliny.spec.js) wczytują ten
-   plik z atrapą `self` i oprócz obsług wołają wprost trescPush, celKlikniecia
-   i zapiszOdebrane — zmiana ich nazw wymaga zmiany testów. */
+   data/dom/powiadomienia.json albo data/rosliny/powiadomienia.json. Kto dostaje co i kiedy
+   (ustawienia telefonu, cisza nocna), rozstrzyga kolektor przed wysłaniem — tutaj każdy
+   push MUSI skończyć się powiadomieniem, bo Safari cofa zgodę aplikacji, która odebrała
+   push i nic nie pokazała. Testy (tests/frontend/rosliny.spec.js) wczytują ten plik
+   z atrapą `self` i oprócz obsług wołają wprost trescPush, celKlikniecia i zapiszOdebrane —
+   zmiana ich nazw wymaga zmiany testów. */
 
 /** Treść push → [tytuł, opcje showNotification]. Pokazać trzeba ZAWSZE, nawet przy
-    zepsutej treści: Safari cofa zgodę aplikacji, która odebrała push i nic nie pokazała.
-    Stąd JSON z zapasem na zwykły tekst i domyślny tytuł. */
+    zepsutej treści — stąd JSON z zapasem na zwykły tekst i domyślny tytuł. Domyślny tytuł
+    to nazwa aplikacji, bo powiadomienia są i o domu, i o roślinach. */
 function trescPush(tekst) {
   let d = null;
   try { d = JSON.parse(tekst); } catch { /* zwykły tekst — niżej */ }
@@ -106,12 +124,14 @@ function trescPush(tekst) {
   // Ten sam tag zastępuje poprzednie powiadomienie (np. ponowienie „podlej" po 12 godz.),
   // a renotify każe mimo to zadzwonić — ponowienie, które przychodzi po cichu, nie przypomina.
   if (napis(d.tag)) { opcje.tag = d.tag; opcje.renotify = true; }
-  return [napis(d.title) || 'Rośliny', opcje];
+  return [napis(d.title) || 'Smart Home', opcje];
 }
 
 /** Adres do otwarcia po kliknięciu: data.url rozwiązany względem zakresu aplikacji i tylko
     wtedy, gdy w nim leży. Treść przychodzi z sieci, więc obcy adres (albo `../`, `//host`,
-    `javascript:`) nie może się otworzyć w oknie aplikacji — wtedy strona startowa. */
+    `javascript:`) nie może się otworzyć w oknie aplikacji — wtedy strona startowa.
+    Nowe wpisy mają url '#fikus', '#lazienka', '#rosliny'…; stare 'rosliny.html#roslina=…'
+    (doręczone przed zmianą) rozwiązują się tak samo i trafiają do przekierowania. */
 function celKlikniecia(adres, zakres) {
   try {
     const u = new URL(String(adres || ''), zakres).href;
@@ -121,10 +141,11 @@ function celKlikniecia(adres, zakres) {
 }
 
 /* Identyfikatory odebranych powiadomień w IndexedDB (baza `rosliny`, magazyn `odebrane`).
-   Zakładka porównuje je z powiadomienia.json: wysłane ponad godzinę temu i nieodebrane →
-   „nie dochodzą". Tylko tak widać martwą subskrypcję na iPhonie, którą Apple dalej
-   potwierdza kodem 201. Wpisów przybywa najwyżej kilka na dobę, po kilkadziesiąt bajtów —
-   bez sprzątania. Ta sama baza i wersja co w rosliny.html: kto pierwszy, ten ją zakłada. */
+   Zakładka Powiadomienia porównuje je z plikami powiadomień: wysłane do tego telefonu ponad
+   godzinę temu i nieodebrane → „nie dochodzą". Tylko tak widać martwą subskrypcję na
+   iPhonie, którą Apple dalej potwierdza kodem 201. Wpisów przybywa najwyżej kilka na dobę,
+   po kilkadziesiąt bajtów — bez sprzątania. Nazwy bazy i wersja zostają z czasów zakładki
+   Rośliny: zmiana zgubiłaby to, co telefony już zapisały, a aplikacja czyta tę samą bazę. */
 function zapiszOdebrane(id) {
   return new Promise((ok, zle) => {
     const zad = indexedDB.open('rosliny', 1);
@@ -140,24 +161,37 @@ function zapiszOdebrane(id) {
   });
 }
 
+/* Licznik na ikonie aplikacji: po pokazaniu powiadomienia tyle, ile powiadomień aplikacji
+   leży w centrum powiadomień. Otwarta aplikacja ustawia potem własną liczbę (sprawy do
+   zrobienia) i zdejmuje licznik, gdy nic nie zostało — iOS sam go nie zdejmuje. Bez Badging
+   API w workerze (Android zwykle: licznik rysuje launcher z aktywnych powiadomień) — nic.
+   Nigdy osobny push „tylko na licznik": push bez powiadomienia kosztuje zgodę na iPhonie. */
+async function ustawLicznik() {
+  const n = self.navigator;
+  if (!n || !('setAppBadge' in n) || typeof self.registration.getNotifications !== 'function') return;
+  const ile = (await self.registration.getNotifications()).length;
+  await (ile > 0 ? n.setAppBadge(ile) : n.clearAppBadge());
+}
+
 self.addEventListener('push', e => {
   let tekst = '';
   try { tekst = e.data ? e.data.text() : ''; } catch { /* pusta treść — domyślny tytuł */ }
   const [tytul, opcje] = trescPush(tekst);
-  // Zapis odbioru nie może zatrzymać pokazania: bez IndexedDB powiadomienie i tak wychodzi.
+  // Zapis odbioru i licznik nie mogą zatrzymać pokazania: bez IndexedDB czy Badging API
+  // powiadomienie i tak wychodzi.
   e.waitUntil(Promise.all([
-    self.registration.showNotification(tytul, opcje),
+    self.registration.showNotification(tytul, opcje).then(() => ustawLicznik().catch(() => null)),
     opcje.data.id ? zapiszOdebrane(opcje.data.id).catch(() => null) : null,
   ]));
 });
 
-/* Cel zapisany w Cache API dla index.html. iPhone przy zimnym starcie aplikacji otwiera
+/* Cel zapisany w Cache API dla zimnego startu. iPhone przy zimnym starcie aplikacji otwiera
    po kliknięciu start_url zamiast adresu z openWindow (WebKit 263687), więc index.html
-   na starcie zagląda tutaj i przechodzi do celu. Zapis względny wobec zakresu
-   ('rosliny.html#roslina=…') i z czasem — index.html bierze tylko świeży, a rosliny.html
-   kasuje go po wejściu, żeby następne uruchomienie z ikony nie skakało do roślin.
-   Klucz './cel' rozwiązuje się tu względem sw.js, a w index.html względem strony — oba
-   pliki leżą w tym samym katalogu. */
+   na starcie zagląda tutaj i przechodzi do celu. Zapis względny wobec zakresu ('#azalia',
+   u starego workera 'rosliny.html#roslina=…' — aplikacja przyjmuje oba) i z czasem:
+   aplikacja bierze tylko świeży i kasuje go zawsze, żeby następne uruchomienie z ikony
+   otworzyło Dom. Klucz './cel' rozwiązuje się tu względem sw.js, a w index.html względem
+   strony — oba pliki leżą w tym samym katalogu. */
 async function zapiszCel(cel) {
   const zakres = self.registration.scope;
   const wzgledny = cel.slice(zakres.length);
@@ -167,24 +201,39 @@ async function zapiszCel(cel) {
     { headers: { 'Content-Type': 'application/json' } }));
 }
 
+/** Okno z samą aplikacją (index.html pod zakresem, z dowolnym hashem) — ona przejdzie do celu
+    we własnym routingu. Inne okno w zakresie to stara strona sprzed aktualizacji (np. dawna
+    rosliny.html otwarta od wczoraj), która wiadomości nie rozumie. */
+function oknoAplikacji(adres, zakres) {
+  const bez = String(adres).split('#')[0].split('?')[0];
+  return bez === zakres || bez === zakres + 'index.html';
+}
+
 async function otworzCel(cel) {
-  // Tylko okna, którymi ten worker steruje — w nich navigate() działa. Okno spoza
-  // kontroli (albo karta innego projektu na github.io) nie jest nasze: nowe okno.
-  const okna = await self.clients.matchAll({ type: 'window' });
+  // Tylko okna, którymi ten worker steruje. Okno spoza kontroli (albo karta innego
+  // projektu na github.io) nie jest nasze: nowe okno.
+  const okna = (await self.clients.matchAll({ type: 'window' })).filter(o => o.url.startsWith(self.registration.scope));
   const zakres = self.registration.scope;
-  const okno = okna.find(o => o.url.startsWith(zakres));
-  if (okno) {
-    // Po udanym focus() nie ma już openWindow: Chrome daje jedno kliknięcie na jedno
-    // okno, więc zapasowe openWindow i tak by odmówiło, a zostawiłoby zapisany cel
-    // (przegląd 9.10 — dawny test tego nie łapał, bo atrapa pozwalała na oba).
-    try { await okno.focus(); await okno.navigate(cel); } catch { /* fokus już jest */ }
+  const aplikacja = okna.find(o => oknoAplikacji(o.url, zakres));
+  if (aplikacja) {
+    // Przy otwartej aplikacji cel idzie wiadomością: aplikacja przechodzi do niego jak po
+    // stuknięciu (szczegół z rodzicem pod spodem). navigate() na sam hash dawał w aplikacji
+    // jednej strony tylko popstate — przejście „wstecz" i bez rodzica w historii, a na
+    // iPhonie navigate() nie jest sprawdzone. Wiadomość przed focus(): gdyby fokus odmówił,
+    // aplikacja i tak jest już na celu. Bez openWindow: Chrome daje na jedno kliknięcie
+    // jeden focus() albo jedno openWindow() (przegląd 9.10).
+    try { aplikacja.postMessage({ typ: 'cel', cel }); } catch { /* okno zamknięte w międzyczasie */ }
+    try { await aplikacja.focus(); } catch { /* fokus już jest */ }
+    return;
+  }
+  if (okna.length) {
+    // Stara strona w oknie: pełne przejście do celu ładuje aktualną aplikację.
+    try { await okna[0].focus(); await okna[0].navigate(cel); } catch { /* fokus już jest */ }
     return;
   }
   // Cel tylko przed openWindow, czyli przy zimnym starcie — tam działa obejście. Przy
-  // otwartym oknie navigate() wystarcza, a zapisany cel mógłby zostać (nawigacja w obrębie
-  // tej samej strony nie przeładowuje rosliny.html, więc ta go nie skasuje) i przerzucić
-  // do roślin kliknięcie w zakładkę „Mieszkanie". Zapis przed otwarciem, bo strona
-  // otwarta przez openWindow może ruszyć od razu.
+  // otwartym oknie zapisany cel mógłby zostać i przerzucić do niego następne uruchomienie
+  // z ikony. Zapis przed otwarciem, bo strona otwarta przez openWindow może ruszyć od razu.
   try { await zapiszCel(cel); } catch { /* bez Cache API — zostaje samo openWindow */ }
   await self.clients.openWindow(cel);
 }

@@ -1,7 +1,7 @@
 {
   "name": "Smart Home",
   "short_name": "Smart Home",
-  "description": "Temperatura, wilgotność i diagnostyka czujników w mieszkaniu",
+  "description": "Dom i rośliny: temperatura i wilgotność w pokojach, wietrzenie, podlewanie i powiadomienia",
   "lang": "pl",
   "start_url": "./",
   "scope": "./",

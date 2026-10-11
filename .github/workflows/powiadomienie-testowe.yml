@@ -7,6 +7,8 @@ name: Powiadomienie testowe
 # jak odkryj.yml. Wywołania przez zmianę pliku (dopisz linię, żeby wysłać znowu):
 # - 9.10, Android podpięty (iPhone później).
 # - 10.10, iPhone podpięty — test na oba telefony.
+# - nowa aplikacja: stała VAPID przeniesiona z rosliny.html do index.html — test, że nadawca
+#   znajduje ją w nowym miejscu i że sekret nadal do niej pasuje (oba telefony).
 
 on:
   workflow_dispatch:
@@ -37,10 +39,22 @@ jobs:
           PUSH_IPHONE: ${{ secrets.PUSH_IPHONE }}
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Zmiana tego pliku scalona wieczorem nie budzi domowników: przy pushu w ciszy nocnej
+          # (21:00–8:00 czasu Warszawy — domyślna cisza obu telefonów) test się pomija; wtedy
+          # dopisz linię rano albo uruchom ręcznie. Ręczne „Run workflow” wysyła zawsze.
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            GODZINA=$(TZ=Europe/Warsaw date +%-H)
+            if [ "$GODZINA" -ge 21 ] || [ "$GODZINA" -lt 8 ]; then
+              echo "::notice::Cisza nocna ($GODZINA:00 czasu Warszawy) — test po zmianie pliku pominięty. Dopisz linię rano albo uruchom ręcznie."
+              exit 0
+            fi
+          fi
           # Scalenie etapu 4 zmienia ten plik, a kluczy jeszcze nie ma — wtedy pomijamy,
           # zamiast świecić na czerwono (przegląd 9.10). Ręczne „Run workflow" sprawdza zawsze.
-          if [ "$GITHUB_EVENT_NAME" = push ] && grep -q "const VAPID_PUBLICZNY='';" rosliny.html; then
-            echo "::notice::Klucz VAPID jeszcze nie ustawiony w rosliny.html — pomijam test."
+          # Stała siedzi w index.html (zakładka „Powiadomienia"), tam, gdzie czyta ją
+          # wyslij.STRONA; rosliny.html to już tylko przekierowanie.
+          if [ "$GITHUB_EVENT_NAME" = push ] && grep -q "const VAPID_PUBLICZNY='';" index.html; then
+            echo "::notice::Klucz VAPID jeszcze nie ustawiony w index.html — pomijam test."
             exit 0
           fi
           python wyslij.py --test --przebieg "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"

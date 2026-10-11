@@ -126,8 +126,9 @@ jobs:
           python3 - <<'PY'
           import re, sys, pathlib
           bledy = []
-          # rosliny.html (zakładka „Rośliny") to druga strona tej samej aplikacji —
-          # te same zasady: jeden plik, bez budowania, skrypty tylko z HTTPS.
+          # rosliny.html to dziś tylko przekierowanie starych linków (z powiadomień
+          # i zakładek) do index.html — te same zasady: jeden plik, bez budowania,
+          # skrypty tylko z HTTPS.
           for strona in ("index.html", "rosliny.html"):
               html = pathlib.Path(strona).read_text(encoding="utf-8")
               if re.search(r'<script[^>]+type=["\']module["\']', html):
@@ -135,7 +136,10 @@ jobs:
               for src in re.findall(r'<script[^>]+src=["\']([^"\']+)', html):
                   if not src.startswith("https://"):
                       bledy.append(f"{strona}: skrypt spoza HTTPS: {src}")
-          for plik in ("manifest.json", "sw.js", "ikona.svg", "ikona-192.png", "ikona-512.png", "rosliny.html"):
+          # pokoje.json: plan pokoi, który strona pobiera przy starcie (i service worker
+          # trzyma offline); rosliny.html: cel starych linków i powiadomień.
+          for plik in ("manifest.json", "sw.js", "ikona.svg", "ikona-192.png", "ikona-512.png",
+                       "rosliny.html", "pokoje.json"):
               if not pathlib.Path(plik).exists():
                   bledy.append(f"brak pliku {plik}, na który wskazuje strona")
           # Bez .nojekyll Pages puszcza repozytorium przez Jekylla, a ten w trakcie

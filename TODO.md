@@ -1,56 +1,56 @@
 # Do zrobienia
 
-Stan po przeglądzie z 27.09.2026. Trzymam to tutaj, a nie w Issues, bo Issues zajmuje
-watchdog — propozycja funkcji obok zgłoszenia „Kolektor stoi" tylko przykrywałaby to drugie.
+Stan po wdrożeniu nowej aplikacji, 11.10.2026. Trzymam to tutaj, a nie w Issues, bo Issues
+zajmuje watchdog — propozycja funkcji obok zgłoszenia „Kolektor stoi" tylko przykrywałaby
+to drugie.
 
 ## Po stronie właściciela
 
 Zrobione 27.09: zewnętrzny zegar kolektora (cron-job.org, co godzinę) i sprawdzona
-data wygaśnięcia triala Tuya. Zostają dwie rzeczy cykliczne, obie w kalendarzu właściciela:
+data wygaśnięcia triala Tuya. Zostają trzy rzeczy cykliczne, wszystkie w kalendarzu
+właściciela:
 
 - **token GitHuba dla cron-job.org** ma datę ważności — przed nią wygenerować nowy
   i podmienić nagłówek `Authorization` (README, „Kolektor co godzinę");
+- **klucz dostępu do ustawień powiadomień** (fine-grained, tylko Variables, od 11.10) —
+  co roku, przed datą wygaśnięcia wybraną przy tworzeniu, wygenerować nowy
+  (`ROSLINY-INSTRUKCJA.md`, krok 10) i wkleić **na obu telefonach**: Powiadomienia →
+  Połącz. Datę zapisać w kalendarzu od razu przy tworzeniu;
 - **trial IoT Core u Tuya** — przedłużony do 13.03.2027 (panel 8.10); wniosek
   o kolejne przedłużenie z tygodniem zapasu, czyli ok. 6.03.2027.
 
 Gdyby któreś przepadło: pierwsze objawi się powrotem do odczytów co 3–5 godz.,
-drugie zgłoszeniem „Kolektor stoi" z kodem `28841002`.
+drugie komunikatem „Klucz nie działa albo wygasł” przy zmianie ustawienia w aplikacji
+(powiadomienia dochodzą dalej według ostatnich zapisanych ustawień — kolektor czyta
+zmienne w Actions, bez tego klucza), trzecie zgłoszeniem „Kolektor stoi" z kodem
+`28841002`.
 
 ## W przygotowaniu
-
-**Czujniki w doniczkach i powiadomienia na telefon** (8.10) — trzy czujniki Tuya
-(fikus, azalia, skrzydłokwiat), osobna zakładka „Rośliny" i powiadomienia „podlej" /
-„przestaw". Plan, pomiary i pytania do właściciela w `ROSLINY.md`. Powiadomienia push
-stały wcześniej w „świadomie odrzuconych" z powodem „brak serwera" — ten powód odpada:
-nadawcą może być przebieg GitHub Actions, a doręcza Web Push. Pierwszy krok jest
-zrobiony 8.10: kolektor pobiera przyrostowo (ok. 7 zapytań na przebieg zamiast 29,
-z pakietu triala 0,20 USD na miesiąc), bo czujnik w doniczce przy pełnym oknie 7 dni
-kosztowałby więcej niż wszystkie pokoje razem.
-
-Stan 9.10: tor danych roślin działa na main (etap 2), noc obok siebie porównana
-(ROSLINY.md). Czekamy na wbicie sond; dalej zakładka (etap 3) i Web Push (etap 4).
 
 **Token Tuya pobierany kilka razy w przebiegu** (9.10) — zwykle 1, ale o 02:01 i 04:01
 UTC 3 i 4 razy („w tym o token" w podsumowaniu przebiegu); 8.10 o 17:01 pewnie to samo.
 Kilka zapytań na dobę z pakietu — znaleźć, która ścieżka w `Tuya.get()` /
 `_refresh_token()` odnawia token bez potrzeby, z testem odrzucającym starą wersję.
 
-## Do sprawdzenia po kilku tygodniach grzania
+## Do sprawdzenia
 
-Kaloryfery ruszają 1.10, a farelka w łazience będzie chodzić codziennie. Dwa progi
-dobrane są na danych bez ogrzewania — w listopadzie przyłożyć je do nowych danych:
-
-| Próg | Dziś | Co sprawdzić |
+| Kiedy | Co | Dlaczego |
 |---|---|---|
-| `TREND_MAX` (0,7 °C/godz.) | naturalny dryf ≤ 0,5, impulsy ≥ 0,86 | czy poranny rozruch kaloryferów nie przekracza progu — jeśli tak, kafel będzie przy nim milczał |
-| `CIEPLO_W_DOMU` (24 °C) | lato 24–26, jesień 19–22 | czy któryś pokój z kaloryferem nie dobija do 24 — wtedy rada wróci do letniej |
+| **ok. 11.11.2026** | trafność „Przewietrz przed snem”: z `data/dom/powiadomienia.json` (wpisy `przed-snem`) i historii gita `data/dom/stan.json` (pole `noc` z przebiegu wysyłki) porównać ostrzeżenia z nocnymi odczytami 23–7 — czy wilgotność przekroczyła granicę ze swojej chwili | pomiar z 11.10 na 14 dobach (prognoza przybliżona zapisanymi godzinami dworu): wpis w 8 wieczorów na 14, a z 18 ostrzeżeń pokój-noc tylko 3 skończyły się przekroczeniem. Zapas 2 pkt zostawiony świadomie: mniejszy gubi prawdziwe noce (przy 1 pkt jedną z 3, przy 0 — dwie). Do decyzji: zostawić, zmniejszyć zapas albo wyłączyć regułę |
+| listopad | „Zamknij okno” na danych z kaloryferami: wszystkie epizody z `data/dom/powiadomienia.json` (`okno`) z godzinami, każdy potwierdzić u właściciela | na 14 dobach i całej historii nie ma ani jednego potwierdzonego trafienia — reguła jest ostrożna, ale jej czułości nie znamy. Przy przebiegach co godzinę krótkie wietrzenie (Salon 6.10, ok. 45 min) nie trafia w żaden przebieg |
+| wiosna 2027, gdy staną kaloryfery | koniec sezonu grzewczego w `dom.py` (`SEZON_GRZEWCZY`, dziś do kwietnia) | kwiecień to założenie, nie pomiar. Poza sezonem „zamknij okno” milczy, bo latem okno otwiera się po to, żeby schłodzić (Kuchnia 23.08: 6 godz. fałszywego alarmu bez bramki) |
+
+`TREND_MAX` i `CIEPLO_W_DOMU`, które stały tu do sprawdzenia w listopadzie, odeszły
+11.10 razem z dawną stroną — nowa aplikacja nie ma ani kafla trendu, ani rady „schłodzi /
+osuszy”.
 
 ## Odłożone
 
 | Pomysł | Dlaczego nie teraz |
 |---|---|
 | Model cieplny pokój ↔ dwór | Odpowiada na letnie pytanie („sypialnia 29 °C o 19:00"), a z kaloryferami pasywny model przestaje pasować. Dane z sierpnia i września zostają w gicie, stronę „dwór" da się dociągnąć z archiwum Open-Meteo kiedykolwiek. **Wrócić w maju 2027** |
-| Odtwarzanie historii na rzucie | Schowane przełącznikiem `ODTWARZANIE`, kod chodzi pod testami. Powrót to zmiana jednej linii |
+| Odtwarzanie historii na rzucie | Odeszło 11.10 razem z dawną stroną (rzutu nie ma w nowej aplikacji). Kod jest w historii gita: `git show 6b5c01b:index.html` |
+| „Za dużo słońca” dla roślin | Czujnik mierzy 0–10 000 lx, progi z literatury są nieosiągalne. Gałąź „przestaw dalej od okna” jest w kodzie, ale uśpiona (`swiatlo_za_duzo_lx: null`). **Wiosną**, po zmierzeniu, przy ilu lx czujnik się nasyca (`ROSLINY.md`) |
 
 ## Świadomie odrzucone
 
@@ -66,6 +66,15 @@ dobrane są na danych bez ogrzewania — w listopadzie przyłożyć je do nowych
 
 ## Zrobione
 
+- **Jedna aplikacja** (11.10) — `index.html` z zakładkami Dom · Rośliny · Historia ·
+  Powiadomienia zamiast dawnej strony mieszkania i osobnej `rosliny.html` (została jako
+  przekierowanie starych adresów). Reguły domu w `dom.py` (przewietrz, przed snem, zamknij
+  okno, czujniki w pokojach) z powiadomieniami, ustawienia i cisza nocna osobno dla każdego
+  telefonu, zapisywane z aplikacji. Szczegóły w `KONTEKST.md`, sekcja z 11.10.
+- **Czujniki w doniczkach i powiadomienia na telefon** (8–11.10) — tor danych roślin,
+  zakładka, Web Push na Androida i iPhone'a; wysyłka włączona 11.10. Powiadomienia push
+  stały wcześniej w „świadomie odrzuconych” z powodem „brak serwera” — odpadł: nadawcą jest
+  przebieg GitHub Actions, a doręcza Web Push. Plan i pomiary w `ROSLINY.md`.
 - **Strona sama dociąga świeże dane** (27.09) — przy powrocie do karty i co 10 minut;
   zainstalowana na telefonie nie ma przycisku odświeżania.
 - **Znane artefakty** (27.09) — `artefakty.json`; ukryte odczyty mostkowane kropkami.

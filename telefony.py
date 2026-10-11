@@ -40,11 +40,22 @@ DOMYSLNE = {"przewietrz": True, "okno": True, "czujniki": True, "podlej": True, 
 KLUCZE_REGUL = ("przewietrz", "okno", "czujniki", "podlej", "przestaw", "czujnik", "podsumowanie")
 
 # „Przewietrz przed snem" wychodzi w ostatnich 2 godz. przed ciszą danego telefonu — rano
-# byłoby bezużyteczne, więc nigdy się go nie odkłada. Przy wyłączonej ciszy (albo ciszy,
-# która nie zaczyna się wieczorem) okno to 19:00–21:00.
+# byłoby bezużyteczne, więc nigdy się go nie odkłada. Okno zawsze kończy się przed północą:
+# karta pokoju daje radę „przewietrz przed snem" tylko przed północą, więc push po północy
+# polecałby coś, czego otwarta z niego karta już nie mówi (przegląd, C4). Stąd:
+# - cisza od 14:00 do 23:00 — dwie godziny przed nią (cisza 18–8: 16:00–18:00; dawniej
+#   cisza od 14 do 18 dostawała zapasowe 19–21, które przy zwykłej nocy, np. 18–8, leżało
+#   w jej środku, więc „przed snem" nie przychodziło nigdy — przegląd, B3);
+# - cisza od 0:00, 1:00 albo 2:00 — 22:00–24:00;
+# - cisza wyłączona albo zaczynająca się 3:00–13:00 (to nie jest „sen" wieczorem) —
+#   zapasowe 19:00–21:00.
+# Okno nie sprawdza ciszy: przy bardzo długiej ciszy (np. 4–20 albo 18–17) zachodzi na nią,
+# a wtedy telefon nic nie dostaje — pilnuje tego planer (dom.py: `not w_ciszy`).
 PRZED_SNEM_GODZ = 2
 PRZED_SNEM_ZAPAS = (19, 21)
-WIECZOR_OD_H = (19, 20, 21, 22, 23, 0, 1)
+WIECZOR_OD_H = range(14, 24)
+PO_POLNOCY_OD_H = (0, 1, 2)
+PRZED_POLNOCA = (22, 24)
 
 # Kolejka odłożonych: pozycja starsza niż doba jest już nieaktualna, a limit chroni plik
 # przed błędem reguły, który dokładałby pozycję co przebieg.
@@ -90,9 +101,20 @@ def ustawienia_z_env(env) -> dict:
 
 
 def czy_wlasne(env) -> dict:
-    """Do logu: czy telefon ma własne ustawienia, czy domyślne. Bez treści — repo jest
-    publiczne, a log Actions też."""
-    return {t: bool(str(env.get(ZMIENNE[t]) or "").strip()) for t in TELEFONY}
+    """Do logu: "własne", "domyślne" (brak zmiennej) albo "nieczytelne" (zmienna jest, ale
+    to nie obiekt JSON — działają wtedy domyślne). Bez treści: repo jest publiczne, a log
+    Actions też. Samo „własne” przy zepsutej zmiennej kłamałoby, że ustawienia działają."""
+    wynik = {}
+    for t in TELEFONY:
+        tekst = str(env.get(ZMIENNE[t]) or "").strip()
+        if not tekst:
+            wynik[t] = "domyślne"
+            continue
+        try:
+            wynik[t] = "własne" if isinstance(json.loads(tekst), dict) else "nieczytelne"
+        except (ValueError, RecursionError):
+            wynik[t] = "nieczytelne"
+    return wynik
 
 
 def w_ciszy(u: dict, lokalnie: datetime) -> bool:
@@ -147,13 +169,19 @@ def adresaci(klucz: str | None, ustawienia: dict, lokalnie: datetime) -> tuple[l
 
 
 def przed_snem(u: dict, lokalnie: datetime) -> bool:
-    """Czy dla tego telefonu trwa teraz okno „przewietrz przed snem": ostatnie 2 godz.
-    przed jego ciszą, a bez wieczornej ciszy 19:00–21:00."""
+    """Czy dla tego telefonu trwa teraz okno „przewietrz przed snem" (pełne godziny lokalne):
+    [od − 2 godz., od) dla ciszy od 14:00 do 23:00, 22:00–24:00 dla ciszy od 0:00–2:00,
+    a bez wieczornej ciszy 19:00–21:00. Zawsze przed północą. Ciszy samej w sobie nie
+    sprawdza — robi to wołający (dom.py), patrz komentarz nad PRZED_SNEM_GODZ."""
     h = lokalnie.hour
-    if u.get("cisza") and u["od"] != u["do"] and u["od"] in WIECZOR_OD_H:
-        start = (u["od"] - PRZED_SNEM_GODZ) % 24
-        return h == start or h == (start + 1) % 24
-    return PRZED_SNEM_ZAPAS[0] <= h < PRZED_SNEM_ZAPAS[1]
+    wieczorna = u.get("cisza") and u["od"] != u["do"]
+    if wieczorna and u["od"] in WIECZOR_OD_H:
+        od, do = u["od"] - PRZED_SNEM_GODZ, u["od"]
+    elif wieczorna and u["od"] in PO_POLNOCY_OD_H:
+        od, do = PRZED_POLNOCA
+    else:
+        od, do = PRZED_SNEM_ZAPAS
+    return od <= h < do
 
 
 def data_nocy(lokalnie: datetime) -> str:

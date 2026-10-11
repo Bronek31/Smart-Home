@@ -196,56 +196,107 @@ do drugiej osoby w domu, napisz — to jedna z niewiadomych.
 
 ---
 
-## Krok 9. Powiadomienia w aplikacji
+## Krok 9. Powiadomienia na telefonie — zrobione 9–10.10
+
+Oba telefony są podpięte. Nowa aplikacja (11.10) tego nie zmienia: klucz wysyłki, adres
+aplikacji i subskrypcje zostały te same. B albo C powtarzasz tylko na nowym telefonie albo
+po usunięciu i ponownym dodaniu ikony — aplikacja sama pokaże wtedy „Subskrypcja się
+zmieniła”.
 
 Sekrety dodaje się na stronie github.com, w przeglądarce. Aplikacja GitHub na telefonie
 ich nie edytuje; na telefonie otwórz github.com w Chrome/Safari (najlepiej „wersja na
 komputer"). Droga do sekretów:
-**github.com → Bronek31/Smart-Home → Settings → Secrets and variables → Actions →
-New repository secret** (pole *Name* i pole *Secret*, potem *Add secret*).
+**github.com → Bronek31/Smart-Home → Settings → Secrets and variables → Actions**.
+Istniejący sekret: przy nim **Update**; nowy: **New repository secret** (pole *Name*
+i pole *Secret*, potem *Add secret*).
 
-**A. Klucz do wysyłki — raz, na dowolnym urządzeniu**
-1. Otwórz aplikację → zakładka **Rośliny** → na dole sekcja **Powiadomienia** → rozwiń
-   „Klucze (jednorazowo, dla właściciela)" → **Utwórz klucze**.
-2. **Prywatny** → **Kopiuj** → nowy sekret: *Name* `VAPID_KLUCZ_PRYWATNY`, *Secret* —
-   wklej. **Nigdzie indziej. Nie wklejaj go do czatu.**
-3. **Publiczny** → **Kopiuj** → wyślij Claude'owi w czacie. Wpiszę go do strony; po kilku
-   minutach w sekcji pojawi się przycisk „Włącz powiadomienia na tym telefonie".
+**A. Klucz do wysyłki — zrobione 9.10.** Sekret `VAPID_KLUCZ_PRYWATNY`. Przycisk „Utwórz
+klucze” pojawia się w aplikacji tylko wtedy, gdy nie ma w niej klucza publicznego, czyli
+przy wymianie pary — tę zrobimy razem. **Klucza prywatnego nie wklejaj do czatu.**
 
 **B. Android (Chrome, aplikacja z ekranu początkowego)**
-1. Otwórz aplikację **z ikony** → Rośliny → **Włącz powiadomienia na tym telefonie** →
-   **Zezwól**.
-2. **Kopiuj** → nowy sekret: *Name* `PUSH_ANDROID`, *Secret* — wklej.
+1. Otwórz aplikację **z ikony** → zakładka **Powiadomienia** → grupa **Ten telefon** →
+   **Włącz powiadomienia** → **Zezwól**.
+2. Pod spodem **Kopiuj** (subskrypcja tego telefonu) → sekret `PUSH_ANDROID` → wklej całość.
 3. Żeby powiadomienia nie przychodziły z opóźnieniem: Ustawienia telefonu → Aplikacje →
    Chrome → Bateria → **Bez ograniczeń**.
 
 **C. iPhone (iOS 16.4 lub nowszy)**
 1. Aplikacja musi być dodana z **Safari**: Udostępnij → **Do ekranu początkowego**. Na
    iOS 26 zostaw włączone „Otwórz jako aplikację webową".
-2. Otwórz ją **z ikony** → Rośliny → **Włącz powiadomienia na tym telefonie** → **Pozwalaj**.
-3. **Kopiuj** → nowy sekret: *Name* `PUSH_IPHONE`, *Secret* — wklej.
+2. Otwórz ją **z ikony** → **Powiadomienia** → **Ten telefon** → **Włącz powiadomienia** →
+   **Pozwalaj**.
+3. **Kopiuj** → sekret `PUSH_IPHONE` → wklej całość.
 4. Ustawienia → Powiadomienia → Smart Home: włącz baner i ekran blokady.
 
+Subskrypcję włączonego telefonu da się skopiować jeszcze raz: Ten telefon → **Pokaż**.
+
 **D. Sprawdzenie**
-- Napisz w czacie „sekrety dodane". Wyślę jedno powiadomienie testowe „Powiadomienia
-  działają" na oba telefony — napisz, czy doszło na każdy.
+- Napisz w czacie „sekret podmieniony”. Wyślę powiadomienie testowe „Powiadomienia
+  działają” na oba telefony — napisz, czy doszło na każdy.
 - Sam też możesz je wysłać: github.com → Smart-Home → Actions → **Powiadomienie
   testowe** → Run workflow.
 
-**Co dalej**
-- Przez pierwszy tydzień reguły działają **na sucho**: liczą, kiedy by powiadomiły, i to
-  widać na zakładce (lista „Ostatnie powiadomienia" z dopiskiem „na sucho"), ale na
-  telefon nic nie idzie. Potem włączam je naprawdę.
-- Rodzaje powiadomień:
-  - „Podlej: …" — gdy gleba jest poniżej progu od 2 godz.; przypomnienie co dobę
-    (azalia co 12 godz.), najwyżej 3 razy, po podlaniu cisza;
-  - „Czujnik: …" — cisza czujnika, wyjęta sonda, słaba bateria; raz na powód;
-  - **niedzielne podsumowanie** o 10:00 — zawsze, także gdy wszystko jest w porządku.
-- Między 21:00 a 8:00 nic nie przychodzi; alarm czujnika z nocy przychodzi rano.
-- **Brak niedzielnego podsumowania znaczy, że coś się zepsuło** — napisz wtedy.
-- Po usunięciu i ponownym dodaniu ikony (albo nowym telefonie) powtórz B albo C i podmień
-  sekret. Zakładka sama ostrzeże, gdy subskrypcja się zmieni albo powiadomienia
-  przestaną dochodzić; nieudana wysyłka zakłada zgłoszenie z etykietą `powiadomienia`.
+**Co przychodzi** (wysyłka włączona 11.10, na sucho 9–11.10)
+- **Dom:** „Przewietrz …” (za wilgotno od 2 godz.), „Przewietrz przed snem” (w nocy grozi
+  „za wilgotno”), „Zamknij okno w …?” (po wietrzeniu w pokoju szybko robi się zimno; tylko
+  październik–kwiecień), „Czujnik w … milczy” albo słaba bateria w pokoju.
+- **Rośliny:** „Podlej: …” (ziemia poniżej progu od 2 godz.; przypomnienie co dobę, azalia
+  co 12 godz., najwyżej 3 razy), „Fikus: przestaw bliżej okna” (3 pełne doby za ciemno;
+  raz), „Czujnik: …” (cisza, wyjęta sonda, słaba bateria; raz na powód), podsumowanie
+  tygodnia w niedzielę o 10:00 — **domyślnie wyłączone**.
+- Który telefon co dostaje i kiedy ma ciszę nocną, ustawiasz w aplikacji osobno dla
+  każdego (krok 10). Domyślnie wszystko poza podsumowaniem, cisza 21:00–8:00.
+- To, co wypadnie w ciszy, przychodzi po jej końcu — o ile nadal jest aktualne.
+  „Przewietrz przed snem” i „Zamknij okno?” nie czekają, bo rano nie mają sensu.
+- **Brak powiadomień nie znaczy, że wszystko działa.** Podsumowanie tygodnia jest
+  wyłączone, więc sygnałem awarii jest mail ze zgłoszeniem „Kolektor stoi” (watchdog co
+  6 godz.), na zakładce Dom linia „Ostatnia zbiórka N godz. temu”, a w Powiadomieniach
+  lista „Ostatnie” — co i kiedy poszło na który telefon. Podsumowanie możesz włączyć.
+- Zakładka sama ostrzeże, gdy subskrypcja się zmieni albo powiadomienia przestaną
+  dochodzić; nieudana wysyłka zakłada zgłoszenie z etykietą `powiadomienia`.
+
+---
+
+## Krok 10. Klucz dostępu do ustawień — raz na każdym telefonie
+
+Ustawienia powiadomień (które przychodzą, cisza nocna) leżą w zmiennych repozytorium
+`POWIADOMIENIA_ANDROID` i `POWIADOMIENIA_IPHONE`. Zapisuje je sama aplikacja, ale
+potrzebuje do tego klucza z jednym uprawnieniem. Bez klucza przełączniki są wygaszone,
+a powiadomienia idą według ustawień domyślnych. Wystarczy jeden klucz dla obu telefonów.
+
+**Utwórz klucz** (github.com w przeglądarce, najlepiej na komputerze):
+1. Zdjęcie profilu → **Settings** → **Developer settings** → **Personal access tokens** →
+   **Fine-grained tokens** → **Generate new token**.
+2. *Token name*: np. `Smart Home — ustawienia powiadomień`. *Expiration*: **najdłuższa
+   dostępna**. Datę wygaśnięcia od razu wpisz do kalendarza — przed nią trzeba utworzyć
+   nowy klucz i wkleić go na obu telefonach (`TODO.md`).
+3. *Repository access*: **Only select repositories** → **Smart-Home**.
+4. *Permissions* → *Repository permissions* → **Variables: Read and write**. Nic więcej
+   nie zaznaczaj (GitHub sam dopisze „Metadata: Read-only” — tak ma być).
+5. **Generate token** → skopiuj klucz (zaczyna się od `github_pat_`). GitHub pokazuje go
+   tylko raz. **Nie wysyłaj go w czacie.**
+
+**Wklej go na każdym telefonie:** aplikacja → zakładka **Powiadomienia** → pole **Klucz
+dostępu** → wklej → **Połącz**. Po chwili przełączniki ożywają, a na dole stoi „Klucz
+dostępu · Połączono”.
+- **iPhone: wklejaj w aplikacji otwartej z ikony na ekranie początkowym, nie w Safari.**
+  Aplikacja z ekranu ma pamięć osobną od Safari — klucza wklejonego w Safari nie zobaczy.
+- „Klucz nie działa albo wygasł” — zły albo przeterminowany klucz. „Klucz nie ma
+  uprawnienia Variables do Smart-Home” — popraw punkt 3 albo 4. „Brak połączenia” — sieć.
+- Skąd wziąć klucz, przypomina też przycisk **Skąd wziąć klucz?** pod polem.
+
+**Potem:**
+- Zmiana przełącznika albo godziny działa od następnej zbiórki, najpóźniej za godzinę.
+- Przełącznik **Android | iPhone** nad przełącznikami reguł pozwala z jednego telefonu
+  zmienić ustawienia drugiego.
+- Cisza nocna: **Od** i **Do** muszą się różnić — aplikacja nie przyjmie tej samej godziny,
+  bo taka cisza nie trwałaby wcale.
+- Klucz zostaje tylko na tym telefonie i ma dostęp wyłącznie do zmiennych repozytorium
+  Smart-Home, nie do kodu ani sekretów. **Odłącz** na dole zakładki usuwa go z telefonu.
+- Zapisane ustawienia (przełączniki i godziny ciszy) widać w publicznym logu przebiegu
+  w Actions. To nie sekret — godziny ciszy i tak da się wyczytać z publicznych plików
+  powiadomień — ale wiedz o tym.
 
 ---
 
@@ -295,6 +346,7 @@ New repository secret** (pole *Name* i pole *Secret*, potem *Add secret*).
 | uruchamianie workflowów („Pokaż urządzenia w Tuya", próbne powiadomienie) | ✘ — GitHub odmawia (403). Obejście: „Pokaż urządzenia w Tuya" rusza samo po każdej zmianie swojego pliku na `main` | ręcznie: Actions → workflow → Run workflow |
 | scalanie na `main`, czyli wdrożenie strony i kolektora | po Twojej zgodzie | albo Ty |
 | sekrety repozytorium (Tuya, powiadomienia) | ✘ — ani odczyt, ani zapis | ✔ |
+| klucz dostępu do ustawień (krok 10) i same ustawienia telefonów | ✘ — klucza nie mam i mieć nie powinienem | ✔ w aplikacji, zakładka Powiadomienia |
 | panel iot.tuya.com (limit, tryb instrukcji) | ✘ — wymaga logowania | ✔ |
 | Smart Life (parowanie, automatyzacje, bateria) | ✘ | ✔ |
 

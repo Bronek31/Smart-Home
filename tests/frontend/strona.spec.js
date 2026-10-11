@@ -1,2010 +1,1220 @@
-// Testy strony w prawdziwej przeglądarce.
+// Testy aplikacji (index.html): dom, pokoje, rośliny, historia, powiadomienia.
 //
-// Cały index.html to jeden plik bez budowania, więc nie ma czego importować i testować
-// w oderwaniu — testujemy to, co widzi użytkownik. Chart.js podstawiamy z node_modules
-// zamiast ciągnąć z CDN: testy mają nie zależeć od cudzej dostępności, a przy okazji
-// jeden z nich sprawdza właśnie to, co się dzieje, gdy CDN nie odpowiada.
-
+// Strona wyświetla to, co policzył kolektor (reguły domu z data/dom/stan.json, werdykty i ocenę światła roślin
+// z data/rosliny/stan.json), a sama liczy tylko wyświetlanie: serie wykresów, komfort, zakresy, 30 dni. Testy
+// podstawiają pliki z dane.js (po ścieżce), czekają, aż #app dostanie data-dane ≠ „wczytywanie", i sprawdzają
+// ekran albo obliczenia przez window.SH. Każdy test pilnuje pustej konsoli.
+//
+// Uruchamianie: cd tests/frontend && npx playwright test strona.spec.js
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
-const { podstaw } = require('./dane');
+const { execFileSync } = require('child_process');
+const { podstaw, zbuduj, ROSLINY, GODZ, DOBA, iso, dataWaw } = require('./dane');
 
-// oba pakiety mają zawężone "exports" i nie wypuszczają ani dist, ani package.json,
-// więc sięgamy po katalog wprost — to zwykłe pliki w node_modules
-const dist = (pakiet, plik) => path.join(__dirname, 'node_modules', pakiet, 'dist', plik);
-const CHART = fs.readFileSync(dist('chart.js', 'chart.umd.js'), 'utf8');
-const ADAPTER = fs.readFileSync(dist('chartjs-adapter-date-fns', 'chartjs-adapter-date-fns.bundle.js'), 'utf8');
+const REPO = path.join(__dirname, '..', '..');
+const HTML = fs.readFileSync(path.join(REPO, 'index.html'), 'utf8');
+const FG = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Warsaw', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+const godzinaWaw = (ms) => +FG.format(new Date(ms)).slice(0, 2);
 
-/** Wyłapuje każdy błąd strony — żaden test nie ma prawa przejść przy czerwonej konsoli. */
+/** Wyłapuje każdy błąd strony. 404 nieobowiązkowych plików (pogoda, dom, rośliny) to nie błąd strony, a przeglądarka
+ *  i tak loguje je sama — stąd filtr na komunikaty o zasobach. */
 function pilnujBledow(page) {
   const bledy = [];
   page.on('pageerror', (e) => bledy.push(`pageerror: ${e.message}`));
   page.on('console', (m) => {
-    if (m.type() === 'error' && !/net::ERR|Failed to load resource/.test(m.text())) {
-      bledy.push(`console: ${m.text()}`);
-    }
+    if (m.type() === 'error' && !/net::ERR|Failed to load resource/.test(m.text())) bledy.push(`console: ${m.text()}`);
   });
   return bledy;
 }
-
-async function podepnijChart(page, { cdnDziala = true } = {}) {
-  await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
-  if (!cdnDziala) return page.route(/cdn\.jsdelivr\.net/, (r) => r.abort());
-  await page.route(/cdn\.jsdelivr\.net\/npm\/chart\.js/, (r) =>
-    r.fulfill({ contentType: 'application/javascript', body: CHART }));
-  await page.route(/cdn\.jsdelivr\.net\/npm\/chartjs-adapter/, (r) =>
-    r.fulfill({ contentType: 'application/javascript', body: ADAPTER }));
+async function gotowa(page) {
+  await page.waitForFunction(() => document.getElementById('app').getAttribute('data-dane') !== 'wczytywanie', null, { timeout: 20000 });
 }
-
-const Z_ODTWARZANIEM = { odtwarzanie: true };
-
-/** Wspólny start: podstawione dane, podpięty Chart, strona gotowa.
- *
- * Czekamy na stempel w nagłówku, a nie na pojawienie się #app. boot() odsłania #app
- * jeszcze przed render(), więc oglądanie samej widoczności łapało stronę w połowie
- * rysowania — i testy potrafiły odczytać wartości sprzed pierwszego renderu. Stempel
- * ustawia się na samym końcu render(), a przy braku danych zmienia się na „brak danych",
- * więc jedno oczekiwanie obsługuje obie ścieżki.
- *
- * Odtwarzanie historii na rzucie jest na stronie wyłączone, ale jego kod zostaje —
- * testy, które go dotyczą, włączają je flagą, żeby przywrócenie było jedną linią,
- * a nie odkopywaniem kodu, który przez ten czas nikt nie uruchamiał. */
-async function otworz(page, opcje = {}, { hash = '', cdnDziala = true, odtwarzanie = false } = {}) {
+/** Wspólny start: fonty zablokowane (bez sieci w CI), podstawione dane, strona gotowa. */
+async function otworz(page, opcje = {}, { hash = '', sciezka = '/index.html' } = {}) {
   const bledy = pilnujBledow(page);
-  if (odtwarzanie) await page.addInitScript(() => { window.odtwarzanieWlaczone = true; });
-  await podepnijChart(page, { cdnDziala });
-  await podstaw(page, opcje);
-  await page.goto(`/index.html${hash}`);
-  await page.waitForFunction(
-    () => !/wczytywanie/.test(document.getElementById('stamp').textContent),
-    null, { timeout: 20000 });
-  return bledy;
+  await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+  const pliki = await podstaw(page, opcje);
+  await page.goto(sciezka + hash);
+  await gotowa(page);
+  return { bledy, pliki };
 }
-
-/* Wykresy startują w zakresie „dziś", więc o czwartej nad ranem mają w sobie kilka
-   punktów, a wieczorem kilkanaście — każdy test, który czyta z nich serie, zależałby
-   wtedy od godziny, o której poszedł. Nocny przebieg z harmonogramu (4:54) wywrócił się
-   dokładnie na tym: „oczekiwano > 5, było 5". Tydzień obejmuje całą fiksturę niezależnie
-   od pory doby, więc liczba punktów przestaje być ruchoma. */
-async function otworzTydzien(page, opcje = {}) {
-  const bledy = await otworz(page, opcje);
-  await page.click('.range[data-hours="168"]');
-  await page.waitForFunction(() => state.hours === 168 && state.charts.temp);
-  return bledy;
+/** Drugi zestaw plików w tym samym teście: podstawione pliki zbudowane od nowa z innymi opcjami i strona wczytana
+ *  od nowa pod `hash` (samo page.goto na inny hash to nawigacja w tym samym dokumencie, bez wczytania danych). */
+async function podmien(page, opcje, hash) {
+  await page.unroute('**/data/**');
+  await page.unroute('**/pokoje.json');
+  const pliki = await podstaw(page, opcje);
+  await page.goto('/index.html' + hash);
+  await page.reload();
+  await gotowa(page);
+  return pliki;
 }
-
-const wcisniety = (page, sel) =>
-  page.$$eval(sel, (n) => n.filter((x) => x.getAttribute('aria-pressed') === 'true').map((x) => x.textContent));
-
-/* Fikstura też potrafi się zepsuć i wtedy testy kłamią w obie strony. Ten zestaw
-   pilnuje jej samej: przy opcji „trend" łatwo dopisać odczyt na istniejący znacznik
-   i regresja liczy się wtedy z dwóch wartości naraz, a zbyt żywy rytm dobowy sam
-   przebija próg trendu i „spokojny pokój" przestaje być spokojny o niektórych porach.
-   Oba te błędy naprawdę przepuściły czerwone CI, zanim tu trafiły. */
-test.describe('same dane testowe', () => {
-  const { zbuduj } = require('./dane');
-  const wiersze = (pliki) => Object.keys(pliki)
-    .filter((k) => /^\d{4}-\d\d\.csv$/.test(k))
-    .flatMap((k) => pliki[k].trim().split('\n').slice(1));
-
-  for (const [opis, opcje] of [['domyślne', {}], ['z trendem', { trend: { pokoj: 'salon', tempo: 0.8 } }],
-    ['z martwym czujnikiem', { martwy: 'kuchnia' }], ['z wietrzeniem', { wietrzenie: true }],
-    ['z czujnikiem w dłoni', { rekaNaCzujniku: true }]]) {
-    test(`${opis}: żaden odczyt nie jest zapisany dwa razy`, () => {
-      const licznik = new Map();
-      for (const r of wiersze(zbuduj(opcje))) {
-        const [ts, id, code] = r.split(',');
-        const klucz = `${ts}|${id}|${code}`;
-        licznik.set(klucz, (licznik.get(klucz) || 0) + 1);
-      }
-      const podwojne = [...licznik].filter(([, n]) => n > 1).map(([k]) => k);
-      expect(podwojne, 'ten sam znacznik zapisany dwa razy').toEqual([]);
-    });
+const widok = (page) => page.locator('.widok:not([hidden]), .strona:not(.sasiad)').first();
+const tekstStrony = (page) => page.locator('.strona:not(.sasiad)').innerText();
+/** Prawdziwy gest palcem w Chromium (CDP), z touch-action — jak na telefonie. Wzór: propozycje3/narzedzia/gest.js. */
+async function przesun(page, x0, y0, x1, y1, kroki = 14, czasMs = 260) {
+  const c = await page.context().newCDPSession(page);
+  await c.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y: y0 }] });
+  for (let i = 1; i <= kroki; i++) {
+    const t = i / kroki;
+    await c.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + (x1 - x0) * t, y: y0 + (y1 - y0) * t }] });
+    await page.waitForTimeout(czasMs / kroki);
   }
+  await c.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await c.detach();
+}
 
-  test('sam rytm dobowy nie przebija progu trendu', () => {
-    // gdyby przebijał, „kafel milczy przy spokojnym pokoju" zależałby od godziny
-    const A = 0.5, PROG = 0.25;
-    let maks = 0;
-    for (let g = 0; g < 24; g++) {
-      const f = (h) => A * Math.sin(((h - 4) / 24) * 2 * Math.PI);
-      const x = [0, 1, 2, 3, 4], y = x.map((i) => f(g + i));
-      const sx = 2, sy = y.reduce((a, b) => a + b, 0) / 5;
-      let gora = 0, dol = 0;
-      x.forEach((xi, i) => { gora += (xi - sx) * (y[i] - sy); dol += (xi - sx) ** 2; });
-      maks = Math.max(maks, Math.abs(gora / dol));
+test.describe('dane testowe', () => {
+  const wiersze = (pliki) => Object.keys(pliki).filter((k) => /^data\/\d{4}-\d\d\.csv$/.test(k)).flatMap((k) => pliki[k].trim().split('\n').slice(1));
+
+  test('żaden odczyt nie jest zapisany dwa razy, a pliki miesięczne są posortowane', () => {
+    for (const o of [{}, { skok: { pokoj: 'sypialnia', godzWstecz: 5, o: 6 } }, { martwy: 'kuchnia' }]) {
+      const w = wiersze(zbuduj(o));
+      const klucze = w.map((r) => r.split(',').slice(0, 3).join('|'));
+      expect(new Set(klucze).size, JSON.stringify(o)).toBe(klucze.length);
+      expect(w).toEqual([...w].sort());
     }
-    expect(maks).toBeLessThan(PROG * 0.7);
   });
 
-  test('każdy plik miesięczny jest posortowany, tak jak zapisuje go kolektor', () => {
-    const w = wiersze(zbuduj({}));
-    expect(w).toEqual([...w].sort());
-  });
-
-  test('tydzień obejmuje całą fiksturę o każdej porze doby', () => {
-    /* Testy czytające serie z wykresu ustawiają zakres na tydzień właśnie po to, żeby ich
-       wynik nie zależał od godziny. Działa to tylko dopóki fikstura mieści się w tygodniu:
-       gdyby ktoś podniósł `dni` powyżej siedmiu, tydzień zacząłby ją przycinać i liczba
-       punktów znów stałaby się ruchoma. Zmierzone: 120,5 godz. przy oknie 168. */
-    const w = wiersze(zbuduj({}));
-    const najstarszy = Math.min(...w.map((r) => Date.parse(r.split(',')[0])));
-    const wiek = (Date.now() - najstarszy) / 3600e3;
-    expect(wiek, 'fikstura wystaje poza tydzień — zakres znów zależy od pory doby')
-      .toBeLessThan(168);
-  });
-
-  test('historia nie kończy się na progu kroku animacji', () => {
-    // floor(rozpiętość / krok) na okrągłej dobie dawał raz 119, raz 120 klatek —
-    // zależnie od zaokrąglenia znacznika i szybkości wczytania strony. Zapas musi
-    // zostać wyraźnie z dala od progu, inaczej migotanie wraca.
-    const w = wiersze(zbuduj({}));
-    const czas = (r) => Date.parse(r.split(',')[0]);
-    const rozpietosc = Date.now() - Math.min(...w.map(czas));
-    const KROK = 60 * 60e3;
-    const ulamek = (rozpietosc % KROK) / KROK;
-    expect(ulamek, 'rozpiętość historii wypada tuż przy wielokrotności kroku')
-      .toBeGreaterThan(0.1);
-    expect(ulamek).toBeLessThan(0.9);
+  test('co najmniej 8 dób historii, dzienne.csv z datą warszawską, pliki roślin osobno od pokoi', () => {
+    const pliki = zbuduj({});
+    const t = wiersze(pliki).map((r) => Date.parse(r.split(',')[0]));
+    expect((Math.max(...t) - Math.min(...t)) / DOBA).toBeGreaterThanOrEqual(8);
+    const daty = new Set(pliki['data/dzienne.csv'].trim().split('\n').slice(1).map((r) => r.split(',')[0]));
+    expect([...daty].sort()).toEqual([...new Set(t.map(dataWaw))].sort());
+    expect(pliki['data/rosliny/stan.json']).toBeTruthy();
+    expect(Object.keys(pliki).filter((k) => /^data\/rosliny\/\d/.test(k))).toEqual([]);
   });
 });
 
-test.describe('start strony', () => {
-  test('wczytuje się i wypełnia wszystkie sekcje', async ({ page }) => {
-    const bledy = await otworz(page);
-    await expect(page.locator('#app')).toBeVisible();
-    await expect(page.locator('#notice')).toBeHidden();
-    await expect(page.locator('#pens .pen')).toHaveCount(5);          // 4 pokoje + dwór
-    await expect(page.locator('#statusbar .statusbox')).toHaveCount(4);
-    await expect(page.locator('#summary tbody tr').first()).toBeVisible();
-    await expect(page.locator('#health tbody tr')).toHaveCount(4);     // sam dwór nie ma diagnostyki
-    await expect(page.locator('#floor svg')).toBeVisible();
-    await expect(page.locator('#wx-panel')).toBeVisible();
+test.describe('start', () => {
+  test('Dom: cztery pokoje, dwór, wykres i cztery zakładki', async ({ page }) => {
+    const { bledy } = await otworz(page);
+    await expect(page.locator('#app')).toHaveAttribute('data-dane', 'gotowe');
+    await expect(page.locator('#v-dom .siatka-p .pokoj')).toHaveCount(4);
+    await expect(page.locator('#v-dom .dwor')).toBeVisible();
+    await expect(page.locator('#v-dom [data-wykres="dom"] svg')).toBeVisible();
+    await expect(page.locator('#zakladki .zakladka')).toHaveCount(4);
+    await expect(page.locator('#zakladki [data-tab="dom"]')).toHaveAttribute('aria-current', 'page');
+    // pokoje w kolejności manifestu, kolory z palety w tej kolejności, dwór spoza palety
+    const kolory = await page.evaluate(() => SH.dane.pokoje.map((p) => p.kolor));
+    expect(kolory.slice(0, 4)).toEqual(['#e8a13c', '#5fb8e0', '#5fce9e', '#e2708f']);
+    expect(kolory.slice(0, 4)).not.toContain(kolory[4]);
     expect(bledy).toEqual([]);
   });
 
-  test('bez odczytów pokazuje komunikat zamiast pustych ramek', async ({ page }) => {
-    const bledy = await otworz(page, { pusto: true });
-    await expect(page.locator('#notice')).toBeVisible();
-    await expect(page.locator('#notice')).toContainText('odczyt');
-    expect(bledy).toEqual([]);
-  });
-
-  test('nazwa czujnika ze znacznikiem HTML nie rozjeżdża strony', async ({ page }) => {
-    const bledy = await otworz(page, { nazwaZnacznik: true });
-    // ma się pokazać jako tekst, a nie jako pogrubienie
-    await expect(page.locator('#pens')).toContainText('Salon <b>"x"</b>');
-    expect(await page.locator('#pens b b').count()).toBe(0);
-    expect(bledy).toEqual([]);
-  });
-});
-
-test.describe('zakresy', () => {
-  for (const [zakres, opis] of [['dzis', 'dzisiaj'], ['168', 'ostatnie 7 dni'],
-    ['720', 'ostatnie 30 dni'], ['0', 'cała historia']]) {
-    test(`zakres wykresów „${zakres}" rysuje serie i podpisuje się jako „${opis}"`, async ({ page }) => {
-      const bledy = await otworz(page);
-      await page.click(`.range[data-hours="${zakres}"]`);
-      await page.waitForTimeout(600);
-      const serie = await page.evaluate(() => ['temp', 'hum', 'abs'].map((id) => {
-        const ch = Chart.getChart(document.getElementById(id));
-        return ch ? ch.data.datasets.reduce((a, d) => a + d.data.length, 0) : -1;
-      }));
-      for (const punkty of serie) expect(punkty).toBeGreaterThan(0);
+  for (const [opis, opcje, tekst] of [
+    ['brak manifestu', { brakManifestu: true }, 'Nie ma jeszcze żadnych odczytów'],
+    ['manifest bez miesięcy', { pusto: true }, 'Czujniki są, odczytów jeszcze nie ma'],
+    ['manifest bez czujników', { bezCzujnikow: true }, 'Kolektor nie znalazł czujników'],
+    ['puste pliki odczytów', { pustePliki: true }, 'Pliki z danymi są puste'],
+  ]) {
+    test(`${opis}: komunikat zamiast pustych ramek, Rośliny działają dalej`, async ({ page }) => {
+      const { bledy } = await otworz(page, opcje);
+      await expect(page.locator('#app')).toHaveAttribute('data-dane', 'blad');
+      await expect(page.locator('#v-dom [data-blad]')).toContainText(tekst);
+      await page.click('[data-tab="historia"]');
+      await expect(page.locator('#v-historia [data-blad]')).toContainText(tekst);
+      await page.click('[data-tab="rosliny"]');
+      await expect(page.locator('#v-rosliny .rk')).toHaveCount(3);
       expect(bledy).toEqual([]);
     });
   }
 
-  test('zakres tabeli jest niezależny od zakresu wykresów', async ({ page }) => {
-    const bledy = await otworz(page);
-    await page.click('[data-tab="720"]');
-    await page.waitForTimeout(400);
-    await expect(page.locator('#summary caption')).toContainText('ostatnie 30 dni');
-    expect(await wcisniety(page, '.range[data-hours]')).toEqual(['dziś']);
-
-    await page.click('.range[data-hours="168"]');
-    await page.waitForTimeout(600);
-    await expect(page.locator('#summary caption')).toContainText('ostatnie 30 dni');
-    expect(await wcisniety(page, '[data-tab]')).toEqual(['30 dni']);
+  test('nazwa czujnika ze znacznikiem HTML jest tekstem', async ({ page }) => {
+    const { bledy } = await otworz(page, { nazwaZnacznik: true });
+    await expect(page.locator('#v-dom .siatka-p')).toContainText('Salon <b>"x"</b>');
+    expect(await page.locator('.pokoj-n b').count()).toBe(0);
     expect(bledy).toEqual([]);
   });
 
-  test('tabela liczy inne skrajne wartości dla innych okresów', async ({ page }) => {
-    const bledy = await otworz(page);
-    const maxTemp = async () => page.$eval('#summary tbody tr td:nth-child(4)', (td) => td.textContent);
-    await page.click('[data-tab="dzis"]');
-    await page.waitForTimeout(400);
-    const dzis = await maxTemp();
-    await page.click('[data-tab="168"]');
-    await page.waitForTimeout(400);
-    expect(await maxTemp()).not.toBe('–');
-    expect(dzis).not.toBe('');
+  test('bez pokoje.json: slug z nazwy, odmiana = nazwa małą literą', async ({ page }) => {
+    const { bledy } = await otworz(page, { pokojeJson: false, dom: { lazienka: { przewietrz: { od: iso(Date.now() - 3 * GODZ), wilg: 72, granica: 63.2 } } } });
+    const slugi = await page.evaluate(() => SH.dane.pokoje.map((p) => p.slug));
+    expect(slugi).toEqual(['salon', 'sypialnia', 'kuchnia', 'lazienka', 'zewnatrz']);
+    await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Przewietrz łazienka/);
     expect(bledy).toEqual([]);
   });
 
-  test('widok „całość" rysuje z agregatów', async ({ page }) => {
-    const bledy = await otworz(page);
-    await page.click('[data-tab="0"]');
-    await page.waitForTimeout(400);
-    await expect(page.locator('#summary caption')).toContainText('dobowe min/śr/max');
-    expect(bledy).toEqual([]);
-  });
-});
-
-test.describe('adres i przełączniki', () => {
-  test('deep link ustawia zakres, ukryte czujniki i filtr', async ({ page }) => {
-    const bledy = await otworz(page, {}, { hash: '#zakres=7d&bez=salon&filtr=0' });
-    expect(await wcisniety(page, '.range[data-hours]')).toEqual(['7 dni']);
-    expect(await page.isChecked('#filtr')).toBe(false);
-    expect(await wcisniety(page, '#toggles .toggle')).not.toContain('Salon');
-    const etykiety = await page.$$eval('#summary tbody tr td:first-child', (n) => n.map((x) => x.textContent));
-    expect(etykiety).not.toContain('Salon');
+  test('bez pogody: karta dworu z samym odczytem, strona dworu bez prognozy', async ({ page }) => {
+    const { bledy } = await otworz(page, { pogoda: 'brak' });
+    await expect(page.locator('#v-dom .dwor')).toContainText('Wilgotność');
+    expect(await page.locator('#v-dom .dni3').count()).toBe(0);
+    await page.click('#v-dom .dwor');
+    await expect(page).toHaveURL(/#zewnatrz$/);
+    const t = await tekstStrony(page);
+    expect(t).not.toMatch(/undefined|NaN|3 dni|Powietrze/);
     expect(bledy).toEqual([]);
   });
 
-  test('wyłączenie czujnika zapisuje się w adresie', async ({ page }) => {
-    const bledy = await otworz(page);
-    await page.click('#toggles .toggle >> nth=0');
-    await page.waitForTimeout(400);
-    expect(page.url()).toContain('bez=');
+  test('strona dworu podaje źródło pogody (Open-Meteo, CC BY 4.0), a bez pogody nie podaje', async ({ page }) => {
+    const { bledy } = await otworz(page, {}, { hash: '#zewnatrz' });
+    const zrodlo = page.locator('.strona:not(.sasiad) .zrodlo');
+    await expect(zrodlo).toContainText('Open-Meteo');
+    await expect(zrodlo).toContainText('CC BY 4.0');
+    expect(await zrodlo.locator('a').getAttribute('href')).toBe('https://open-meteo.com/');
+    await podmien(page, { pogoda: 'brak' }, '#zewnatrz');
+    expect(await page.locator('.strona:not(.sasiad) .zrodlo').count()).toBe(0);
     expect(bledy).toEqual([]);
   });
 
-  test('nieznana nazwa w adresie jest pomijana bez wywrotki', async ({ page }) => {
-    const bledy = await otworz(page, {}, { hash: '#zakres=7d&bez=nieistniejacy' });
-    await expect(page.locator('#toggles .toggle')).toHaveCount(5);
-    expect(bledy).toEqual([]);
-  });
-});
-
-test.describe('rzut mieszkania i odtwarzanie', () => {
-  test('odtwarzanie jest schowane, a rzut dalej pokazuje stan bieżący w kolorach', async ({ page }) => {
-    const bledy = await otworz(page);
-    await expect(page.locator('#floor .rm-temp')).toHaveCount(4);
-    await expect(page.locator('#replay')).toBeHidden();
-    await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
-    // skala barw liczy się dalej z tygodniowego okna — bez niej pokoje byłyby jednym kolorem
-    const kolory = await page.$$eval('#floor .rm-temp', (n) => n.map((x) => x.getAttribute('fill')));
-    expect(new Set(kolory).size, 'pokoje straciły rozróżnienie barw').toBeGreaterThan(1);
+  test('zmiana „od wczoraj” równa 0,0° nie ma strzałki, a 1,2° ma', async ({ page }) => {
+    // domyślna fikstura: doba sinusoidy powtarza się, więc temperatura sprzed 24 godz. jest taka sama
+    const { bledy } = await otworz(page, {}, { hash: '#kuchnia' });
+    const z = page.locator('.strona:not(.sasiad) .boh-z');
+    await expect(z).toContainText('0,0°');
+    expect(await z.locator('svg, .ik').count()).toBe(0);
+    await podmien(page, { trend: { kuchnia: -1.2 } }, '#kuchnia');
+    await expect(page.locator('.strona:not(.sasiad) .boh-z')).toContainText('1,2°');
+    expect(await page.locator('.strona:not(.sasiad) .boh-z').locator('svg, .ik').count()).toBeGreaterThan(0);
     expect(bledy).toEqual([]);
   });
 
-  test('suwak cofa rzut w czasie, „teraz" wraca', async ({ page }) => {
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
-    await page.$eval('#suwak', (s) => { s.value = Math.floor(s.max / 2); s.dispatchEvent(new Event('input')); });
-    await page.waitForTimeout(300);
-    await expect(page.locator('#plan-tytul')).not.toContainText('aktualny stan');
-    await expect(page.locator('#teraz')).toBeVisible();
-    await page.click('#teraz');
-    await page.waitForTimeout(300);
-    await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
-    expect(bledy).toEqual([]);
-  });
-
-  test('okno odtwarzania nie zależy od zakresu wykresów', async ({ page }) => {
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    const klatki = () => page.$eval('#suwak', (s) => s.max);
-    const przed = await klatki();
-    for (const z of ['dzis', '720', '0']) {
-      await page.click(`.range[data-hours="${z}"]`);
-      await page.waitForTimeout(600);
-      expect(await klatki()).toBe(przed);
-    }
-    await page.click('[data-okno="24"]');
-    await page.waitForTimeout(400);
-    expect(await klatki()).not.toBe(przed);
-    expect(bledy).toEqual([]);
-  });
-
-  test('jedno kliknięcie to jeden przebieg, bez zapętlenia', async ({ page }) => {
-    test.setTimeout(90000);
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    const pozycja = () => page.$eval('#suwak', (s) => +s.value);
-
-    await page.click('#play');
-    await expect(page.locator('#play')).toHaveAttribute('aria-pressed', 'true');
-
-    // przez cały przebieg suwak ma iść wyłącznie naprzód — spadek znaczyłby zawinięcie
-    let poprzednia = await pozycja(), gra = true;
-    for (let i = 0; i < 80 && gra; i++) {
-      await page.waitForTimeout(250);
-      const v = await pozycja();
-      expect(v, 'suwak cofnął się — przebieg się zapętlił').toBeGreaterThanOrEqual(poprzednia);
-      poprzednia = v;
-      gra = await page.$eval('#play', (b) => b.getAttribute('aria-pressed') === 'true');
-    }
-    expect(gra, 'przebieg nie skończył się sam').toBe(false);
-
-    // po przebiegu rzut wraca do stanu bieżącego i nic już się nie rusza
-    await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
-    expect(await pozycja()).toBe(await page.$eval('#suwak', (s) => +s.max));
-    await page.waitForTimeout(700);
-    expect(await pozycja()).toBe(await page.$eval('#suwak', (s) => +s.max));
-    expect(bledy).toEqual([]);
-  });
-
-  test('pauza zatrzymuje tam, gdzie akurat jest', async ({ page }) => {
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    await page.click('#play');
-    await page.waitForTimeout(600);
-    await page.click('#play');
-    await expect(page.locator('#play')).toHaveAttribute('aria-pressed', 'false');
-    const stoi = await page.$eval('#suwak', (s) => s.value);
-    await page.waitForTimeout(700);
-    expect(await page.$eval('#suwak', (s) => s.value)).toBe(stoi);
-    expect(bledy).toEqual([]);
-  });
-
-  test('tryb odchyłki zmienia kolory, nie zmieniając liczb', async ({ page }) => {
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    const stan = () => page.$$eval('#floor .rm-temp', (n) =>
-      n.map((x) => ({ tekst: x.textContent, kolor: x.getAttribute('fill') })));
-    const przed = await stan();
-    await page.click('[data-tryb="odchylka"]');
-    await page.waitForTimeout(400);
-    const po = await stan();
-    expect(po.map((x) => x.tekst)).toEqual(przed.map((x) => x.tekst));
-    expect(po.map((x) => x.kolor)).not.toEqual(przed.map((x) => x.kolor));
-    await expect(page.locator('#maplegend')).toContainText('od średniej pokoju');
-    expect(bledy).toEqual([]);
-  });
-
-  /* Farelka to pół godziny w tygodniu. Skala rzutu nie może się od niej rozjechać,
-     bo wtedy cztery pokoje dostają jeden odcień (27.09: skala 19–27 °C przy pokojach
-     w 19,9–21,0). Impuls dokładamy do prawdziwej serii i patrzymy, o ile ruszył skalę. */
-  test('farelka nie rozciąga skali barw rzutu', async ({ page }) => {
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => {
-      const d = state.devices.find((x) => x.id === 'lazienka'), klucz = `${d.id}|${d.temp}`;
-      const od = Date.now() - 7 * 24 * 3600e3, przed = skalaCieplna(od, Date.now());
-      const zapas = state.indeks[klucz], t0 = Date.now() - 30 * 3600e3;
-      const impuls = Array.from({ length: 15 }, (_, i) => ({ t: t0 + i * 2 * 60e3, v: 21 + 6 * Math.sin(Math.PI * i / 14) }));
-      state.indeks[klucz] = [...zapas, ...impuls].sort((a, b) => a.t - b.t);
-      const po = skalaCieplna(od, Date.now());
-      state.indeks[klucz] = zapas;
-      return { przed, po };
+  for (const p of ['bezPowietrza', 'krotka']) {
+    test(`pogoda „${p}" (powietrze {} po błędzie AQI, prognoza na jedną dobę) nie wywraca dworu ani Domu`, async ({ page }) => {
+      const { bledy } = await otworz(page, { pogoda: p }, { hash: '#zewnatrz' });
+      const t = await tekstStrony(page);
+      expect(t).not.toMatch(/undefined|NaN/);
+      if (p === 'bezPowietrza') expect(t).not.toContain('Powietrze');
+      else expect(await page.locator('.strona:not(.sasiad) .prog-dzien').count()).toBe(1);
+      await page.click('[data-tab="dom"]');
+      expect(await page.locator('#v-dom').innerText()).not.toMatch(/undefined|NaN/);
+      expect(bledy).toEqual([]);
     });
-    expect(w.po.max - w.przed.max, 'impuls rozciągnął skalę').toBeLessThan(0.5);
-    expect(bledy).toEqual([]);
-  });
+  }
 
-  /* Zimą „gdzie najgorzej" to pytanie o zapas do progu pleśni, nie o temperaturę.
-     Kolor ma iść za zapasem, a nie za samą wilgotnością. */
-  test('tryb „wilgotność a pleśń" koloruje zapasem do progu', async ({ page }) => {
-    const bledy = await otworz(page);
-    const przed = await page.$$eval('#floor .rm-temp', (n) => n.map((x) => x.textContent));
-    await page.click('[data-rzut="plesn"]');
-    await page.waitForTimeout(200);
-    const po = await page.$$eval('#floor .rm-temp', (n) => n.map((x) => x.textContent));
-    expect(przed.every((x) => x.endsWith('°'))).toBe(true);
-    expect(po.every((x) => x.endsWith('%')), 'duża liczba to wilgotność').toBe(true);
-    await expect(page.locator('#floor .rm-hum').first()).toContainText('próg');
-    await expect(page.locator('#maplegend')).toContainText('próg pleśni');
-    const w = await page.evaluate(() => ({
-      daleko: barwaPlesni(PLESN_ZAPAS + 5), naProgu: barwaPlesni(0), ponad: barwaPlesni(-8),
-      zielony: RAMPA_PLESN[0][1], czerwony: RAMPA_PLESN.at(-1)[1],
-    }));
-    expect(w.daleko).toEqual(w.zielony);
-    expect(w.naProgu).toEqual(w.czerwony);
-    expect(w.ponad, 'ponad progiem dalej czerwony, nie poza skalą').toEqual(w.czerwony);
-    await page.click('[data-rzut="temp"]');
-    await page.waitForTimeout(200);
-    expect(await page.$$eval('#floor .rm-temp', (n) => n.map((x) => x.textContent))).toEqual(przed);
+  test('bez odczytu sprzed doby: bez strzałki zmiany, bez „–°"', async ({ page }) => {
+    const { bledy } = await otworz(page, { dni: 0.5 }, { hash: '#kuchnia' });
+    expect(await page.evaluate(() => SH.dane.pokoje.every((p) => p.temp_24h_temu == null))).toBe(true);
+    expect(await tekstStrony(page)).not.toContain('od wczoraj');
+    await page.click('[data-tab="dom"]');
+    const dom = await page.locator('#v-dom').innerText();
+    expect(dom).not.toMatch(/–°|24\sh|NaN|undefined/);
+    // 30 dni i 7 dni bez treści też nie wywracają Historii
+    await page.click('[data-tab="historia"]');
+    expect(await page.locator('#v-historia').innerText()).not.toMatch(/NaN|undefined/);
     expect(bledy).toEqual([]);
-  });
-
-  test('rzut podpisuje strony świata', async ({ page }) => {
-    await otworz(page);
-    const strony = await page.$$eval('#floor .rm-strona', (n) => n.map((x) => x.textContent));
-    expect(strony).toEqual(['południe', 'północ']);
   });
 });
 
-test.describe('rytm doby', () => {
-  test('rysuje mapę, przełącza pokoje i trzyma wspólną skalę', async ({ page }) => {
-    const bledy = await otworz(page);
-    await expect(page.locator('#rytm')).toBeVisible();
-    expect(await page.locator('#mapa .cell').count()).toBeGreaterThan(24);
-
-    const skala = () => page.$eval('#rytm-skala', (e) => e.textContent.match(/[\d,]+°/g).slice(0, 2).join('-'));
-    const wspolna = await skala();
-    const pokoje = await page.$$eval('#rytm-wybor [data-rytm]', (n) => n.map((x) => x.textContent));
-    for (const p of pokoje) {
-      await page.click(`#rytm-wybor button:text-is("${p}")`);
-      await page.waitForTimeout(200);
-      expect(await skala(), `skala wspólna ma być ta sama dla ${p}`).toBe(wspolna);
-    }
-    await page.click('[data-rskala="pokoj"]');
-    await page.waitForTimeout(300);
-    expect(await skala()).not.toBe(wspolna);
-    expect(bledy).toEqual([]);
-  });
-
-  test('mapa nie zależy od zakresu wykresów', async ({ page }) => {
-    const bledy = await otworz(page);
-    const naglowek = () => page.textContent('#rytm-info');
-    const przed = await naglowek();
-    for (const z of ['dzis', '0']) {
-      await page.click(`.range[data-hours="${z}"]`);
-      await page.waitForTimeout(600);
-      expect(await naglowek()).toBe(przed);
+test.describe('adresy (D7)', () => {
+  test('każda zakładka ma swój hash, nieznany hash prowadzi na Dom', async ({ page }) => {
+    const { bledy } = await otworz(page, {}, { hash: '#xyz' });
+    await expect(page).toHaveURL(/#dom$/);
+    for (const z of ['rosliny', 'historia', 'powiadomienia', 'dom']) {
+      await page.click(`[data-tab="${z}"]`);
+      await expect(page).toHaveURL(new RegExp(`#${z}$`));
+      await expect(page.locator(`[data-tab="${z}"]`)).toHaveAttribute('aria-current', 'page');
     }
     expect(bledy).toEqual([]);
   });
 
-  test('komórka niesie godzinę i odczyt w podpowiedzi', async ({ page }) => {
-    await otworz(page);
-    const tytul = await page.getAttribute('#mapa .cell[title]', 'title');
-    expect(tytul).toMatch(/\d{2}\.\d{2} \d{2}:00 · [\d,]+ °C/);
+  test('pokój, dwór i roślina po slugu, z licznikiem w nagłówku', async ({ page }) => {
+    const { bledy } = await otworz(page, {}, { hash: '#kuchnia' });
+    await expect(page.locator('.strona:not(.sasiad) h1')).toHaveText('Kuchnia');
+    await expect(page.locator('#licznik')).toHaveText('3/4');
+    await page.goto('/index.html#zewnatrz');
+    await gotowa(page);
+    await expect(page.locator('.strona:not(.sasiad) h1')).toHaveText('Na zewnątrz');
+    await expect(page.locator('#strzalki')).toBeHidden();
+    await page.goto('/index.html#skrzydlokwiat');
+    await gotowa(page);
+    await expect(page.locator('.strona:not(.sasiad) h1')).toHaveText('Skrzydłokwiat');
+    await expect(page.locator('#licznik')).toHaveText('2/3');
+    expect(bledy).toEqual([]);
+  });
+
+  test('stary link #roslina=<nazwa> otwiera roślinę, a „wstecz" wraca do listy', async ({ page }) => {
+    const { bledy } = await otworz(page, {}, { hash: '#roslina=' + encodeURIComponent('Skrzydłokwiat') });
+    await expect(page).toHaveURL(/#skrzydlokwiat$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/#rosliny$/);
+    await expect(page.locator('#v-rosliny')).toBeVisible();
+    await page.goto('/index.html#roslina=Nieznana');
+    await gotowa(page);
+    await expect(page).toHaveURL(/#rosliny$/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('index.html podany pod adresem rosliny.html (zapas service workera) wraca na ./#slug', async ({ page }) => {
+    await page.route('**/rosliny.html', (r) => r.fulfill({ contentType: 'text/html', body: HTML }));
+    const { bledy } = await otworz(page, {}, { sciezka: '/rosliny.html', hash: '#roslina=Fikus' });
+    await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/#fikus$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/\/#rosliny$/);
+    // sam rosliny.html (stara zakładka, bez hasha) to Rośliny
+    await page.goto('/rosliny.html');
+    await gotowa(page);
+    await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/#rosliny$/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('slug rośliny jak _slug w rosliny.py, z dopiskiem -2 przy kolizji z zakładką albo pokojem', async ({ page }) => {
+    const nazwy = ['Skrzydłokwiat', 'Łazienka', 'Żółta Róża 2', 'Fikus  „Mały”', 'ąćęłńóśźż'];
+    const py = JSON.parse(execFileSync('python3', ['-c',
+      'import sys, json; sys.path.insert(0, "."); import rosliny; print(json.dumps([rosliny._slug(x) for x in json.loads(sys.argv[1])]))',
+      JSON.stringify(nazwy)], { cwd: REPO }).toString());
+    const zm = { Fikus: { nazwa: 'Kuchnia' }, 'Skrzydłokwiat': { nazwa: 'Dom' } };
+    const { bledy } = await otworz(page, { zmianyRoslin: zm });
+    expect(await page.evaluate((n) => n.map(SH.slug), nazwy)).toEqual(py);
+    expect(await page.evaluate(() => SH.dane.rosliny.map((r) => r.slug))).toEqual(['kuchnia-2', 'dom-2', 'azalia']);
+    await page.goto('/index.html#kuchnia-2');
+    await gotowa(page);
+    await expect(page.locator('.strona:not(.sasiad) h1')).toHaveText('Kuchnia');
+    await expect(page.locator('#wstecz')).toContainText('Rośliny');
+    expect(bledy).toEqual([]);
+  });
+
+  test('wstecz ze szczegółu wraca na zakładkę i oddaje fokus kaflowi', async ({ page }) => {
+    const { bledy } = await otworz(page);
+    await page.click('[data-idz="kuchnia"]');
+    await expect(page).toHaveURL(/#kuchnia$/);
+    await page.click('#wstecz');
+    await expect(page).toHaveURL(/#dom$/);
+    await expect(page.locator('[data-idz="kuchnia"]')).toBeFocused();
+    // systemowe „wstecz" też
+    await page.click('[data-tab="rosliny"]');
+    await page.click('[data-idz="azalia"]');
+    await page.goBack();
+    await expect(page).toHaveURL(/#rosliny$/);
+    expect(bledy).toEqual([]);
   });
 });
 
-/* Strefa komfortu: jedna liczba na pokój zamiast czytania dwóch wykresów naraz. Liczby
-   sprawdzamy dwojako — na danych podanych wprost (reguła) i na fiksturze przeliczonej
-   w teście niezależnie od kodu strony (czy strona liczy z tego, co trzeba). */
-test.describe('strefa komfortu', () => {
-  test('liczy udział czasu w polu i kierunek ucieczki', async ({ page }) => {
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => ({
-      mieszana: ocenKomfort([{ x: 21, y: 50 }, { x: 21, y: 65 }, { x: 25, y: 66 }, { x: 19, y: 62 }]),
-      w_polu: ocenKomfort([{ x: 20, y: 40 }, { x: 24, y: 60 }]),
-      pusto: ocenKomfort([]),
-    }));
-    expect(w.mieszana.udzial).toBe(0.25);
-    expect(w.mieszana.poza).toEqual({ zimno: 1, cieplo: 1, sucho: 0, wilgotno: 3 });
-    expect(w.mieszana.glownie).toBe('wilgotno');
-    expect(w.w_polu.udzial, 'krawędzie pola należą do pola').toBe(1);
-    expect(w.w_polu.glownie).toBeNull();
-    expect(w.pusto).toBeNull();
-    expect(bledy).toEqual([]);
-  });
+test.describe('przesuwanie palcem', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
 
-  test('punkt to godzina, a procent zgadza się z niezależnym przeliczeniem', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const w = await page.evaluate(() => {
-      const d = state.devices.find((x) => x.id === 'salon'), od = odKiedy(168), kub = new Map();
-      for (const r of state.rows) {
-        if (r.id !== 'salon' || r.t < od || !isFinite(r.v)) continue;
-        const k = Math.floor(r.t / 3600e3), b = kub.get(k) || { t: [], h: [] };
-        (r.code === d.temp ? b.t : r.code === d.hum ? b.h : []).push(r.v); kub.set(k, b);
-      }
-      const sr = (a) => a.reduce((x, y) => x + y, 0) / a.length;
-      const pkt = [...kub.values()].filter((b) => b.t.length && b.h.length).map((b) => [sr(b.t), sr(b.h)]);
-      const wPolu = pkt.filter(([t, h]) => t >= 20 && t <= 24 && h >= 40 && h <= 60).length;
-      const strona = state.komfort.find((x) => x.d.id === 'salon');
-      return { n: pkt.length, oczekiwany: Math.round(100 * wPolu / pkt.length), stronaN: strona.pkt.length,
-        napis: document.querySelector('#komfort-lista [data-pokoj="salon"] em').textContent };
-    });
-    expect(w.n, 'fikstura bez danych, test nic nie sprawdza').toBeGreaterThan(100);
-    expect(w.stronaN).toBe(w.n);
-    expect(w.napis).toBe(`${w.oczekiwany}%`);
-    await expect(page.locator('#komfort-lista .kp')).toHaveCount(4);
-    expect(bledy).toEqual([]);
-  });
-
-  test('wykres ma pole komfortu i po zbiorze na pokój; ukryty pokój znika', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const w = await page.evaluate(() => ({
-      zbiory: state.wykresKomfortu.data.datasets.map((d) => d.label),
-      pole: state.wykresKomfortu.config.plugins.some((p) => p.id === 'strefa'),
-      osX: state.wykresKomfortu.options.scales.x.type,
-    }));
-    expect(w.zbiory).toHaveLength(4);
-    expect(w.pole).toBe(true);
-    expect(w.osX).toBe('linear');
-    await page.locator('#toggles .toggle', { hasText: 'Kuchnia' }).click();
+  test('między pokojami: w lewo następny, w prawo poprzedni, na końcu opór', async ({ page }) => {
+    const { bledy } = await otworz(page, {}, { hash: '#kuchnia' });
+    await page.waitForTimeout(600);
+    await przesun(page, 320, 200, 60, 205);
+    await expect(page).toHaveURL(/#lazienka$/);
+    await expect(page.locator('#licznik')).toHaveText('4/4');
+    await page.waitForTimeout(400);
+    await przesun(page, 320, 200, 60, 205);   // ostatni pokój: opór i powrót
     await page.waitForTimeout(500);
-    await expect(page.locator('#komfort-lista .kp')).toHaveCount(3);
+    await expect(page).toHaveURL(/#lazienka$/);
+    await przesun(page, 60, 200, 320, 205);
+    await expect(page).toHaveURL(/#kuchnia$/);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
     expect(bledy).toEqual([]);
   });
 
-  test('w widoku „całość" punkt to doba', async ({ page }) => {
-    const bledy = await otworz(page);
-    await page.click('.range[data-hours="0"]');
+  test('między roślinami, a pion przewija stronę zamiast przełączać', async ({ page }) => {
+    const { bledy } = await otworz(page, {}, { hash: '#fikus' });
     await page.waitForTimeout(600);
-    const w = await page.evaluate(() => {
-      const s = state.komfort.find((x) => x.d.id === 'salon');
-      const doby = new Set(state.daily.filter((r) => r.id === 'salon').map((r) => r.date));
-      return { pkt: s.pkt.length, doby: doby.size };
-    });
-    expect(w.pkt).toBe(w.doby);
+    await przesun(page, 200, 500, 204, 250);
+    await page.waitForTimeout(300);
+    await expect(page).toHaveURL(/#fikus$/);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await przesun(page, 320, 150, 60, 152);
+    await expect(page).toHaveURL(/#skrzydlokwiat$/);
+    await expect(page.locator('#licznik')).toHaveText('2/3');
     expect(bledy).toEqual([]);
   });
 });
 
-/* Kalendarz całej historii: kratka na dobę, wiersz to dzień tygodnia. Sprawdzamy
-   układ na datach, których dzień tygodnia znamy z kalendarza, a kolory — tym, że
-   wilgotność jest odwrócona (mokro = niebiesko), jak obiecuje podpis. */
-test.describe('kalendarz całej historii', () => {
-  test('kratka na każdą dobę z agregatów, w wierszu swojego dnia tygodnia', async ({ page }) => {
-    const bledy = await otworz(page);
-    await page.click('[data-kal="dom"]');
-    const w = await page.evaluate(() => {
-      const doby = new Set(state.daily.filter((r) => !state.devices.find((d) => d.id === r.id)?.ext).map((r) => r.date));
-      const kratki = [...document.querySelectorAll('#kal .k')].map((k) => ({ data: k.dataset.data, wiersz: +k.style.gridRow.split('/')[0] }));
-      return { doby: [...doby].sort(), kratki };
-    });
-    expect(w.kratki.map((k) => k.data).sort()).toEqual(w.doby);
-    for (const k of w.kratki) {
-      const [r, m, d] = k.data.split('-').map(Number);
-      expect(k.wiersz, k.data).toBe(((new Date(r, m - 1, d).getDay() + 6) % 7) + 2);
+test.describe('30 dni i 7 dni', () => {
+  test('30 kolejnych dat warszawskich kończących się dziś, doby bez danych jako null', async ({ page }) => {
+    const { bledy } = await otworz(page);
+    const d = await page.evaluate(() => SH.dane.dobowe_30_dni.salon);
+    const dzis = dataWaw(Date.now());
+    expect(d.dni).toHaveLength(30);
+    expect(d.dni[29]).toBe(dzis);
+    for (let i = 1; i < 30; i++) {
+      const a = Date.parse(d.dni[i - 1] + 'T12:00:00Z'), b = Date.parse(d.dni[i] + 'T12:00:00Z');
+      expect(b - a, `${d.dni[i - 1]} → ${d.dni[i]}`).toBe(DOBA);
     }
+    // fikstura ma 9 dób: starsze daty są puste, a nie przesunięte
+    expect(d.temp.slice(0, 20).every((x) => x === null)).toBe(true);
+    expect(d.temp[29]).not.toBeNull();
+    // przez zmianę czasu 25.10 (doba 25-godzinna) daty dalej idą po kolei
+    const przezZmiane = await page.evaluate(() => SH.zbudujDane(SH.surowe, Date.parse('2026-10-26T10:00:00Z')).dobowe_30_dni.salon.dni);
+    expect(przezZmiane.slice(-3)).toEqual(['2026-10-24', '2026-10-25', '2026-10-26']);
+    expect(new Set(przezZmiane).size).toBe(30);
+    await page.click('[data-tab="historia"]');
+    await expect(page.locator('.m30-xos .dzis')).toHaveText('dziś');
     expect(bledy).toEqual([]);
   });
 
-  /* „Wszystkie": blok na pokój i na dwór w jednej siatce. Sedno w tym, że ta sama doba
-     stoi w każdym bloku w tej samej kolumnie — inaczej porównanie wzrokiem kłamie. */
-  test('widok „Wszystkie" układa bloki jeden pod drugim w tych samych kolumnach', async ({ page }) => {
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => {
-      const kr = [...document.querySelectorAll('#kal .k')].map((k) => ({
-        blok: k.dataset.blok, data: k.dataset.data, kol: k.style.gridColumn.split('/')[0].trim(), wiersz: +k.style.gridRow.split('/')[0] }));
-      const bloki = [...new Set(kr.map((k) => k.blok))];
-      const kolumny = {};
-      for (const k of kr) (kolumny[k.data] ??= new Set()).add(k.kol);
-      return { bloki, nazwy: [...document.querySelectorAll('#kal .n')].map((n) => n.textContent),
-        rozjechane: Object.entries(kolumny).filter(([, s]) => s.size > 1).map(([d]) => d), kr };
-    });
-    expect(w.bloki).toEqual(['salon', 'sypialnia', 'kuchnia', 'lazienka', 'zewn']);
-    expect(w.nazwy).toEqual(['Salon', 'Sypialnia', 'Kuchnia', 'Łazienka', 'Na zewnątrz']);
-    expect(w.rozjechane, 'ta sama doba w różnych kolumnach').toEqual([]);
-    // wiersz = początek bloku + dzień tygodnia; bloki nie nachodzą na siebie
-    const wiersze = {};
-    for (const k of w.kr) (wiersze[k.blok] ??= []).push(k.wiersz);
-    const zakresy = w.bloki.map((b) => [Math.min(...wiersze[b]), Math.max(...wiersze[b])]);
-    for (let i = 1; i < zakresy.length; i++) expect(zakresy[i][0]).toBeGreaterThan(zakresy[i - 1][1]);
-    await expect(page.locator('#kal-skala')).toContainText('pokoje');
-    await expect(page.locator('#kal-skala')).toContainText('na zewnątrz');
-    expect(bledy).toEqual([]);
-  });
-
-  test('przełącza pokój i wielkość; wilgotność ma odwróconą skalę', async ({ page }) => {
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => {
-      const t = dobyKalendarza('dom', 'temp'), h = dobyKalendarza('dom', 'hum');
-      const z = dobyKalendarza('zewn', 'temp'), s = dobyKalendarza('salon', 'temp');
-      return { t: t.length, h: h.length, z: z.length, s: s.length, sJeden: s[0]?.jeden, domJeden: t[0]?.jeden };
-    });
-    expect(w.t).toBeGreaterThan(2);
-    expect(w.h).toBe(w.t);
-    expect(w.z).toBeGreaterThan(0);
-    expect(w.sJeden).toBe(true);
-    expect(w.domJeden).toBe(false);
-    await page.click('[data-kal="dom"]');
-    await page.click('[data-kmiara="hum"]');
-    // w fiksturze wilgotność pokoju jest stała, więc różne doby podstawiamy wprost
-    const kolory = await page.evaluate(() => {
-      const daty = [...new Set(state.daily.map((r) => r.date))].sort();
-      state.daily.forEach((r) => { if (state.devices.find((d) => d.id === r.id)?.hum === r.code) r.avg = 40 + 5 * daty.indexOf(r.date); });
-      renderKalendarz();
-      const kr = [...document.querySelectorAll('#kal .k')];
-      const dane = dobyKalendarza('dom', 'hum');
-      const naj = dane.reduce((a, b) => (b.v > a.v ? b : a)), najm = dane.reduce((a, b) => (b.v < a.v ? b : a));
-      const rgb = (d) => kr.find((k) => k.dataset.data === d.date).style.background.match(/\d+/g).slice(0, 3).map(Number);
-      const odNiebieskiego = (c) => Math.hypot(...c.map((v, i) => v - RAMPA[0][1][i]));
-      return { mokro: odNiebieskiego(rgb(naj)), sucho: odNiebieskiego(rgb(najm)), rozne: naj.v !== najm.v };
-    });
-    expect(kolory.rozne, 'fikstura bez różnic wilgotności, test nic nie sprawdza').toBe(true);
-    expect(kolory.mokro, 'mokrzej ma być bliżej niebieskiego').toBeLessThan(kolory.sucho);
-    await page.click('[data-kal="zewn"]');
-    await expect(page.locator('#kal-info')).toContainText('na zewnątrz');
+  test('„7 dni": min i maks. z dób, średnia ważona liczbą odczytów', async ({ page }) => {
+    const { bledy, pliki } = await otworz(page);
+    const z = await page.evaluate(() => SH.dane.zakresy_7_dni.kuchnia);
+    const dni = await page.evaluate(() => SH.dane.dobowe_30_dni.kuchnia.dni.slice(-7));
+    const w = pliki['data/dzienne.csv'].trim().split('\n').slice(1).map((r) => r.split(','))
+      .filter((r) => r[1] === 'kuchnia' && r[2] === 'va_temperature' && dni.indexOf(r[0]) >= 0);
+    const n = w.reduce((a, r) => a + +r[6], 0);
+    expect(z.t).toEqual([Math.min(...w.map((r) => +r[3])), Math.max(...w.map((r) => +r[5]))]);
+    expect(z.t_sr).toBeCloseTo(w.reduce((a, r) => a + r[4] * r[6], 0) / n, 6);
     expect(bledy).toEqual([]);
   });
 });
 
-/* Noce w sypialni: 23:00–7:00 czasu lokalnego, średnia z godzinowych średnich. Serię
-   podajemy wprost: noc chłodna, dzień ciepły — średnia nocy nie może złapać ani jednej
-   godziny dnia, a noc, która jeszcze trwa, nie może wejść na listę. */
-test.describe('noce w sypialni', () => {
-  test('noc to 23:00–7:00 i liczy się tylko ona', async ({ page }) => {
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => {
-      const d = sypialnia(), klucz = `${d.id}|${d.temp}`, zapas = state.indeks[klucz];
-      const seria = [], teraz = Date.now();
-      for (let t = teraz - 5 * 86400e3; t <= teraz; t += 20 * 60e3) {
-        const g = new Date(t).getHours();
-        seria.push({ t, v: g >= 23 || g < 7 ? 18 : 25 });
-      }
-      state.indeks[klucz] = seria;
-      const noce = nocePokoju(d);
-      state.indeks[klucz] = zapas;
-      return { noce, teraz };
-    });
-    expect(w.noce.length).toBeGreaterThanOrEqual(3);
-    for (const n of w.noce) {
-      expect(n.sr).toBe(18);
-      expect(n.max, 'do nocy wpadła godzina dnia').toBe(18);
-      expect(n.koniec).toBeLessThanOrEqual(w.teraz);
-      expect(new Date(n.start).getHours()).toBe(23);
-      expect(new Date(n.koniec).getHours()).toBe(7);
+test.describe('na Domu, pokojach i Historii nie ma wartości z doniczek (D15)', () => {
+  // strażnik: dawna strona mieszkania też ich nie miała — pilnuje, żeby nowa aplikacja tego nie zmieniła
+  test('ani nazw roślin, ani gleby, ani światła (strażnik)', async ({ page }) => {
+    const { bledy } = await otworz(page, { zmianyRoslin: { Azalia: { werdykt: 'podlej' } } });
+    const zakazane = /Fikus|Skrzydłokwiat|Azalia|[Gg]leb|doniczk|lx/;
+    expect(await page.locator('#v-dom').innerText()).not.toMatch(zakazane);
+    for (const h of ['#salon', '#kuchnia']) {
+      await page.goto('/index.html' + h);
+      await gotowa(page);
+      expect(await tekstStrony(page), h).not.toMatch(zakazane);
     }
-    expect(bledy).toEqual([]);
-  });
-
-  test('sekcja pokazuje noce z fikstury i porównuje ostatnią z zaleceniem', async ({ page }) => {
-    const bledy = await otworz(page);
-    await expect(page.locator('#noce')).toBeVisible();
-    await expect(page.locator('#noce-podsumowanie')).toContainText('Ostatnia noc');
-    // pokoje w fiksturze stoją na ok. 25 °C, czyli wyraźnie powyżej 16–19
-    await expect(page.locator('#noce-podsumowanie')).toContainText('cieplej niż strefa optymalna do snu');
-    const w = await page.evaluate(() => state.noce.map((n) => [n.min, n.sr, n.max]));
-    expect(w.length).toBeGreaterThanOrEqual(3);
-    for (const [min, sr, max] of w) { expect(sr).toBeGreaterThanOrEqual(min); expect(sr).toBeLessThanOrEqual(max); }
-    await expect(page.locator('#noce-lista .tor')).toHaveCount(w.length);
-    expect(bledy).toEqual([]);
-  });
-
-  test('obie sekcje żyją bez biblioteki wykresów', async ({ page }) => {
-    const bledy = await otworz(page, {}, { cdnDziala: false });
-    await expect(page.locator('#komfort-lista .kp')).toHaveCount(4);
-    await expect(page.locator('#noce-lista .tor').first()).toBeVisible();
+    await page.click('[data-tab="historia"]');
+    expect(await page.locator('#v-historia').innerText()).not.toMatch(zakazane);
+    // wolno: kropka na zakładce Rośliny (azalia do podlania)
+    await expect(page.locator('[data-tab="rosliny"] .z-kropka')).toHaveCount(1);
     expect(bledy).toEqual([]);
   });
 });
 
-/* Znane artefakty (artefakty.json): farelka tuż pod czujnikiem, przenoszenie. Znikają
-   z tego, co opisuje pokój, razem z chwilowymi skokami — ale nie z diagnostyki łączności,
-   bo czujnik w tym czasie raportował jak należy. */
-test.describe('znane artefakty', () => {
-  const ARTEFAKT = { artefakty: [{ czujnik: 'lazienka', odGodz: 30, doGodz: 27 }] };
-  const wOknie = (page) => page.evaluate(() => {
-    const od = Date.now() - 30 * 3600e3, doK = Date.now() - 27 * 3600e3;
-    const s = series('temp', 168, false).find((x) => x.device.id === 'lazienka');
-    return s.points.filter((p) => p.x >= od && p.x <= doK).length;
-  });
-
-  test('znika z wykresów i statystyk, a po odznaczeniu przełącznika wraca', async ({ page }) => {
-    const bledy = await otworzTydzien(page, ARTEFAKT);
-    expect(await wOknie(page), 'artefakt dalej na wykresie').toBe(0);
-    await expect(page.locator('#cut-temp')).toContainText('znany artefakt');
-    const wIndeksie = await page.evaluate(() => (state.indeks['lazienka|va_temperature'] || [])
-      .filter((r) => r.t >= Date.now() - 30 * 3600e3 && r.t <= Date.now() - 27 * 3600e3).length);
-    expect(wIndeksie, 'artefakt w rytmie doby, komforcie i nocach').toBe(0);
-    await page.uncheck('#filtr');
-    await page.waitForTimeout(500);
-    expect(await wOknie(page), 'po odznaczeniu artefakt ma być widoczny').toBeGreaterThan(0);
-    await expect(page.locator('#cut-temp')).not.toContainText('artefakt');
+test.describe('reguły domu z data/dom/stan.json (D1)', () => {
+  test('„przewietrz": podsumowanie Domu, kafel i strona pokoju mówią to, co kolektor', async ({ page }) => {
+    const od = iso(Date.now() - 3 * GODZ - 5 * 60e3);
+    const { bledy } = await otworz(page, { dom: { kuchnia: { przewietrz: { od, wilg: 71, granica: 63.2 } } } });
+    await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Przewietrz kuchnię/);
+    await expect(page.locator('#v-dom .podsum-l')).toContainText('za wilgotno od 63%');
+    await expect(page.locator('[data-idz="kuchnia"].pokoj .pokoj-uw')).toContainText('od 3');
+    await page.click('#v-dom .podsum');
+    await expect(page).toHaveURL(/#kuchnia$/);
+    const s = page.locator('.strona:not(.sasiad) .status').first();
+    await expect(s).toContainText('Przewietrz kuchnię');
+    await expect(s).toContainText('za wilgotno od 63%');
+    await expect(s).toContainText('Na przestrzał');
+    // pokój do przewietrzenia otwiera się na wilgotności
+    await expect(page.locator('.strona:not(.sasiad) [data-seg="wyk.miara"][data-w="wilg"]')).toHaveAttribute('aria-pressed', 'true');
     expect(bledy).toEqual([]);
   });
 
-  // Strażnik: stara wersja niczego nie chowała, więc przechodzi w obie strony. Pilnuje,
-  // żeby ukrywanie nie przeciekło do diagnostyki łączności (rowsAll zamiast rows).
-  test('nie robi z czujnika milczącego w diagnostyce łączności (strażnik)', async ({ page }) => {
-    const bledy = await otworz(page, ARTEFAKT);
-    const w = await page.evaluate(() => state.health.find((r) => r.d.id === 'lazienka'));
-    expect(w.suspicious, 'ukryte odczyty wyglądają jak zgubione raporty').toBe(false);
-    await expect(page.locator('#events')).not.toContainText('Łazienka — cisza');
+  test('granica przy „przewietrz" jak w powiadomieniu: 62% przy granicy 61,6 → „61,6%", nigdy „62% … granica 62%"', async ({ page }) => {
+    // dom._linia_przewietrz: granica zaokrąglona do wilgotności dostaje miejsce po przecinku. Kontrola na końcu:
+    // 62% przy 61,4 to dwie różne liczby po zaokrągleniu (62 i 61), więc bez przecinka.
+    const od = iso(Date.now() - 2 * GODZ);
+    const { bledy } = await otworz(page, { wilgotnosc: { lazienka: 62 }, dom: { lazienka: { przewietrz: { od, wilg: 62, granica: 61.6 } } } });
+    const sprzeczne = /(granica|za wilgotno od)\s62%/;
+    await expect(page.locator('#v-dom .podsum-l')).toContainText(/62% od 2\sgodz\. · za wilgotno od 61,6%/);
+    expect(await page.locator('#v-dom').innerText()).not.toMatch(sprzeczne);
+    await page.goto('/index.html#lazienka');
+    await gotowa(page);
+    const s = page.locator('.strona:not(.sasiad)');
+    await expect(s.locator('.status').first()).toContainText(/Wilgotność 62% od 2\sgodz\., za wilgotno od 61,6%\./);
+    await expect(s.locator('.wart-op')).toContainText('za wilgotno — 62%, granica 61,6%');
+    await expect(s.locator('.tor-et .gr')).toHaveText('61,6%');
+    // legenda wykresu doby (pokój do przewietrzenia otwiera się na wilgotności)
+    await expect(s.locator('.wyk-karta .leg')).toContainText('za wilgotno od 61,6%');
+    expect(await tekstStrony(page)).not.toMatch(sprzeczne);
+    await podmien(page, { wilgotnosc: { lazienka: 62 }, dom: { lazienka: { przewietrz: { od, wilg: 62, granica: 61.4 } } } }, '#dom');
+    await expect(page.locator('#v-dom .podsum-l')).toContainText(/62% od 2\sgodz\. · za wilgotno od 61%$/);
+    await page.goto('/index.html#lazienka');
+    await gotowa(page);
+    await expect(page.locator('.strona:not(.sasiad) .status').first()).toContainText(/za wilgotno od 61%\./);
+    await expect(page.locator('.strona:not(.sasiad) .wart-op')).toContainText('granica 61%');
     expect(bledy).toEqual([]);
   });
 
-  /* Luka po ukrytym artefakcie nie może wyglądać jak zgubione dane: na wykresie mostek
-     kropkami, w rytmie doby odtworzona kratka zamiast czarnej. Artefakt w fiksturze
-     trwa trzy godziny — dłużej niż spanGaps i MISS_GAP — więc bez tego zostaje dziura. */
-  test('luka po artefakcie jest mostkowana, a nie wygląda jak zgubione dane', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { artefakty: [{ czujnik: 'lazienka', odGodz: 30, doGodz: 26 }] });
-    const w = await page.evaluate(() => {
-      const zb = state.charts.temp.data.datasets.find((d) => d.label === 'Łazienka').data;
-      const mosty = zb.filter((p) => p.most);
-      const naj = Math.max(...zb.slice(1).map((p, i) => p.x - zb[i].x));
-      const od = Date.now() - 30 * 3600e3, doK = Date.now() - 26 * 3600e3;
-      const siatka = siatkaDoby(state.devices.find((d) => d.id === 'lazienka'));
-      const kratki = [...siatka.kubelki.values()].filter((b) => b.artefakt).length;
-      return { mosty: mosty.length, najwiekszaPrzerwa: naj, kratki, wOknie: mosty.every((p) => p.x > od - MISS_GAP && p.x < doK + MISS_GAP) };
+  test('połówki i granica „przewietrz" tak samo jak w treściach dom.py (strażnik)', async ({ page }) => {
+    // karta i powiadomienie liczą z tych samych liczb ze stan.json; reguła zaokrąglania i przecinka musi być wspólna
+    const liczby = [62.5, 61.5, 60.5, 0.5, 63.45, 64.55];
+    const pary = [[62, 61.6], [62, 61.4], [63, 62.5], [64, 63.5], [70, 63.2], [61, 60.5]];
+    const py = JSON.parse(execFileSync('python3', ['-c', [
+      'import sys, json; sys.path.insert(0, "."); import dom',
+      'l, p = json.loads(sys.argv[1]), json.loads(sys.argv[2])',
+      'g = [dom._linia_przewietrz({"nazwa": "X"}, {"od": "2026-10-11T10:00:00Z", "wilg": w, "granica": gr}, 1760180400000).split("powyżej ")[1].rstrip("%.") for w, gr in p]',
+      'print(json.dumps([[dom._pl(x, 0) for x in l], g]))'].join('\n'), JSON.stringify(liczby), JSON.stringify(pary)], { cwd: REPO }).toString());
+    const { bledy } = await otworz(page);
+    const js = await page.evaluate(([l, p]) => [l.map((x) => SH.liczba(x, 0)), p.map(([w, gr]) => SH.tekstGranicy(gr, [w]))], [liczby, pary]);
+    expect(js).toEqual(py);
+    expect(bledy).toEqual([]);
+  });
+
+  test('skrót w nazwie pokoju zostaje wielkimi literami: „Przewietrz WC", jak w powiadomieniu (dom._mala)', async ({ page }) => {
+    // pokój spoza pokoje.json: odmiany z nazwy czujnika, małą literą tylko wtedy, gdy druga litera jest mała
+    const { bledy } = await otworz(page, { nazwy: { lazienka: 'WC' }, pokojeJson: ['salon', 'sypialnia', 'kuchnia'],
+      dom: { lazienka: { przewietrz: { od: iso(Date.now() - 3 * GODZ), wilg: 72, granica: 63.2 } } } });
+    await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Przewietrz WC$/);
+    await page.goto('/index.html#wc');
+    await gotowa(page);
+    await expect(page.locator('.strona:not(.sasiad) .status').first()).toContainText('Przewietrz WC');
+    expect(bledy).toEqual([]);
+  });
+
+  test('strona nie liczy reguł drugi raz: wilgotno od tygodnia, ale kolektor mówi „nic" → nic', async ({ page }) => {
+    // prototyp liczył „przewietrz" z serii w przeglądarce i przy 88% od tygodnia by go pokazał
+    const { bledy } = await otworz(page, { wilgotnosc: { kuchnia: 88 } });
+    await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Wszystko w normie/);
+    await page.goto('/index.html#kuchnia');
+    await gotowa(page);
+    expect(await page.locator('.strona:not(.sasiad) .status').count()).toBe(0);
+    // ekran i tak pokazuje wilgotność ponad granicą — to wyświetlanie, nie reguła
+    await expect(page.locator('.strona:not(.sasiad) .wart-op')).toContainText('za wilgotno —');
+    expect(bledy).toEqual([]);
+  });
+
+  test('„zamknij okno?" ma pierwszeństwo przed „przewietrz"', async ({ page }) => {
+    const od = Date.now() - 2 * GODZ;
+    const { bledy } = await otworz(page, { dom: {
+      sypialnia: { okno: { od: iso(od), przed: 21.2, teraz: 18.4, spadek: 2.8 } },
+      kuchnia: { przewietrz: { od: iso(Date.now() - 4 * GODZ), wilg: 71, granica: 63 } },
+    } });
+    await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Zamknij okno w sypialni\?/);
+    await expect(page.locator('#v-dom .podsum-l')).toContainText('spadło 2,8°');
+    await page.goto('/index.html#sypialnia');
+    await gotowa(page);
+    await expect(page.locator('.strona:not(.sasiad) .status.info')).toContainText('Okno otwarte?');
+    expect(bledy).toEqual([]);
+  });
+
+  test('linia nocna tylko dla bieżącej albo nadchodzącej nocy', async ({ page }) => {
+    const teraz = Date.now(), h = godzinaWaw(teraz);
+    const noc = h >= 22 || h < 7 ? dataWaw(teraz - 12 * GODZ) : dataWaw(teraz);
+    const wpis = { noc, t_min: 4, granica: 60.4, zwykle: 60.9, ostrz: true };
+    const { bledy } = await otworz(page, { dom: { lazienka: { noc: wpis }, kuchnia: { noc: { ...wpis, noc: dataWaw(teraz - 3 * DOBA) } } } }, { hash: '#lazienka' });
+    const linia = page.locator('.strona:not(.sasiad) [data-noc]');
+    await expect(linia).toContainText(h < 7 ? 'Tej nocy' : 'Dziś w');
+    await expect(linia).toContainText('za wilgotno od ok.');
+    await expect(linia).toHaveClass(/warn-t/);
+    await page.goto('/index.html#kuchnia');
+    await gotowa(page);
+    expect(await page.locator('.strona:not(.sasiad) [data-noc]').count()).toBe(0);
+    expect(bledy).toEqual([]);
+  });
+
+  for (const [opis, opcje] of [['brak pliku', { dom: null }], ['zepsuty JSON', { dom: 'zly' }],
+    ['plik starszy od zbiórki o 5 godz.', { dom: { kuchnia: { przewietrz: { od: iso(Date.now() - 9 * GODZ), wilg: 71, granica: 63 } } }, domUpdated: iso(Date.now() - 5 * GODZ) }]]) {
+    test(`${opis}: brak reguł, bez błędu`, async ({ page }) => {
+      const { bledy } = await otworz(page, opcje);
+      await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Wszystko w normie/);
+      expect(bledy).toEqual([]);
     });
-    expect(w.mosty, 'brak mostka przez artefakt').toBeGreaterThan(0);
-    expect(w.wOknie).toBe(true);
-    expect(w.najwiekszaPrzerwa, 'linia dalej się urywa').toBeLessThanOrEqual(3 * 3600e3);
-    expect(w.kratki, 'rytm doby ma czarne kratki w miejscu artefaktu').toBeGreaterThan(0);
+  }
+});
+
+test.describe('czujnik milczy i spóźniona zbiórka (D5)', () => {
+  test('spóźniony kolektor: czujniki nie „milczą", a Dom mówi jedną linią o zbiórce', async ({ page }) => {
+    const { bledy } = await otworz(page, { opoznienieZbiorki: 5 });
+    await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Wszystko w normie/);
+    await expect(page.locator('#v-dom [data-spoznienie]')).toContainText('Ostatnia zbiórka 5');
+    expect(await page.locator('.pokoj.stary').count()).toBe(0);
+    await page.click('[data-tab="historia"]');
+    await expect(page.locator('[data-nadaja]')).toHaveText('4 z 4 nadają');
     expect(bledy).toEqual([]);
   });
 
-  test('mostki powstają tylko przy rysowaniu, nie w statystykach', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { artefakty: [{ czujnik: 'lazienka', odGodz: 30, doGodz: 26 }] });
-    const w = await page.evaluate(() => series('temp', 168, false).find((x) => x.device.id === 'lazienka').points.some((p) => p.most));
-    expect(w).toBe(false);
+  test('martwy czujnik przy świeżej zbiórce: „Czujnik w kuchni milczy" i 3 z 4', async ({ page }) => {
+    const { bledy } = await otworz(page, { martwy: 'kuchnia' });
+    await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Czujnik w kuchni milczy/);
+    await expect(page.locator('[data-idz="kuchnia"].pokoj')).toHaveClass(/stary/);
+    await expect(page.locator('[data-idz="kuchnia"].pokoj .pokoj-stary')).toContainText('brak odczytu od');
+    expect(await page.locator('#v-dom [data-spoznienie]').count()).toBe(0);
+    await page.click('[data-tab="historia"]');
+    await expect(page.locator('[data-nadaja]')).toHaveText('3 z 4 nadają');
     expect(bledy).toEqual([]);
   });
 
-  test('zły wpis jest pomijany, a strona żyje dalej', async ({ page }) => {
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => wczytajArtefakty([
-      { czujnik: 'x', od: 'nie-data', do: '2026-09-27T10:00:00Z' },
-      { czujnik: 'x', od: '2026-09-27T11:00:00Z', do: '2026-09-27T10:00:00Z' },
-      { od: '2026-09-27T09:00:00Z', do: '2026-09-27T10:00:00Z' },
-      { czujnik: 'x', od: '2026-09-27T09:00:00Z', do: '2026-09-27T10:00:00Z', powod: 'ok' },
-    ]));
-    expect(w).toHaveLength(1);
+  test('słaba bateria w opisie baterii', async ({ page }) => {
+    const { bledy } = await otworz(page, { bateria: { pokoj: 'kuchnia', stan: 'low' } }, { hash: '#historia' });
+    await expect(page.locator('#v-historia')).toContainText('Kuchnia słaba, reszta średnie');
     expect(bledy).toEqual([]);
   });
 });
 
-test.describe('podpowiedzi i diagnostyka', () => {
-  test('kafel milczy przy spokojnym pokoju', async ({ page }) => {
-    await otworz(page);
-    await expect(page.locator('#pens')).not.toContainText('°/godz.');
-  });
-
-  test('kafel ostrzega, gdy pokój wyraźnie się nagrzewa', async ({ page }) => {
-    const bledy = await otworz(page, { trend: { pokoj: 'salon', tempo: 0.5 } });
-    await expect(page.locator('#pens')).toContainText(/↗/);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Farelka, prysznic, otwarte okno: ruch szybszy, niż pokój potrafi sam z siebie.
-     Przedłużony linią prostą obiecywał „28° za godzinę" w łazience, która za godzinę
-     wracała do 21 °C. Seria podana wprost, bez fikstury i bez zegara. */
-  test('impuls nie jest przedłużany w prognozę, powolny trend dalej jest', async ({ page }) => {
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => {
-      const d = state.devices.find((x) => x.id === 'lazienka'), klucz = `${d.id}|${d.temp}`;
-      const teraz = Date.now(), seria = (tempo, koniec) => Array.from({ length: 9 }, (_, i) =>
-        ({ t: teraz - (8 - i) * 30 * 60e3, v: +(koniec - tempo * (8 - i) / 2).toFixed(2) }));
-      const zapas = state.indeks[klucz];
-      state.indeks[klucz] = seria(3, 25);
-      const impuls = dokadZmierza(d);
-      state.indeks[klucz] = seria(0.5, 27);
-      const powolny = dokadZmierza(d);
-      state.indeks[klucz] = zapas;
-      return { impuls, powolny };
-    });
-    expect(w.impuls, 'impuls przedłużony w prognozę').toBe('');
-    expect(w.powolny).toContain('28°');
-    expect(bledy).toEqual([]);
-  });
-
-  test('farelka nie jest ucinana jak chwilowy skok', async ({ page }) => {
-    // prawdziwe odczyty łazienki z 27.09.2026, minuty od 7:15
-    const bledy = await otworz(page);
-    const ciete = await page.evaluate(() => {
-      const min = [0, 39, 41, 43, 45, 47, 49.2, 51.8, 55.2, 60, 64.3, 69, 73.8, 75.8, 77.8,
-        80.4, 84.1, 89.7, 98.2, 113.1, 129.1, 148.1, 185.6, 245.3];
-      const v = [20.0, 20.5, 21.7, 22.7, 23.4, 23.9, 24.4, 24.9, 25.4, 25.9, 26.4, 26.9, 26.4,
-        25.7, 25.2, 24.7, 24.2, 23.7, 23.2, 22.7, 22.2, 21.7, 21.2, 20.9];
-      return despike(min.map((m, i) => ({ x: m * 60e3, y: v[i] })), 'temp').cut;
-    });
-    expect(ciete).toBe(0);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Werdykt „czy wietrzyć teraz" ma dwie osie: temperaturę i wilgotność. Do 19.08.2026
-     miał jedną i przez to potrafił powiedzieć „wietrzenie bez wpływu" w wieczór, w który
-     otwarte okno ścinało mieszkaniu 2 °C — a także „dobry moment na wietrzenie" w upalne
-     popołudnie, gdy powietrze z dworu było wprawdzie suchsze, ale o pięć stopni cieplejsze.
-     Tabelka niżej przejeżdża wszystkie osiem kombinacji; dwa wiersze oznaczone jako
-     `dawniej` to dokładnie te dwa przypadki, w których stara wersja odpowiadała inaczej.
-     Trzy ostatnie to sezon grzewczy: przy chłodnym mieszkaniu okno już nie „schładza",
-     tylko wychładza, i rada ma mówić, jak wietrzyć, żeby płacić za to jak najmniej. */
-  const werdykt = (page, dwor, dom, dW) => page.evaluate(
-    ([t, d, roznica]) => {
-      const out = absHum(t, 60);
-      return airingTip({ temperature_2m: t, relative_humidity_2m: 60 }, out - roznica, d).title;
-    }, [dwor, dom, dW]);
-
-  test('werdykt o wietrzeniu waży temperaturę razem z wilgotnością', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const przypadki = [
-      // dwór °C, mieszkanie °C, dwór − mieszkanie w g/m³, oczekiwany nagłówek
-      [21, 25, -1.5, 'Najlepszy moment na wietrzenie'],
-      [21, 25, +1.5, 'Schłodzi, ale dołoży wilgoci'],
-      [21, 25, 0, 'Otwarte okno schłodzi mieszkanie'],      // dawniej: „bez wpływu na wilgotność"
-      [30, 25, -1.5, 'Osuszy, ale dogrzeje'],               // dawniej: „Dobry moment na wietrzenie"
-      [30, 25, 0, 'Wietrzenie teraz dogrzeje'],
-      [25, 25, -1.5, 'Dobry moment na wietrzenie'],
-      [25, 25, +1.5, 'Wietrzenie dołoży wilgoci'],
-      [25, 25, 0, 'Wietrzenie bez większego wpływu'],
-      // sezon grzewczy: chłód z dworu przestaje być zaletą (dawniej: „schłodzi i osuszy")
-      [5, 21, -3, 'Przewietrz krótko i szeroko'],
-      [5, 21, +1.5, 'Wietrzenie dołoży wilgoci'],
-      [5, 21, 0, 'Wietrzenie bez większego wpływu'],
-    ];
-    for (const [dwor, dom, dW, oczekiwany] of przypadki) {
-      expect(await werdykt(page, dwor, dom, dW),
-        `dwór ${dwor} °C, mieszkanie ${dom} °C, różnica pary ${dW} g/m³`).toBe(oczekiwany);
-    }
-    expect(bledy).toEqual([]);
-  });
-
-  test('bez czujników w mieszkaniu werdykt idzie samą wilgotnością i nie kaleczy tekstu', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const tip = await page.evaluate(() => {
-      const out = absHum(21, 60);
-      return airingTip({ temperature_2m: 21, relative_humidity_2m: 60 }, out, null);
-    });
-    expect(tip.title).toBe('Wietrzenie bez większego wpływu');
-    expect(tip.text.startsWith(' ')).toBe(false);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Słońce od południa to kłopot tylko w ciepłym mieszkaniu. 27.09 przy 20 °C w środku
-     i 13–21 °C na dworze rada kazała „sypialnię otwierać krótko", choć jesienią to
-     słońce jest darmowym ciepłem. */
-  test('rada o słońcu od południa tylko w ciepłym mieszkaniu', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const w = await page.evaluate(() => {
-      const zapas = state.weather.hourly;
-      const n = 12, t0 = Date.now();
-      state.weather.hourly = {
-        time: Array.from({ length: n }, (_, i) => new Date(t0 + i * 3600e3).toISOString()),
-        temperature_2m: Array(n).fill(18), relative_humidity_2m: Array(n).fill(40),
-        shortwave_radiation: Array(n).fill(500),
-      };
-      const dom = absHum(22, 60);
-      const chlodno = oknoWietrzenia(dom, 21), cieplo = oknoWietrzenia(dom, 26);
-      state.weather.hourly = zapas;
-      return { chlodno: chlodno.slonce, cieplo: cieplo.slonce };
-    });
-    expect(w.chlodno, 'jesienią słońce od południa to zysk, nie kłopot').toBe(false);
-    expect(w.cieplo).toBe(true);
-    expect(bledy).toEqual([]);
-  });
-
-  // Strażnik, nie test: pierwszeństwo AQI działało tak samo przed zmianą i przechodzi
-  // w obie strony. Stoi tu dlatego, że przepisując tabelkę werdyktów łatwo je zgubić.
-  test('zła jakość powietrza bije każdy inny werdykt', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const tytul = await page.evaluate(() => {
-      const zapas = state.weather.air;
-      state.weather.air = { european_aqi: 80 };
-      const t = airingTip({ temperature_2m: 21, relative_humidity_2m: 60 }, 20, 25).title;
-      state.weather.air = zapas;
-      return t;
-    });
-    expect(tytul).toBe('Lepiej nie otwierać okien');
-    expect(bledy).toEqual([]);
-  });
-
-  /* Ta ramka odpowiada wyłącznie na „kiedy powietrze będzie najsuchsze" i tak ma się
-     nazywać. Nagłówek „najlepiej wietrzyć" obiecywał werdykt o całym wietrzeniu i przez
-     to potrafił przeczyć kaflowi obok: kafel mówił „otwórz teraz, schłodzi", a ramka
-     „najlepiej jutro 01:00", bo wtedy jest najsuchsze. Oba zdania były prawdziwe, tylko
-     o czym innym. */
-  test('okno wietrzenia wychodzi z prognozy godzinowej i mówi wprost, że chodzi o suchość', async ({ page }) => {
-    const bledy = await otworz(page, { pogodaGodzinowa: 'sucho' });
-    await expect(page.locator('.wx-okno')).toContainText(/such/i);
-    await expect(page.locator('.wx-okno')).not.toContainText('Najlepiej wietrzyć');
-    expect(bledy).toEqual([]);
-  });
-
-  test('określenia czasu układają się w polskie zdanie', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const w = await page.evaluate(() => {
-      const jutro = new Date(); jutro.setDate(jutro.getDate() + 1); jutro.setHours(1, 0, 0, 0);
-      const jutroPozniej = new Date(jutro); jutroPozniej.setHours(4);
-      const dzis = new Date(); dzis.setHours(22, 0, 0, 0);
-      return {
-        wZdaniu: gdyO(+jutro),
-        tenSamDzien: gdyZakres(+jutro, +jutroPozniej),
-        przezPolnoc: gdyZakres(+dzis, +jutroPozniej),
-      };
-    });
-    expect(w.wZdaniu).toBe('jutro o 01:00');          // nie „o jutro 01:00"
-    expect(w.tenSamDzien).toBe('jutro 01:00 – 04:00'); // nie „jutro 01:00 – jutro 04:00"
-    expect(w.przezPolnoc).toBe('dziś 22:00 – jutro 04:00');
-    expect(bledy).toEqual([]);
-  });
-
-  test('przy parnej prognozie mówi wprost, że nie ma okna', async ({ page }) => {
-    const bledy = await otworz(page, { pogodaGodzinowa: 'parno' });
-    await expect(page.locator('.wx-okno')).toContainText('Brak suchego powietrza');
-    expect(bledy).toEqual([]);
-  });
-
-  test('stara pogoda bez prognozy godzinowej nie wywraca strony', async ({ page }) => {
-    const bledy = await otworz(page, { pogodaGodzinowa: 'brak' });
-    await expect(page.locator('.wx-tip')).toBeVisible();
-    expect(await page.locator('.wx-okno').count()).toBe(0);
-    expect(bledy).toEqual([]);
-  });
-
-  /* GitHub potrafi opóźniać harmonogram kolektora o kilka godzin. Czujnik odpowiada za to,
-     co zdążył wysłać przed zbiórką — wcześniej strona mierzyła do „teraz" i przy każdym
-     opóźnieniu mówiła „0/4 OK · 4 uwaga" obok zdarzenia „to nie wina czujników". */
-  test('spóźniony kolektor nie robi z czujników milczących', async ({ page }) => {
-    const bledy = await otworz(page, { opoznienieZbiorki: 5 });
-    await expect(page.locator('#statusbar')).toContainText('4/4 OK');
-    await expect(page.locator('#events')).toContainText('Kolektor nie zapisał');
-    await expect(page.locator('#events')).not.toContainText('milczał');
-    await expect(page.locator('#pens .dot.warn, #pens .dot.bad')).toHaveCount(0);
-    expect(bledy).toEqual([]);
-  });
-
-  test('przy spóźnionym kolektorze naprawdę milczący czujnik dalej jest widać', async ({ page }) => {
-    const bledy = await otworz(page, { opoznienieZbiorki: 5, martwy: 'kuchnia' });
-    await expect(page.locator('#events')).toContainText('Kolektor nie zapisał');
-    await expect(page.locator('#events')).toContainText('Kuchnia — milczał');
-    expect(bledy).toEqual([]);
-  });
-
-  test('milczący czujnik trafia do zdarzeń i diagnostyki', async ({ page }) => {
-    const bledy = await otworz(page, { martwy: 'kuchnia' });
-    await expect(page.locator('#events')).toContainText('Kuchnia');
-    await expect(page.locator('#health')).toContainText('Kuchnia');
-    expect(bledy).toEqual([]);
-  });
-
-  test('słaba bateria trafia do zdarzeń', async ({ page }) => {
-    const bledy = await otworz(page, { bateria: { pokoj: 'sypialnia', stan: 'low' } });
-    await expect(page.locator('#events')).toContainText('bateria');
-    expect(bledy).toEqual([]);
-  });
-
-  /* Bez tolerancji wartoscW() dobierałoby najbliższy odczyt niezależnie od tego, jak
-     bardzo jest odległy — przy dłuższej ciszy Open-Meteo pasek zestawienia i próg pleśni
-     porównywałyby pokój z pogodą sprzed wielu godzin i nikt by tego nie zauważył. */
-  test('odczyt z dworu sprzed wielu godzin nie jest brany za „teraz”', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const wynik = await page.evaluate(() => {
-      const seria = [{ x: Date.now() - 9 * 3600e3, y: 12 }];
-      return {
-        bliski: wartoscW(seria, Date.now() - 9 * 3600e3, MISS_GAP),
-        daleki: wartoscW(seria, Date.now(), MISS_GAP),
-      };
-    });
-    expect(wynik.bliski).toBe(12);
-    expect(wynik.daleki).toBeNull();
-    expect(bledy).toEqual([]);
-  });
-});
-
-/* Dwór ma zupełnie inną rozpiętość niż mieszkanie: w fiksturze chodzi 10–26 °C, gdy
-   pokoje stoją w paśmie poniżej stopnia. Na wspólnej osi cały ruch w mieszkaniu
-   spłaszcza się do kilku pikseli — stąd druga oś po prawej. Wilgotność bezwzględna
-   jest wyjątkiem i musi nim zostać, bo tam porównanie z dworem jest sensem wykresu. */
-/* Godzina zegarowa bez odczytu zostawiała w mapie czarną kratkę — a raporty przychodzą
-   co ok. 59 minut i ta minuta dryfuje, więc co jakiś czas jedna godzina zostaje pusta.
-   20.08 tak wypadła Sypialnia o 17:00. Mapa ma pokazywać powtarzalny rytm, a dziura
-   w środku doby rozbija dokładnie to, po co się ją ogląda. */
-test.describe('rytm doby', () => {
-  const mapaPokoju = (page, pokoj) => page.evaluate((id) => {
-    state.rytmDev = id;
-    renderRytm();
-    const cells = [...document.querySelectorAll('#mapa .cell')];
-    return {
-      puste: cells.filter((c) => !c.style.background).length,
-      zszyte: cells.filter((c) => c.classList.contains('zszyte'))
-        .map((c) => ({ tytul: c.title, wartosc: parseFloat(c.title.match(/(\d+,\d+) °C/)[1].replace(',', '.')) })),
-    };
-  }, pokoj);
-
-  test('zgubiony raport nie zostawia dziury w mapie', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { zgubionyRaport: true });
-    const bez = await mapaPokoju(page, 'sypialnia');
-    const z = await mapaPokoju(page, 'salon');
-    expect(z.zszyte.length, 'dziura nie została domknięta').toBe(1);
-    expect(bez.zszyte.length, 'pokój bez zgubionego raportu nie ma czego zszywać').toBe(0);
-    // odtworzona wartość musi siedzieć w paśmie, w jakim ten pokój w ogóle chodzi
-    expect(z.zszyte[0].wartosc).toBeGreaterThan(23);
-    expect(z.zszyte[0].wartosc).toBeLessThan(27);
-    expect(z.zszyte[0].tytul).toContain('odtworzone');
-    expect(bledy).toEqual([]);
-  });
-
-  // Strażnik, nie test: przed poprawką przechodził tak samo, bo wtedy nic się nie zszywało.
-  // Stoi tu, żeby domykanie dziur nigdy nie rozlało się na prawdziwą ciszę czujnika.
-  test('dłuższa cisza czujnika zostaje czarna, nie jest zamalowywana', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { martwy: 'kuchnia' });
-    const z = await mapaPokoju(page, 'kuchnia');
-    // dziewięć godzin ciszy to nie jest zgubiony raport — nie ma z czego interpolować
-    expect(z.zszyte.length, 'martwy czujnik nie może zostać domalowany').toBe(0);
-    expect(z.puste, 'brak ciemnych pól, test nic nie sprawdza').toBeGreaterThan(5);
-    expect(bledy).toEqual([]);
-  });
-});
-
-test.describe('osie wykresów', () => {
-  const osie = (page, id) => page.evaluate((k) => {
-    const ch = state.charts[k];
-    return { y2: !!ch.scales.y2, dworNaY2: ch.data.datasets.filter((d) => d.borderDash.length).every((d) => d.yAxisID === 'y2') };
-  }, id);
-
-  /* 21.08 z całej strony zniknęła podwójna oś — najpierw z temperatury (własny panel dla
-     dworu), potem z wilgotności względnej. Ta druga nie dostała panelu, tylko wspólną
-     skalę, i to jest wynik pomiaru: na wspólnej osi pokoje zajmują tam **49% wysokości**,
-     czyli zostają czytelne, podczas gdy przy temperaturze wychodziło 19% i cztery linie
-     zlewały się w jedną. Osobnego paska wilgotność względna mieć nie powinna także
-     z drugiego powodu: porównywanie jej z dworem jest fizycznie mylące, bo skacze od
-     samej temperatury — od tego jest wilgotność bezwzględna.
-
-     Maszyneria drugiej osi została z draw() usunięta, a nie tylko wyłączona. Ten test
-     pilnuje, żeby nie wróciła bocznymi drzwiami. */
-  test('żaden wykres nie ma już drugiej osi', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    for (const id of ['temp', 'hum', 'abs']) {
-      const o = await osie(page, id);
-      expect(o.y2, `${id}: wróciła druga oś`).toBe(false);
-    }
-    // razem z osią zniknął jej podpis w nagłówkach
-    expect(await page.locator('.trace h2 .osie').count(), 'został podpis po drugiej osi').toBe(0);
-    expect(bledy).toEqual([]);
-  });
-
-  test('wilgotność bezwzględna zostaje na jednej osi, bo porównuje z dworem', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const o = await osie(page, 'abs');
-    expect(o.y2).toBe(false);
-    expect(await page.evaluate(() => state.charts.abs.data.datasets.every((d) => (d.yAxisID || 'y') === 'y'))).toBe(true);
-    expect(bledy).toEqual([]);
-  });
-
-  test('obie krzywe siedzą na jednej skali, a pole między nimi jest barwione znakiem różnicy', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const p = await page.evaluate(() => {
-      const ch = state.charts['temp-dwor'];
-      const [dwor, dom] = ch.data.datasets;
-      return {
-        serie: ch.data.datasets.length,
-        y2: !!ch.scales.y2,
-        osie: ch.data.datasets.map((d) => d.yAxisID || 'y'),
-        cel: dwor.fill.target,
-        cieplej: dwor.fill.above, chlodniej: dwor.fill.below,
-        etykiety: [dwor.label, dom.label],
-      };
-    });
-    expect(p.serie, 'pasek ma nieść dwór i średnią mieszkania').toBe(2);
-    expect(p.y2, 'pasek dorobił sobie drugą oś — cała zmiana na nic').toBe(false);
-    expect(new Set(p.osie).size, 'krzywe paska rozjechały się na dwie osie').toBe(1);
-    expect(p.cel, 'wypełnienie nie sięga do linii mieszkania').toBe(1);
-    expect(p.cieplej).not.toBe(p.chlodniej);
-    expect(p.etykiety[1]).toMatch(/mieszkani/);
-    expect(bledy).toEqual([]);
-  });
-
-  test('oba panele mają identyczny zakres poziomy i tę samą szerokość osi', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const z = await page.evaluate(() => {
-      const g = state.charts.temp.scales.x, d = state.charts['temp-dwor'].scales.x;
-      return { gmin: g.min, gmax: g.max, dmin: d.min, dmax: d.max,
-        gy: state.charts.temp.scales.y.width, dy: state.charts['temp-dwor'].scales.y.width };
-    });
-    expect(z.dmin, 'panele zaczynają się w innych chwilach').toBe(z.gmin);
-    expect(z.dmax, 'panele kończą się w innych chwilach').toBe(z.gmax);
-    expect(z.dy, 'różna szerokość osi pionowej rozjedzie panele w poziomie').toBe(z.gy);
-    expect(bledy).toEqual([]);
-  });
-
-  test('podziałkę czasu niesie tylko dolny panel', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const p = await page.evaluate(() => ({
-      gora: state.charts.temp.options.scales.x.ticks.display,
-      dol: state.charts['temp-dwor'].options.scales.x.ticks.display !== false,
-    }));
-    expect(p.gora, 'górny panel dubluje podpisy godzin').toBe(false);
-    expect(p.dol, 'dolny panel zgubił podpisy godzin').toBe(true);
-    expect(bledy).toEqual([]);
-  });
-
-  test('bez czujnika zewnętrznego pasek znika, a podziałka wraca na górę', async ({ page }) => {
-    const bledy = await otworz(page, {}, { hash: '#zakres=7d&bez=' + encodeURIComponent('na zewnątrz') });
-    await page.waitForFunction(() => state.hours === 168 && state.charts.temp);
-    const p = await page.evaluate(() => ({
-      pasek: !!state.charts['temp-dwor'],
-      schowany: document.getElementById('plot-dwor').hidden,
-      gora: state.charts.temp.options.scales.x.ticks.display,
-      pokoje: state.charts.temp.data.datasets.length,
-    }));
-    expect(p.schowany, 'pusty pasek został na stronie').toBe(true);
-    expect(p.gora, 'strona została bez podziałki czasu').toBe(true);
-    expect(p.pokoje, 'pokoje zniknęły razem z dworem').toBeGreaterThan(3);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Widok „całość" idzie z agregatów dobowych, a te dzieli 24 godziny. Pasek miał
-     spanGaps ustawione na sztywne 3 godziny i przez to krzywa dworu nie rysowała się
-     tam wcale — razem z nią znikało wypełnienie, więc zostawał sam pasek z jedną linią
-     i legenda obiecująca kolory, których nie było. */
-  test('w widoku „całość” pasek rysuje obie krzywe, nie tylko mieszkanie', async ({ page }) => {
-    const bledy = await otworz(page, {}, { hash: '#zakres=all' });
-    await page.waitForFunction(() => state.hours === 0 && state.charts['temp-dwor']);
-    const p = await page.evaluate(() => {
-      const ch = state.charts['temp-dwor'];
-      const dl = (i) => ch.data.datasets[i].data.length;
-      const luka = (i) => ch.data.datasets[i].spanGaps;
-      const odstep = ch.data.datasets[0].data.slice(1)
-        .map((p, i) => p.x - ch.data.datasets[0].data[i].x);
-      return { dwor: dl(0), dom: dl(1), lukaDworu: luka(0), najwiekszyOdstep: Math.max(...odstep) };
-    });
-    expect(p.dwor, 'pasek bez punktów dworu').toBeGreaterThan(2);
-    expect(p.dom, 'pasek bez średniej mieszkania').toBeGreaterThan(2);
-    // sedno: tolerancja przerwy musi objąć odstęp między agregatami, inaczej nic się nie narysuje
-    expect(p.lukaDworu, 'przerwa większa niż tolerancja — krzywa się nie narysuje')
-      .toBeGreaterThanOrEqual(p.najwiekszyOdstep);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Pasek stoi tuż pod wykresem pokoi i czyta się z nim jako całość, więc wszystko, co
-     przecina jeden panel w pionie, musi przeciąć i drugi. Kreska „jesteś tutaj" urwana
-     na górnej krawędzi paska wyglądałaby jak usterka renderowania. */
-  test('kreska odtwarzania przechodzi przez oba panele', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const maZnacznik = (id) => page.evaluate(
-      (k) => (state.charts[k].config.plugins || []).some((p) => p.id === 'znacznik'), id);
-    expect(await maZnacznik('temp'), 'górny panel bez znacznika').toBe(true);
-    expect(await maZnacznik('temp-dwor'), 'pasek bez znacznika odtwarzania').toBe(true);
-    expect(bledy).toEqual([]);
-  });
-
-  test('legenda tłumaczy kolory pola', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const t = await page.locator('#legenda-temp').innerText();
-    expect(t).toMatch(/chłodniej/);
-    expect(t).toMatch(/cieplej/);
-    expect(bledy).toEqual([]);
-  });
-});
-
-/* Dwór nie jest piątym pokojem, tylko tłem. Dostaje własny kolor spoza palety pokoi,
-   a tam, gdzie ma osobną oś, rysuje się jako pasmo za pokojami — bo jako równorzędna
-   linia zapraszał do porównania, którego na dwóch różnych miarkach robić nie wolno.
-   Na wspólnej osi (wilgotność bezwzględna) zostaje linią, bo tam porównanie jest sensem. */
-test.describe('dwór jako tło', () => {
-  const dwor = (page, wykres) => page.evaluate((w) => {
-    const n = state.devices.find((d) => d.ext);
-    const ds = state.charts[w].data.datasets.find((d) => d.label === n.name);
-    return { kolor: n.color, fill: ds.fill ?? false, dash: ds.borderDash.length, order: ds.order };
-  }, wykres);
-
-  test('ma własny kolor, spoza palety pokoi', async ({ page }) => {
-    const bledy = await otworz(page);
-    const kolory = await page.evaluate(() => ({
-      dwor: state.devices.find((d) => d.ext).color,
-      pokoje: state.devices.filter((d) => !d.ext).map((d) => d.color),
-      paleta: PENS,
-    }));
-    // nie wystarczy „inny niż cztery użyte" — dwór ma stać poza paletą pokoi w ogóle,
-    // inaczej wystarczyłoby dołożyć piąty czujnik, żeby znów wyglądał jak pokój
-    expect(kolory.paleta, 'dwór wciąż bierze kolor z palety pokoi').not.toContain(kolory.dwor);
-    // pokoje zachowują swoje dotychczasowe barwy — dwór nie zabiera im miejsca w palecie
-    expect(kolory.pokoje).toEqual(['#e8a13c', '#5fb8e0', '#5fce9e', '#e2708f']);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Reguła „własna oś → tło, wspólna oś → linia" ma już tylko jedną połowę, bo własnych
-     osi nie ma nigdzie. Wszędzie, gdzie dwór jeszcze jedzie po tym samym wykresie co
-     pokoje, jest kreskowaną linią — bo tam porównanie jest sensem wykresu. */
-  test('wszędzie, gdzie dzieli wykres z pokojami, jest kreskowaną linią', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    // wilgotność względna nie ma już dworu wcale — patrz „wilgotność względna: próg pleśni"
-    for (const w of ['abs']) {
-      const d = await dwor(page, w);
-      expect(d.fill, `${w}: dwór wrócił do pasma`).toBe(false);
-      expect(d.dash, `${w}: dwór przestał być kreskowany`).toBeGreaterThan(0);
-    }
-    expect(bledy).toEqual([]);
-  });
-
-  /* Dwór na wilgotności względnej chodził 30–100% i ściskał pokoje w pasek, a samo
-     porównanie było fizycznie mylące. Jego miejsce zajął próg pleśni: kreskowana linia
-     spoza palety pokoi, z legendą, która mówi, co znaczy. */
-  test('wilgotność względna: bez dworu, z progiem pleśni', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const w = await page.evaluate(() => {
-      const zb = state.charts.hum.data.datasets;
-      const prog = zb.find((d) => d.label === 'próg pleśni');
-      return {
-        etykiety: zb.map((d) => d.label),
-        prog: prog ? { n: prog.data.length, dash: prog.borderDash.length, kolor: prog.borderColor } : null,
-        pokoje: state.devices.filter((d) => !d.ext).map((d) => d.color),
-      };
-    });
-    expect(w.etykiety).not.toContain('Na zewnątrz');
-    expect(w.prog, 'brak linii progu').not.toBeNull();
-    expect(w.prog.n).toBeGreaterThan(50);
-    expect(w.prog.dash).toBeGreaterThan(0);
-    expect(w.pokoje).not.toContain(w.prog.kolor);
-    await expect(page.locator('#legenda-hum')).toBeVisible();
-    await expect(page.locator('#legenda-hum')).toContainText('próg pleśni');
-    expect(bledy).toEqual([]);
-  });
-
-  test('próg pleśni liczy się tak samo jak w kolektorze', async ({ page }) => {
+test.describe('obliczenia wyświetlania', () => {
+  test('granica „za wilgotno" liczy się tak samo jak w kolektorze', async ({ page }) => {
     // te same liczby co test_prog_plesni_z_normy w tests/test_fetch.py
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => [11, 5, 0, -5, -10].map((d) => progPlesni(20, d))
-      .concat([progPlesni(24, 30), progPlesni(null, 0)]));
+    const { bledy } = await otworz(page);
+    const w = await page.evaluate(() => [11, 5, 0, -5, -10].map((d) => SH.granica(20, d)).concat([SH.granica(24, 30), SH.granica(null, 0), SH.stale.HUM_ALERT]));
     [67.6, 60.3, 54.7, 49.6, 44.9].forEach((v, i) => expect(w[i]).toBeCloseTo(v, 1));
     expect(w[5]).toBe(80);
-    expect(w[6]).toBe(65);
+    expect(w[6]).toBeNull();
+    expect(w[7]).toBe(65);
     expect(bledy).toEqual([]);
   });
 
-  test('kafel i legenda mówią tym samym kolorem', async ({ page }) => {
-    const bledy = await otworz(page);
-    const zgodne = await page.evaluate(() => {
-      const n = state.devices.find((d) => d.ext);
-      const kafel = [...document.querySelectorAll('.pen')].find((e) => e.textContent.includes(n.name));
-      return kafel.style.getPropertyValue('--c').trim() === n.color;
-    });
-    expect(zgodne).toBe(true);
-    expect(bledy).toEqual([]);
-  });
-});
-
-/* Linia pokoi jest wygładzona średnią z trzech odczytów, bo krok czujnika (0,1 °C, 1%)
-   po rozdzieleniu osi urósł do kilkudziesięciu pikseli i krzywe zamieniły się w schodki.
-   Rusza wyłącznie rysowana linia — dwór, tabela i dymek zostają przy surowych odczytach. */
-test.describe('wygładzanie linii', () => {
-  const seria = (page, wykres, nazwa) => page.evaluate(([w, n]) => {
-    const ds = state.charts[w].data.datasets.find((d) => d.label === n);
-    return ds ? ds.data.map((p) => ({ y: p.y, v: p.v })) : null;
-  }, [wykres, nazwa]);
-
-  test('pokój dostaje średnią z trzech odczytów, a surowy zostaje przy punkcie', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { waskaWilgotnosc: true });
-    const p = await seria(page, 'temp', 'Salon');
-    // pięć dób co godzinę mieści się w tygodniu w całości, o dowolnej porze doby
-    expect(p.length, 'za mało punktów, żeby test cokolwiek sprawdzał').toBeGreaterThan(50);
-    expect(p.every((x) => x.v != null), 'zgubiony surowy odczyt').toBe(true);
-    // środek każdej trójki to średnia sąsiadów i punktu
-    for (let i = 1; i < p.length - 1; i++) {
-      expect(p[i].y).toBeCloseTo((p[i - 1].v + p[i].v + p[i + 1].v) / 3, 6);
-    }
-    expect(bledy).toEqual([]);
-  });
-
-  test('dwór zostaje surowy', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    // temperatury nie ma na liście: dwór ma tam własny panel i własną funkcję rysującą;
-    // wilgotności względnej też nie — dwór z niej zniknął
-    for (const w of ['abs']) {
-      const p = await seria(page, w, 'Na zewnątrz');
-      expect(p, `${w}: brak serii dworu`).not.toBeNull();
-      expect(p.length, `${w}: pusta seria, test nic nie sprawdza`).toBeGreaterThan(50);
-      expect(p.every((x) => x.v === undefined), `${w}: dwór został wygładzony`).toBe(true);
-    }
-    expect(bledy).toEqual([]);
-  });
-
-  /* Test bez zegara: sam podaje serię, sam zna odpowiedź. Ta obok mierzy maksimum na
-     fiksturze i przez to zależy od tego, jakie godziny doby akurat w niej wypadły —
-     przy oknie liczonym z dwóch odczytów zamiast trzech potrafiła wychodzić dokładnie
-     na próg 0,100 i przechodzić albo nie zależnie od zaokrąglenia zmiennoprzecinkowego.
-     Ten trzyma się reguły, a nie liczby: uśredniamy tylko przy pełnym oknie. */
-  /* Czujniki raportują każdy w innej minucie godziny, więc bez kotwicy każda linia
-     zaczynała się tam, gdzie akurat wypadł jej pierwszy raport po granicy zakresu.
-     20.08 w widoku „dziś" dawało to starty rozjechane o 46 minut — dziesiątą część
-     szerokości wykresu — i linie zaczynające się w powietrzu, jedna po drugiej.
-
-     Zakres to 7 dni przy 10 dobach historii, żeby granica zakresu na pewno wypadła
-     w środku danych: wtedy każdy pokój ma co zakotwiczyć i reguła obowiązuje bez
-     wyjątku, niezależnie od pory doby, o której test poszedł. */
-  test('każda linia wchodzi w kadr z lewej, mimo że czujniki raportują w różnych minutach', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { dni: 10, przesuniete: true });
+  test('filtr skoków: farelka zostaje, dłoń na czujniku znika', async ({ page }) => {
+    const { bledy } = await otworz(page);
     const w = await page.evaluate(() => {
-      const ch = state.charts.temp;
-      return {
-        min: ch.scales.x.min,
-        serie: ch.data.datasets.map((d) => ({ nazwa: d.label, start: d.data[0].x })),
-      };
+      // prawdziwe odczyty łazienki z 27.09.2026, minuty od 7:15
+      const min = [0, 39, 41, 43, 45, 47, 49.2, 51.8, 55.2, 60, 64.3, 69, 73.8, 75.8, 77.8, 80.4, 84.1, 89.7, 98.2, 113.1, 129.1, 148.1, 185.6, 245.3];
+      const v = [20.0, 20.5, 21.7, 22.7, 23.4, 23.9, 24.4, 24.9, 25.4, 25.9, 26.4, 26.9, 26.4, 25.7, 25.2, 24.7, 24.2, 23.7, 23.2, 22.7, 22.2, 21.7, 21.2, 20.9];
+      const farelka = SH.despike(min.map((m, i) => ({ x: m * 60e3, y: v[i] })), 'temp').cut;
+      const dlon = SH.despike([0, 60, 63, 69, 120].map((m, i) => ({ x: m * 60e3, y: [21, 21, 23.5, 21, 21][i] })), 'temp');
+      return { farelka, dlon: dlon.cut, zostalo: dlon.pts.map((p) => p.y) };
     });
-    expect(w.serie.length, 'za mało serii, test nic nie sprawdza').toBeGreaterThan(3);
-    for (const s of w.serie) {
-      expect(s.start, `${s.nazwa}: linia zaczyna się dopiero w środku wykresu`).toBeLessThanOrEqual(w.min);
-    }
+    expect(w.farelka).toBe(0);
+    expect(w.dlon).toBe(1);
+    expect(w.zostalo).toEqual([21, 21, 21, 21]);
     expect(bledy).toEqual([]);
   });
 
-  test('kotwica nie wchodzi do tabeli zakresów', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { dni: 10, przesuniete: true });
+  test('seria godzinowa: (b − 1 godz., b], pusta godzina null, po filtrze skoków i bez artefaktów', async ({ page }) => {
+    const { bledy } = await otworz(page, {
+      skok: { pokoj: 'sypialnia', godzWstecz: 5, o: 6 },
+      artefakty: [{ czujnik: 'salon', odGodz: 30, doGodz: 27, wartosc: 35 }],
+      martwy: 'kuchnia',
+    });
     const w = await page.evaluate(() => {
-      const od = odKiedy(168);
-      const s = series('temp', 168, false).find((x) => x.device.id === 'salon');
-      const surowe = state.rows
-        .filter((r) => r.id === 'salon' && r.code === 'va_temperature' && r.t >= od)
-        .map((r) => r.v);
-      return {
-        kotwicaPrzedZakresem: s.points[0].x < od,
-        statMin: s.stats.min, statMax: s.stats.max,
-        oczMin: Math.min(...surowe), oczMax: Math.max(...surowe),
-      };
+      const H = 36e5, s = SH.seriaGodzinowa([{ x: 10 * H, y: 20 }, { x: 10 * H + 1000, y: 22 }, { x: 11 * H - 1000, y: 24 }], 9 * H, 12 * H);
+      const p = (id) => SH.dane.pokoje.find((x) => x.id === id);
+      return { s, syp: Math.max(...p('sypialnia').seria.temp.filter((v) => v != null)), salon: Math.max(...p('salon').seria.temp.filter((v) => v != null)),
+        kuchnia: p('kuchnia').seria.temp.slice(-8), dlugosc: p('salon').seria.temp.length };
     });
-    expect(w.kotwicaPrzedZakresem, 'brak kotwicy, test nic nie sprawdza').toBe(true);
-    expect(w.statMin).toBeCloseTo(w.oczMin, 6);
-    expect(w.statMax).toBeCloseTo(w.oczMax, 6);
+    expect(w.s).toEqual([null, 20, 23, null]);
+    expect(w.dlugosc).toBe(169);
+    expect(w.syp, 'skok dłoni nie wchodzi do średniej godziny').toBeLessThan(22.3);
+    expect(w.salon, 'artefakt nie wchodzi do serii').toBeLessThan(30);
+    expect(w.kuchnia.slice(-7).every((v) => v === null), 'cisza czujnika to dziura, a nie przeciągnięta wartość').toBe(true);
     expect(bledy).toEqual([]);
   });
 
-  test('wygładzanie rusza wyłącznie punkty z sąsiadami po obu stronach', async ({ page }) => {
-    const bledy = await otworzTydzien(page);
-    const w = await page.evaluate(() => {
-      const g = 3600e3;
-      const seria = [
-        { x: 0, y: 25.0 },
-        { x: g, y: 25.2 },
-        { x: 2 * g, y: 25.4 },
-        // przerwa dłuższa niż WYGLADZ_LUKA — sąsiad jest z innej epoki
-        { x: 2 * g + 5 * 3600e3, y: 26.0 },
-        { x: 2 * g + 6 * 3600e3, y: 26.2 },
-      ];
-      return wygladz(seria).map((p) => ({ y: +p.y.toFixed(4), v: p.v }));
-    });
-    expect(w[0].y, 'pierwszy punkt ma zostać surowy').toBe(w[0].v);
-    expect(w.at(-1).y, 'ostatni punkt ma zostać surowy').toBe(w.at(-1).v);
-    expect(w[1].y, 'punkt z pełnym oknem ma być średnią z trzech').toBe(25.2);
-    expect(w[2].y, 'punkt przed długą przerwą ma zostać surowy').toBe(w[2].v);
-    expect(w[3].y, 'punkt po długiej przerwie ma zostać surowy').toBe(w[3].v);
-    // każdy punkt niesie prawdziwy odczyt, żeby dymek i tabela mówiły to samo
-    expect(w.every((p) => p.v !== undefined)).toBe(true);
+  test('artefakt na ostatnich odczytach: kafel pokazuje odczyt (czujnik raportował), wykres i zakresy go nie mają; złe wpisy pominięte', async ({ page }) => {
+    const { bledy } = await otworz(page, { artefakty: [{ czujnik: 'salon', odGodz: 3, doGodz: -1, wartosc: 35 }], zleArtefakty: true });
+    const w = await page.evaluate(() => { const p = SH.dane.pokoje.find((x) => x.id === 'salon'); return { temp: p.temp, seria: p.seria.temp.slice(-2), milczy: SH.milczy('salon') }; });
+    expect(w.temp).toBe(35);
+    expect(w.seria, 'godziny pod artefaktem są puste').toEqual([null, null]);
+    expect(w.milczy, 'ukryty odczyt to nie cisza czujnika').toBe(false);
     expect(bledy).toEqual([]);
   });
 
-  test('wygładzenie nie odsuwa linii dalej niż o krok czujnika', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { waskaWilgotnosc: true });
-    const p = await seria(page, 'temp', 'Salon');
-    expect(p.length, 'pusta seria, test nic nie sprawdza').toBeGreaterThan(50);
-    const maks = Math.max(...p.map((x) => Math.abs(x.y - x.v)));
-    expect(maks, `odsunięcie ${maks.toFixed(3)} °C przekracza krok czujnika`).toBeLessThan(0.1);
-    expect(bledy).toEqual([]);
-  });
-
-  test('tabela zakresów liczy z surowych odczytów, nie z wygładzonej linii', async ({ page }) => {
-    const bledy = await otworzTydzien(page, { waskaWilgotnosc: true });
-    const zgodne = await page.evaluate(() => {
-      const d = state.devices.find((x) => x.id === 'salon');
-      const surowe = state.rows.filter((r) => r.id === d.id && r.code === d.temp).map((r) => r.v);
-      const wiersz = [...document.querySelectorAll('#summary tbody tr')]
-        .find((tr) => tr.children[0].textContent === 'Salon');
-      const liczba = (i) => parseFloat(wiersz.children[i].textContent.replace(',', '.'));
-      return { min: liczba(1), max: liczba(3),
-               oczMin: +Math.min(...surowe).toFixed(1), oczMax: +Math.max(...surowe).toFixed(1) };
-    });
-    expect(zgodne.min).toBe(zgodne.oczMin);
-    expect(zgodne.max).toBe(zgodne.oczMax);
-    expect(bledy).toEqual([]);
-  });
-
-  test('agregaty dobowe nie są wygładzane drugi raz', async ({ page }) => {
-    const bledy = await otworz(page);
-    await page.click('.range[data-hours="0"]');
-    await page.waitForTimeout(400);
-    const p = await seria(page, 'temp', 'Salon');
-    expect(p.every((x) => x.v === undefined), 'średnie dobowe zostały wygładzone').toBe(true);
-    expect(bledy).toEqual([]);
-  });
-});
-
-/* Podpis pod wykresem ma wskazywać jedną chwilę. Dwa razy „14.08" pod tym samym
-   wykresem nie mówi nic — a dokładnie to wychodziło przy krótkiej historii w widoku
-   „całość": krok podziałki liczy się z rozpiętości danych (doba), a format podpisu
-   z wybranego zakresu (umowne 24*400 godz., czyli daty). */
-test.describe('podziałka osi czasu', () => {
-  const podpisy = (page) => page.evaluate(() => state.charts.temp.scales.x.ticks.map((t) => t.label));
-
-  const DATA = /^\d\d\.\d\d$/;
-
-  for (const [zakres, opis] of [['dzis', 'dziś'], ['168', '7 dni'], ['720', '30 dni'], ['0', 'całość']]) {
-    test(`${opis}: data pod wykresem wskazuje jedną dobę`, async ({ page }) => {
-      // Dwie doby historii — tyle zostało po ucięciu TUYA_SINCE i właśnie przy tak
-      // krótkiej historii podpisy się dublowały. Powtórzona godzina na dwóch różnych
-      // dobach jest w porządku, bo granice dób znaczy osobno data i jaśniejsza siatka;
-      // powtórzona data nie, bo tych podziałek nie da się od siebie odróżnić.
-      const bledy = await otworz(page, { dni: 2 });
-      await page.click(`.range[data-hours="${zakres}"]`);
-      await page.waitForTimeout(400);
-      const p = await podpisy(page);
-      expect(p.length, 'oś bez żadnego podpisu').toBeGreaterThan(0);
-      const daty = p.filter((x) => DATA.test(x));
-      expect(daty, `powtórzona data w podpisach: ${p.join(' ')}`).toEqual([...new Set(daty)]);
-      expect(bledy).toEqual([]);
-    });
-  }
-
-  test('data pojawia się tylko o północy albo przy kroku dobowym', async ({ page }) => {
-    const bledy = await otworz(page, { dni: 2 });
-    for (const zakres of ['dzis', '168', '720', '0']) {
-      await page.click(`.range[data-hours="${zakres}"]`);
-      await page.waitForTimeout(400);
-      const zle = await page.evaluate(() => {
-        const t = state.charts.temp.scales.x.ticks;
-        const krok = t.length > 1 ? (t[1].value - t[0].value) / 3600e3 : 24;
-        return t.filter((x) => /^\d\d\.\d\d$/.test(x.label)
-          && new Date(x.value).getHours() !== 0 && krok < 24)
-          .map((x) => `${x.label} o ${new Date(x.value).getHours()}:00`);
-      });
-      expect(zle, `zakres ${zakres}`).toEqual([]);
+  test('komfort dziś zgadza się z niezależnym przeliczeniem', async ({ page }) => {
+    const { bledy, pliki } = await otworz(page, { wilgotnosc: { kuchnia: 64 } });
+    const k = await page.evaluate(() => SH.dane.komfort_dzis);
+    const teraz = Date.now(), dzis = dataWaw(teraz);
+    let polnoc = null;
+    for (let off = -3; off <= 3 && polnoc == null; off++) {
+      const a = dzis.split('-').map(Number), t = Date.UTC(a[0], a[1] - 1, a[2]) + off * GODZ;
+      if (dataWaw(t) === dzis && godzinaWaw(t) === 0 && new Date(t).getUTCMinutes() === 0) polnoc = t;
     }
-    expect(bledy).toEqual([]);
-  });
-
-  test('przy agregatach dobowych podziałka nie schodzi poniżej doby', async ({ page }) => {
-    const bledy = await otworz(page, { dni: 2 });
-    await page.click('.range[data-hours="0"]');
-    await page.waitForTimeout(400);
-    const odstepy = await page.evaluate(() => {
-      const t = state.charts.temp.scales.x.ticks.map((x) => x.value);
-      return t.slice(1).map((v, i) => (v - t[i]) / 3600e3);
-    });
-    odstepy.forEach((h) => expect(h).toBeGreaterThanOrEqual(24));
-    expect(bledy).toEqual([]);
-  });
-});
-
-/* Oś pionowa ma ten sam obowiązek co pozioma: jedna kreska, jedna wartość. Wilgotność
-   pokazujemy bez miejsc po przecinku, a pokoje stoją w paśmie kilku punktów — Chart.js
-   dzielił wtedy oś co pół procenta i sąsiednie podpisy zaokrąglały się do tej samej
-   liczby: „51 51 50 50 49 49 48 48 47 47 46". */
-test.describe('podziałka osi pionowej', () => {
-  for (const [id, nazwa] of [['temp', 'temperatura'], ['hum', 'wilgotność względna'], ['abs', 'wilgotność bezwzględna']]) {
-    test(`${nazwa}: żaden podpis nie powtarza się`, async ({ page }) => {
-      const bledy = await otworzTydzien(page, { waskaWilgotnosc: true });
-      const osie = await page.evaluate((k) => {
-        const ch = state.charts[k];
-        return Object.fromEntries(Object.entries(ch.scales)
-          .filter(([n]) => n !== 'x')
-          .map(([n, s]) => [n, s.ticks.map((t) => t.label)]));
-      }, id);
-      for (const [os, podpisy] of Object.entries(osie)) {
-        expect(podpisy, `${nazwa}, oś ${os}: ${podpisy.join(' ')}`).toEqual([...new Set(podpisy)]);
+    const wiersze = Object.keys(pliki).filter((x) => /^data\/\d{4}-\d\d\.csv$/.test(x)).flatMap((x) => pliki[x].trim().split('\n').slice(1)).map((r) => r.split(','));
+    for (const id of ['salon', 'sypialnia', 'kuchnia', 'lazienka']) {
+      const kub = {};
+      for (const [ts, dev, code, v] of wiersze) {
+        const t = Date.parse(ts);
+        if (dev !== id || t < polnoc || t > teraz || code === 'battery_state') continue;
+        const b = Math.floor(t / GODZ), q = kub[b] || (kub[b] = { T: [], H: [] });
+        (code === 'va_temperature' ? q.T : q.H).push(+v);
       }
+      const pkt = Object.values(kub).filter((q) => q.T.length && q.H.length).map((q) => [q.T.reduce((a, b) => a + b) / q.T.length, q.H.reduce((a, b) => a + b) / q.H.length]);
+      const wpis = k.find((x) => x.id === id);
+      if (!pkt.length) { expect(wpis, id).toBeUndefined(); continue; }
+      const w = pkt.filter(([t, h]) => t >= 20 && t <= 24 && h >= 40 && h <= 60).length;
+      expect(wpis.proc, id).toBe(Math.round(100 * w / pkt.length));
+    }
+    if (k.find((x) => x.id === 'kuchnia')) expect(k.find((x) => x.id === 'kuchnia').glownie).toBe('wilgotno');
+    await page.goto('/index.html#kuchnia');
+    await gotowa(page);
+    if (k.find((x) => x.id === 'kuchnia')) await expect(page.locator('.strona:not(.sasiad)')).toContainText('wilgotność ponad 60%');
+    expect(bledy).toEqual([]);
+  });
+});
+
+test.describe('rośliny', () => {
+  test('stałe gatunku i nazwa pełna ze stan.json, nie ze stałych w kodzie', async ({ page }) => {
+    const { bledy } = await otworz(page, {}, { hash: '#fikus' });
+    const t = await tekstStrony(page);
+    expect(t).toMatch(/lubi 17–23\s°C/);
+    expect(t).toContain("Fikus 'Ginseng' (Ficus microcarpa) · Salon");
+    expect(bledy).toEqual([]);
+  });
+
+  test('ocena światła z swiatlo_ocena: „za ciemno" przy dobach, które próg 0,9 uznałby za niepełne', async ({ page }) => {
+    // stara ocen() liczyła sama, z progiem pełnej doby 0,9: przy pokryciu 0,85 powiedziałaby „0 z 3 dób pomiaru"
+    const teraz = Date.now();
+    const doby = Array.from({ length: 30 }, (_, i) => ({ data: dataWaw(teraz - (29 - i) * DOBA), lxh: i === 29 ? 900 : 4400, pokrycie: i === 29 ? 0.4 : 0.85, szczyt_lx: 1033 }));
+    const { bledy } = await otworz(page, { zmianyRoslin: { Fikus: { swiatlo_dobowe: doby, swiatlo_pelne_doby: 5,
+      swiatlo_ocena: { kierunek: 'jasniej', u: 0.22, doby: doby.slice(-4, -1).map((d) => d.data), szczyt_lx: 1033 } } } }, { hash: '#fikus' });
+    const s = page.locator('.strona:not(.sasiad)');
+    await expect(s.locator('.powody')).toContainText('Za ciemno — przestaw bliżej okna');
+    await expect(s.locator('.status')).toContainText('Przestaw bliżej okna.');
+    await expect(s.locator('.status')).toContainText('Ostatnie 3 doby: średnio 22% potrzebnego światła. Fikus gubi liście po każdej przeprowadzce');
+    // podpis doby: ten sam próg pełnej doby co rosliny.py (0,8)
+    // (pierwszy wiersz to doba wbicia czujnika — „od 8:35", a nie pełna)
+    await expect(s.locator('.sw-n').nth(1)).toContainText('pełna doba');
+    await page.click('[data-tab="rosliny"]');
+    await expect(page.locator('#v-rosliny .podtytul')).toContainText('Fikus: za ciemno');
+    await expect(page.locator('[data-tab="rosliny"] .z-kropka')).toHaveCount(1);
+    expect(bledy).toEqual([]);
+  });
+
+  test('„przestaw": procent z swiatlo_ocena.proc, tej samej liczby co w powiadomieniu; bez pola — z u', async ({ page }) => {
+    // u = 0,285: w przeglądarce 0,285 · 100 = 28,499…, więc Math.round daje 28, a treść powiadomienia (rosliny.py,
+    // połówka w górę z zapisu dziesiętnego) — 29. Kolektor podaje gotowy `proc` i to on trafia na kartę.
+    const proc = +execFileSync('python3', ['-c', 'import sys; sys.path.insert(0, "."); import rosliny; print(rosliny._proc_swiatla(0.285))'], { cwd: REPO }).toString();
+    expect(proc).toBe(29);
+    const teraz = Date.now();
+    const doby = Array.from({ length: 30 }, (_, i) => ({ data: dataWaw(teraz - (29 - i) * DOBA), lxh: 3700, pokrycie: i === 29 ? 0.4 : 1, szczyt_lx: 900 }));
+    const ocena = (u, p) => ({ kierunek: 'jasniej', u, ...(p == null ? {} : { proc: p }), doby: doby.slice(-4, -1).map((d) => d.data), szczyt_lx: 900 });
+    const { bledy } = await otworz(page, { zmianyRoslin: {
+      Fikus: { swiatlo_dobowe: doby, swiatlo_pelne_doby: 5, swiatlo_ocena: ocena(0.285, proc) },
+      Azalia: { swiatlo_dobowe: doby, swiatlo_pelne_doby: 5, swiatlo_ocena: ocena(0.226) },
+    } }, { hash: '#fikus' });
+    await expect(page.locator('.strona:not(.sasiad) .status')).toContainText('Ostatnie 3 doby: średnio 29% potrzebnego światła.');
+    await page.goto('/index.html#azalia');
+    await gotowa(page);
+    await expect(page.locator('.strona:not(.sasiad) .status')).toContainText('Ostatnie 3 doby: średnio 23% potrzebnego światła.');
+    expect(bledy).toEqual([]);
+  });
+
+  test('bez oceny światła: „Światło: N z 3 dób pomiaru" z liczby pełnych dób kolektora', async ({ page }) => {
+    const { bledy } = await otworz(page, { zmianyRoslin: { Azalia: { swiatlo_ocena: null, swiatlo_pelne_doby: 2 } } }, { hash: '#azalia' });
+    await expect(page.locator('.strona:not(.sasiad) .powody')).toContainText('Światło: 2 z 3 dób pomiaru');
+    expect(bledy).toEqual([]);
+  });
+
+  test('próg pełnej doby w podpisie to ten sam co w rosliny.py (strażnik)', async ({ page }) => {
+    const py = /^POKRYCIE_PELNEJ_DOBY\s*=\s*([\d.]+)/m.exec(fs.readFileSync(path.join(REPO, 'rosliny.py'), 'utf8'));
+    expect(py, 'brak POKRYCIE_PELNEJ_DOBY w rosliny.py').not.toBeNull();
+    const { bledy } = await otworz(page);
+    expect(await page.evaluate(() => SH.stale.POKRYCIE_PELNEJ_DOBY)).toBe(+py[1]);
+    expect(bledy).toEqual([]);
+  });
+
+  test('stan.json sprzed nowych pól: roślina bez pasma „lubi", ale bez błędu', async ({ page }) => {
+    const { bledy } = await otworz(page, { stareRosliny: true }, { hash: '#azalia' });
+    const t = await tekstStrony(page);
+    expect(t).not.toMatch(/lubi|undefined|NaN/);
+    expect(t).toContain('Azalia · Kuchnia');
+    expect(bledy).toEqual([]);
+  });
+
+  test('błąd toru roślin: stan sprzed 30 godz. nie udaje dzisiejszego — linia z błędem, werdykty przygaszone', async ({ page }) => {
+    // fetch.blad_toru_roslin zostawia poprzedni stan.json z jego `updated` i dopisuje `blad`
+    const teraz = Date.now();
+    const { bledy } = await otworz(page, { teraz, roslinyGora: { blad: 'Tuya: permission deny (1106)', updated: iso(teraz - 30 * GODZ) } }, { hash: '#rosliny' });
+    const linia = page.locator('#v-rosliny [data-blad-roslin]');
+    await expect(linia).toHaveText(/^Kolektor zgłosił błąd przy roślinach: Tuya: permission deny \(1106\) · stan sprzed 30\sgodz\.$/);
+    const t = await page.locator('#v-rosliny').innerText();
+    expect(t).not.toMatch(/w dobrej formie/);
+    await expect(page.locator('#v-rosliny .rk.stare')).toHaveCount(3);
+    expect(await page.locator('#v-rosliny .rk').first().getAttribute('aria-label')).toContain('stan sprzed 30');
+    // szczegół: ta sama linia pod tytułem, werdykt przygaszony
+    await page.click('[data-idz="azalia"]');
+    const s = page.locator('.strona:not(.sasiad)');
+    await expect(s.locator('h1 + [data-blad-roslin]')).toContainText('Kolektor zgłosił błąd przy roślinach: Tuya: permission deny (1106)');
+    await expect(s.locator('.rd-poziom')).toHaveClass(/rd-stare/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('stary stan bez błędu: „Kolektor nie odświeżył roślin"; świeży stan bez błędu: bez linii', async ({ page }) => {
+    const teraz = Date.now();
+    const { bledy } = await otworz(page, { teraz, roslinyGora: { updated: iso(teraz - 5 * GODZ) } }, { hash: '#rosliny' });
+    await expect(page.locator('#v-rosliny [data-blad-roslin]')).toHaveText(/^Kolektor nie odświeżył roślin · stan sprzed 5\sgodz\.$/);
+    expect(await page.locator('#v-rosliny').innerText()).not.toMatch(/w dobrej formie/);
+    await page.goto('/index.html#fikus');
+    await gotowa(page);
+    await expect(page.locator('.strona:not(.sasiad) [data-blad-roslin]')).toHaveCount(1);
+    // ten sam stan 2 godz. za zbiórką to jeszcze nie „stary”
+    await podmien(page, { teraz, roslinyGora: { updated: iso(teraz - 2 * GODZ) } }, '#rosliny');
+    await expect(page.locator('#v-rosliny .podtytul')).toHaveText('Wszystkie trzy w dobrej formie');
+    await expect(page.locator('#v-rosliny [data-blad-roslin]')).toHaveCount(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('błąd jednej rośliny: zniknęła z listy, więc nie ma „Obie w dobrej formie", jest linia z błędem i chwilą danych', async ({ page }) => {
+    const { bledy } = await otworz(page, { bezRoslin: ['Fikus'], roslinyGora: { blad: 'Fikus: błąd obliczeń — ValueError: x' } }, { hash: '#rosliny' });
+    await expect(page.locator('#v-rosliny .rk')).toHaveCount(2);
+    await expect(page.locator('#v-rosliny [data-blad-roslin]')).toHaveText(/^Kolektor zgłosił błąd przy roślinach: Fikus: błąd obliczeń — ValueError: x · dane z (dziś|wczoraj), \d+:\d\d$/);
+    expect(await page.locator('#v-rosliny').innerText()).not.toMatch(/w dobrej formie/);
+    // świeży stan: werdykty nie są przygaszone
+    await expect(page.locator('#v-rosliny .rk.stare')).toHaveCount(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('pusta lista z błędem: „Kolektor nie policzył stanu roślin" z treścią błędu, a nie rada o rosliny.json', async ({ page }) => {
+    const { bledy } = await otworz(page, { rosliny: [], roslinyGora: { blad: 'rosliny.json: zły czujnik' } }, { hash: '#rosliny' });
+    const b = page.locator('#v-rosliny [data-blad]');
+    await expect(b).toContainText('Kolektor nie policzył stanu roślin');
+    await expect(b).toContainText('rosliny.json: zły czujnik');
+    await expect(b).not.toContainText('Dopisz je');
+    expect(bledy).toEqual([]);
+  });
+
+  for (const [opis, opcje, tekst] of [['brak pliku', { rosliny: null }, 'Nie ma jeszcze danych z doniczek'],
+    ['pusta lista', { rosliny: [] }, 'Brak roślin w konfiguracji']]) {
+    test(`${opis}: komunikat na zakładce Rośliny, Dom działa`, async ({ page }) => {
+      const { bledy } = await otworz(page, opcje, { hash: '#rosliny' });
+      await expect(page.locator('#v-rosliny [data-blad]')).toContainText(tekst);
+      await page.click('[data-tab="dom"]');
+      await expect(page.locator('#v-dom .pokoj')).toHaveCount(4);
       expect(bledy).toEqual([]);
     });
   }
 });
 
-/* Łuk doby ma odpowiadać na „która to była pora dnia" bez czytania stempla. */
-test.describe('łuk doby', () => {
-  test('rysuje łuk z horyzontem, wschodem i zachodem', async ({ page }) => {
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    const svg = page.locator('#doba');
-    await expect(svg).toBeVisible();
-    const tresc = await svg.innerHTML();
-    expect(tresc).toMatch(/<line/);                       // horyzont
-    expect(tresc).toMatch(/<path/);                       // krzywa
-    expect(await svg.getAttribute('aria-label')).toMatch(/(Dzień|Noc).*Wschód.*Zachód/s);
-    expect(bledy).toEqual([]);
-  });
-
-  test('znacznik chodzi po łuku, nad horyzontem za dnia i pod nim w nocy', async ({ page }) => {
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    // Klatki wybieramy po godzinie zegarowej, nie po ułamku suwaka. Krok animacji
-    // wypada tu na godzinę, więc próbkowanie co 1/10 okna trafiało w kółko w te same
-    // dwie pory doby i wyglądało, jakby znacznik stał w miejscu.
-    const klatki = await page.evaluate(() => {
-      const os = state.os, out = [];
-      for (let g = 0; g < 24; g += 3) {
-        for (let i = 0; i <= os.n; i++) {
-          if (new Date(os.od + i * os.krok).getHours() === g) { out.push(i); break; }
-        }
-      }
-      return out;
+test.describe('powiadomienia: ustawienia telefonów przez API GitHuba (D11)', () => {
+  const ZM = '/repos/Bronek31/Smart-Home/actions/variables';
+  /** Atrapa api.github.com: `odp(metoda, sciezka)` zwraca {status, body} albo 'siec'. */
+  async function atrapa(page, odp) {
+    const zapytania = [];
+    await page.route('https://api.github.com/**', async (route) => {
+      const r = route.request(), u = new URL(r.url());
+      if (r.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } });
+      zapytania.push({ metoda: r.method(), sciezka: u.pathname, naglowki: r.headers(), cialo: r.postData() });
+      const w = odp(r.method(), u.pathname);
+      if (w === 'siec') return route.abort('internetdisconnected');
+      return route.fulfill({ status: w.status, headers: { 'access-control-allow-origin': '*' }, contentType: 'application/json', body: w.body ? JSON.stringify(w.body) : '' });
     });
-    expect(klatki.length, 'okno nie pokrywa pełnej doby').toBeGreaterThan(6);
-    const HOR = 46;                    // y horyzontu w układzie łuku
-    const pozycje = new Set(); const rodzaje = new Set();
-    const nad = []; const pod = [];
-    for (const i of klatki) {
-      await page.$eval('#suwak', (s, k) => { s.value = k; s.dispatchEvent(new Event('input')); }, i);
-      const stan = await page.evaluate(() => {
-        const c = [...document.querySelectorAll('#doba circle')].pop();
-        return { x: +c.getAttribute('cx'), y: +c.getAttribute('cy'), noc: !!document.querySelector('#ksiezyc-maska') };
-      });
-      pozycje.add(stan.x); rodzaje.add(stan.noc);
-      /* Nieostro, bo w samej chwili wschodu i zachodu znacznik leży na kresce — i tak
-         ma być, skoro kreska jest właśnie progiem wschodu. Współrzędna zapisuje się
-         z jednym miejscem po przecinku, więc „ułamek nad kreską" wychodzi równe 46
-         i ostra nierówność wywracała test w te dni, w które próbkowana godzina wypadła
-         tuż przy przecięciu. Siłę odzyskujemy na całym przebiegu, niżej. */
-      if (stan.noc) { expect(stan.y, 'noc, a znacznik nad horyzontem').toBeGreaterThanOrEqual(HOR); pod.push(stan.y); }
-      else { expect(stan.y, 'dzień, a znacznik pod horyzontem').toBeLessThanOrEqual(HOR); nad.push(stan.y); }
-    }
-    // łuk ma mieć realną wysokość, a nie leżeć płasko na kresce
-    expect(Math.min(...nad), 'słońce w ciągu doby nie wzniosło się nad horyzont').toBeLessThan(HOR - 10);
-    expect(Math.max(...pod), 'księżyc w ciągu doby nie zszedł pod horyzont').toBeGreaterThan(HOR + 3);
-    expect(pozycje.size, 'znacznik stoi w miejscu').toBe(klatki.length);
-    expect([...rodzaje].sort()).toEqual([false, true]);   // trafiliśmy i w dzień, i w noc
+    return zapytania;
+  }
+  async function polacz(page, klucz = 'github_pat_test') {
+    await page.fill('#klucz', klucz);
+    await page.click('#polacz .przycisk');
+  }
+
+  test('bez klucza przełączniki są wygaszone, a zakładka nie pyta GitHuba', async ({ page }) => {
+    const zap = await atrapa(page, () => ({ status: 500 }));
+    const { bledy } = await otworz(page, {}, { hash: '#powiadomienia' });
+    await expect(page.locator('#polacz')).toBeVisible();
+    const sw = page.locator('[data-ust]');
+    expect(await sw.count()).toBe(8);
+    for (let i = 0; i < 8; i++) await expect(sw.nth(i)).toBeDisabled();
+    await expect(page.locator('[data-godz="od"]')).toBeDisabled();
+    expect(zap).toEqual([]);
     expect(bledy).toEqual([]);
   });
 
-  test('działa tak samo przy oknie dobowym', async ({ page }) => {
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    await page.click('[data-okno="24"]');
+  test('Połącz: GET obu zmiennych (200 → zapisane, 404 → domyślne), klucz zapisany dopiero po sukcesie', async ({ page }) => {
+    const android = { przewietrz: false, okno: true, czujniki: true, podlej: true, przestaw: false, czujnik: true, podsumowanie: true, cisza: true, od: 22, do: 7 };
+    const zap = await atrapa(page, (m, s) => (s === `${ZM}/POWIADOMIENIA_ANDROID` ? { status: 200, body: { name: 'POWIADOMIENIA_ANDROID', value: JSON.stringify(android) } } : { status: 404, body: { message: 'Not Found' } }));
+    const { bledy } = await otworz(page, {}, { hash: '#powiadomienia' });
+    await polacz(page);
+    await expect(page.locator('#polacz')).toHaveCount(0);
+    await expect(page.locator('[data-ust="przewietrz"]')).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('[data-ust="podsumowanie"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('.godz-w').first()).toContainText('22:00');
+    await expect(page.locator('[data-ust="przewietrz"]')).toBeEnabled();
+    await page.click('[data-tel="iphone"]');
+    await expect(page.locator('[data-ust="przewietrz"]')).toHaveAttribute('aria-checked', 'true');
+    await expect(page.locator('[data-ust="podsumowanie"]')).toHaveAttribute('aria-checked', 'false');
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('sh.klucz')))).toBe('github_pat_test');
+    const get = zap.filter((z) => z.metoda === 'GET');
+    expect(get.map((z) => z.sciezka).sort()).toEqual([`${ZM}/POWIADOMIENIA_ANDROID`, `${ZM}/POWIADOMIENIA_IPHONE`]);
+    for (const z of get) {
+      expect(z.naglowki.authorization).toBe('Bearer github_pat_test');
+      expect(z.naglowki.accept).toBe('application/vnd.github+json');
+      expect(z.naglowki['x-github-api-version']).toBe('2022-11-28');
+    }
+    expect(bledy).toEqual([]);
+  });
+
+  for (const [status, tekst] of [[401, 'Klucz nie działa albo wygasł'], [403, 'Klucz nie ma uprawnienia Variables do Smart-Home'], ['siec', 'Brak połączenia']]) {
+    test(`Połącz przy ${status}: komunikat, klucz nie zostaje w pamięci`, async ({ page }) => {
+      await atrapa(page, () => (status === 'siec' ? 'siec' : { status, body: { message: 'x' } }));
+      const { bledy } = await otworz(page, {}, { hash: '#powiadomienia' });
+      await polacz(page);
+      await expect(page.locator('#klucz-blad')).toHaveText(tekst);
+      await expect(page.locator('#klucz')).toHaveAttribute('aria-invalid', 'true');
+      expect(await page.evaluate(() => localStorage.getItem('sh.klucz'))).toBeNull();
+      await expect(page.locator('[data-ust="okno"]')).toBeDisabled();
+      expect(bledy).toEqual([]);
+    });
+  }
+
+  test('zmiana przełącznika: od razu w UI, PATCH z JSON-em w kolejności DOMYSLNE (204)', async ({ page }) => {
+    const zap = await atrapa(page, (m) => (m === 'GET' ? { status: 404 } : { status: 204 }));
+    const { bledy } = await otworz(page, {}, { hash: '#powiadomienia' });
+    await polacz(page);
+    await page.click('[data-ust="okno"]');
+    await expect(page.locator('[data-ust="okno"]')).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('#toast')).toContainText('Zapisano · Android');
+    const p = zap.find((z) => z.metoda === 'PATCH');
+    expect(p.sciezka).toBe(`${ZM}/POWIADOMIENIA_ANDROID`);
+    const cialo = JSON.parse(p.cialo);
+    expect(cialo.name).toBe('POWIADOMIENIA_ANDROID');
+    expect(cialo.value).toBe('{"przewietrz":true,"okno":false,"czujniki":true,"podlej":true,"przestaw":true,"czujnik":true,"podsumowanie":false,"cisza":true,"od":21,"do":8}');
+    // godzina ciszy
+    await page.selectOption('[data-godz="od"]', '23');
+    await expect(page.locator('.godz-w').first()).toContainText('23:00');
+    await expect.poll(() => zap.filter((z) => z.metoda === 'PATCH').length).toBe(2);
+    expect(JSON.parse(JSON.parse(zap.filter((z) => z.metoda === 'PATCH')[1].cialo).value).od).toBe(23);
+    expect(bledy).toEqual([]);
+  });
+
+  test('cisza nocna Od = Do: wybór cofnięty z komunikatem, bez zapisu do GitHuba', async ({ page }) => {
+    // telefony.w_ciszy uznaje od == do za brak ciszy: ekran mówiłby „Włączona”, a powiadomienia przychodziłyby w nocy
+    const zap = await atrapa(page, (m) => (m === 'GET' ? { status: 404 } : { status: 204 }));
+    const { bledy } = await otworz(page, {}, { hash: '#powiadomienia' });
+    await polacz(page);
+    // selectOption na wygaszonym polu sprzed połączenia trafiłby w element, który za chwilę zniknie
+    await expect(page.locator('[data-godz="od"]')).toBeEnabled();
+    await page.selectOption('[data-godz="od"]', '8');   // „Do” domyślnie 8:00
+    await expect(page.locator('#toast')).toContainText('Od i Do muszą się różnić');
+    await expect(page.locator('[data-godz="od"]')).toHaveValue('21');
+    await expect(page.locator('.godz-w').first()).toContainText('21:00');
+    await page.selectOption('[data-godz="do"]', '21');
+    await expect(page.locator('[data-godz="do"]')).toHaveValue('8');
     await page.waitForTimeout(300);
-    await expect(page.locator('#doba')).toBeVisible();
-    expect(await page.locator('#doba').getAttribute('aria-label')).toMatch(/(Dzień|Noc)/);
+    expect(zap.filter((z) => z.metoda !== 'GET')).toEqual([]);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('sh.ustawienia') || 'null'))).not.toMatchObject({ android: { od: 8 } });
+    // inna godzina zapisuje się jak zwykle
+    await page.selectOption('[data-godz="od"]', '22');
+    await expect.poll(() => zap.filter((z) => z.metoda === 'PATCH').length).toBe(1);
+    expect(JSON.parse(JSON.parse(zap.find((z) => z.metoda === 'PATCH').cialo).value)).toMatchObject({ od: 22, do: 8 });
     expect(bledy).toEqual([]);
   });
 
-  test('wschód wypada przed zachodem i oba są o sensownej porze', async ({ page }) => {
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    const d = await page.evaluate(() => {
-      const x = dobaDane(Date.now(), 50.2649, 19.0238);
-      const godz = (ms) => (ms - x.t0) / 3600e3;
-      return { w: godz(x.wschod), z: godz(x.zachod), gora: x.gora };
-    });
-    expect(d.w).toBeGreaterThan(2);
-    expect(d.w).toBeLessThan(d.z);
-    expect(d.z).toBeLessThan(23);
-    expect(d.gora).toBeGreaterThan(10);      // w Katowicach słońce wychodzi wysoko nawet zimą
+  test('zmiennej jeszcze nie ma: PATCH 404 → POST (201)', async ({ page }) => {
+    const zap = await atrapa(page, (m) => (m === 'GET' ? { status: 404 } : m === 'PATCH' ? { status: 404 } : { status: 201 }));
+    const { bledy } = await otworz(page, {}, { hash: '#powiadomienia' });
+    await polacz(page);
+    await page.click('[data-tel="iphone"]');
+    await page.click('[data-ust="podsumowanie"]');
+    await expect(page.locator('#toast')).toContainText('Zapisano · iPhone');
+    const post = zap.find((z) => z.metoda === 'POST');
+    expect(post.sciezka).toBe(ZM);
+    expect(JSON.parse(post.cialo).name).toBe('POWIADOMIENIA_IPHONE');
+    expect(JSON.parse(JSON.parse(post.cialo).value).podsumowanie).toBe(true);
     expect(bledy).toEqual([]);
   });
 
-  test('wysokość słońca zgadza się z rachunkiem astronomicznym', async ({ page }) => {
-    // W południe w przesilenie słońce stoi dokładnie 90° − szerokość ± nachylenie osi
-    // (23,44°). To sprawdza cały łańcuch naraz: deklinację, równanie czasu i kąt
-    // godzinny. Gdyby którykolwiek człon wzoru się rozjechał, ta tożsamość pęka.
-    const bledy = await otworz(page, {}, Z_ODTWARZANIEM);
-    const w = await page.evaluate(() => {
-      const LAT = 50.2649, LON = 19.0238;
-      const maks = (r, m, d) => Math.max(...Array.from({ length: 288 },
-        (_, i) => wysokoscSlonca(Date.UTC(r, m, d) + i * 5 * 60e3, LAT, LON)));
-      return { lato: maks(2026, 5, 21), zima: maks(2026, 11, 21), lat: LAT };
-    });
-    expect(w.lato).toBeCloseTo(90 - w.lat + 23.44, 0);
-    expect(w.zima).toBeCloseTo(90 - w.lat - 23.44, 0);
+  test('błąd zapisu cofa przełącznik i mówi, co się stało; 401 wraca do „Połącz"', async ({ page }) => {
+    let patch = 500;
+    await atrapa(page, (m) => (m === 'GET' ? { status: 404 } : { status: patch }));
+    const { bledy } = await otworz(page, {}, { hash: '#powiadomienia' });
+    await polacz(page);
+    await page.click('[data-ust="czujniki"]');
+    await expect(page.locator('#toast')).toContainText('GitHub odpowiedział błędem (500)');
+    await expect(page.locator('[data-ust="czujniki"]')).toHaveAttribute('aria-checked', 'true');
+    patch = 401;
+    await page.click('[data-ust="czujniki"]');
+    await expect(page.locator('#klucz-blad')).toHaveText('Klucz nie działa albo wygasł');
+    expect(await page.evaluate(() => localStorage.getItem('sh.klucz'))).toBeNull();
     expect(bledy).toEqual([]);
   });
 
-  test('bez współrzędnych łuk się nie pokazuje, a strona żyje dalej', async ({ page }) => {
-    const bledy = await otworz(page, { bezMiejsca: true }, Z_ODTWARZANIEM);
-    await expect(page.locator('#doba')).toBeHidden();
-    await expect(page.locator('#plan-tytul')).toContainText('aktualny stan');
-    await expect(page.locator('#suwak')).toBeVisible();
+  test('Odłącz usuwa klucz z telefonu', async ({ page }) => {
+    await atrapa(page, () => ({ status: 404 }));
+    const { bledy } = await otworz(page, {}, { hash: '#powiadomienia' });
+    await polacz(page);
+    await page.click('[data-akcja="odlacz"]');
+    await page.click('[data-akcja="odlacz-tak"]');
+    await expect(page.locator('#polacz')).toBeVisible();
+    expect(await page.evaluate(() => localStorage.getItem('sh.klucz'))).toBeNull();
+    await expect(page.locator('[data-ust="okno"]')).toBeDisabled();
+    expect(bledy).toEqual([]);
+  });
+
+  test('„Ostatnie": z obu plików, tylko wysłane do telefonu, najnowsze na górze; bez dopisku o próbie przy „wlaczone"', async ({ page }) => {
+    const t = (h) => iso(Date.now() - h * GODZ);
+    const powDom = { tryb: 'wlaczone', wlaczone_od: t(48), historia: [
+      { ts: t(2), regula: 'przewietrz', pokoje: ['Kuchnia'], tytul: 'Przewietrz kuchnię', tresc: '…', na_sucho: false, telefony: ['iphone'] },
+      { ts: t(1), regula: 'okno', pokoje: ['Sypialnia'], tytul: 'Zamknij okno w sypialni?', tresc: '…', na_sucho: false, telefony: [] },
+    ], stan_regul: {}, telefony: {} };
+    const powRosliny = { tryb: 'wlaczone', wlaczone_od: t(48), historia: [
+      { ts: t(5), regula: 'podlej', rosliny: ['Azalia'], tytul: 'Azalia: podlej dziś', tresc: '…', na_sucho: false },
+      { ts: t(3), regula: 'podlej', rosliny: ['Fikus'], tytul: 'Fikus: próba', tresc: '…', na_sucho: true, telefony: ['android'] },
+    ], stan_regul: {} };
+    const { bledy } = await otworz(page, { powDom, powRosliny }, { hash: '#powiadomienia' });
+    const w = page.locator('#pw-ostatnie .wiersz');
+    await expect(w).toHaveCount(2);
+    await expect(w.nth(0)).toContainText('Przewietrz kuchnię');
+    await expect(w.nth(0)).toContainText('iPhone');
+    await expect(w.nth(1)).toContainText('Azalia: podlej dziś');
+    await expect(w.nth(1)).toContainText('Android i iPhone');
+    expect(await page.locator('#v-powiadomienia').innerText()).not.toContain('w próbie');
+    expect(bledy).toEqual([]);
+  });
+
+  test('tryb próby w pliku powiadomień: dopisek pod grupą', async ({ page }) => {
+    const { bledy } = await otworz(page, { powRosliny: { tryb: 'na-sucho', historia: [] } }, { hash: '#powiadomienia' });
+    await expect(page.locator('#v-powiadomienia')).toContainText('Powiadomienia o roślinach są w próbie i jeszcze nie przychodzą.');
+    await expect(page.locator('#pw-ostatnie')).toContainText('Jeszcze nic nie wysłano');
     expect(bledy).toEqual([]);
   });
 });
 
-/* Odświeżanie: strona zainstalowana na telefonie nie ma przycisku odświeżania, więc
-   sama dociąga dane, gdy kolektor coś dopisze. Dane podmieniamy w trakcie testu —
-   podstaw() czyta pliki przy każdym zapytaniu. */
-test.describe('odświeżanie', () => {
-  async function start(page) {
-    const bledy = pilnujBledow(page);
-    await podepnijChart(page);
-    const pliki = await podstaw(page, {});
-    await page.goto('/index.html');
-    await page.waitForFunction(() => !/wczytywanie/.test(document.getElementById('stamp').textContent), null, { timeout: 20000 });
-    return { bledy, pliki };
+test.describe('licznik na ikonie (D10)', () => {
+  async function atrapaLicznika(page, zgoda) {
+    await page.addInitScript((z) => {
+      window.__licznik = [];
+      navigator.setAppBadge = (n) => { window.__licznik.push(n); return Promise.resolve(); };
+      navigator.clearAppBadge = () => { window.__licznik.push(0); return Promise.resolve(); };
+      Object.defineProperty(Notification, 'permission', { configurable: true, get: () => z });
+    }, zgoda);
   }
 
-  test('po powrocie do karty strona sama dociąga nowy odczyt', async ({ page }) => {
-    const { bledy, pliki } = await start(page);
-    await expect(page.locator('#pens')).not.toContainText('30,0°');
-    const teraz = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-    const m = JSON.parse(pliki['index.json']);
-    m.updated = teraz;
-    pliki['index.json'] = JSON.stringify(m);
-    pliki[`${teraz.slice(0, 7)}.csv`] += `${teraz},salon,va_temperature,30.0\n${teraz},salon,va_humidity,50\n`;
-    // powrót do karty po dłuższej przerwie
-    await page.evaluate(() => { ostatnieOdswiezenie = 0; document.dispatchEvent(new Event('visibilitychange')); });
-    await expect(page.locator('#pens')).toContainText('30,0°');
+  test('liczba spraw: pokoje z regułą albo ciszą i rośliny do podlania', async ({ page }) => {
+    await atrapaLicznika(page, 'granted');
+    const { bledy } = await otworz(page, { martwy: 'salon', dom: { kuchnia: { przewietrz: { od: iso(Date.now() - 3 * GODZ), wilg: 71, granica: 63 } } },
+      zmianyRoslin: { Azalia: { werdykt: 'podlej' } } });
+    await expect.poll(() => page.evaluate(() => window.__licznik[window.__licznik.length - 1])).toBe(3);
     expect(bledy).toEqual([]);
   });
 
-  test('bez nowego zapisu kolektora nic się nie przerysowuje', async ({ page }) => {
-    const { bledy } = await start(page);
-    const przerysowane = await page.evaluate(async () => {
-      const przed = state.indeks;
-      await odswiezDane();
-      return state.indeks !== przed;
+  test('nic do zrobienia: licznik zdjęty; bez zgody na powiadomienia: nietknięty', async ({ page }) => {
+    await atrapaLicznika(page, 'granted');
+    const { bledy } = await otworz(page);
+    await expect.poll(() => page.evaluate(() => window.__licznik.length)).toBeGreaterThan(0);
+    expect(await page.evaluate(() => window.__licznik.every((n) => n === 0))).toBe(true);
+    expect(bledy).toEqual([]);
+  });
+
+  test('bez zgody na powiadomienia licznik nie jest ustawiany', async ({ page }) => {
+    await atrapaLicznika(page, 'default');
+    const { bledy } = await otworz(page, { zmianyRoslin: { Azalia: { werdykt: 'pilne' } } });
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.waitForTimeout(200);
+    expect(await page.evaluate(() => window.__licznik)).toEqual([]);
+    expect(bledy).toEqual([]);
+  });
+});
+
+test.describe('wejście z powiadomienia', () => {
+  async function zostawCel(page, cel, ts) {
+    await page.evaluate(async ({ cel, ts }) => {
+      const c = await caches.open('cel-powiadomienia');
+      await c.put('./cel', new Response(JSON.stringify({ cel, ts }), { headers: { 'Content-Type': 'application/json' } }));
+    }, { cel, ts });
+  }
+  for (const [cel, oczekiwany] of [['rosliny.html#roslina=Azalia', '#azalia'], ['./#kuchnia', '#kuchnia'], ['rosliny.html', '#rosliny']]) {
+    test(`zimny start z celem „${cel}" w Cache API → ${oczekiwany}, cel skasowany`, async ({ page }) => {
+      const { bledy } = await otworz(page);
+      await zostawCel(page, cel, Date.now());
+      await page.goto('/index.html');
+      await gotowa(page);
+      await expect(page).toHaveURL(new RegExp(oczekiwany + '$'));
+      expect(await page.evaluate(() => caches.has('cel-powiadomienia'))).toBe(false);
+      if (oczekiwany !== '#rosliny') {
+        await page.goBack();
+        await expect(page).toHaveURL(new RegExp(oczekiwany === '#azalia' ? '#rosliny$' : '#dom$'));
+      }
+      expect(bledy).toEqual([]);
     });
-    expect(przerysowane).toBe(false);
+  }
+
+  test('stary cel (sprzed 10 min) nie przenosi, ale jest kasowany; adres ze szczegółem wygrywa', async ({ page }) => {
+    const { bledy } = await otworz(page);
+    await zostawCel(page, '#kuchnia', Date.now() - 10 * 60e3);
+    await page.goto('/index.html');
+    await gotowa(page);
+    await page.waitForTimeout(300);
+    await expect(page).toHaveURL(/#dom$/);
+    expect(await page.evaluate(() => caches.has('cel-powiadomienia'))).toBe(false);
+    await zostawCel(page, '#kuchnia', Date.now());
+    await page.goto('/index.html#fikus');
+    await gotowa(page);
+    await page.waitForTimeout(300);
+    await expect(page).toHaveURL(/#fikus$/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('cel kliknięcia od service workera przy otwartej aplikacji (postMessage) i obce adresy odrzucone', async ({ page }) => {
+    const { bledy } = await otworz(page);
+    const w = await page.evaluate(() => [SH.hashZCelu('rosliny.html#roslina=Fikus'), SH.hashZCelu('index.html#azalia'), SH.hashZCelu(location.origin + '/#salon'),
+      SH.hashZCelu('https://example.com/#salon'), SH.hashZCelu('javascript:alert(1)'), SH.hashZCelu('#a b')]);
+    expect(w).toEqual(['#roslina=Fikus', '#azalia', '#salon', null, null, null]);
+    await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new MessageEvent('message', { data: { typ: 'cel', cel: './#sypialnia' } })));
+    await expect(page).toHaveURL(/#sypialnia$/);
+    await page.goBack();
+    await expect(page).toHaveURL(/#dom$/);
+    expect(bledy).toEqual([]);
+  });
+});
+
+test.describe('odświeżanie', () => {
+  test('po powrocie do karty dociąga nowy odczyt i zostaje na tym samym widoku', async ({ page }) => {
+    const { bledy, pliki } = await otworz(page, {}, { hash: '#kuchnia' });
+    await expect(page.locator('.strona:not(.sasiad) .boh-t')).not.toContainText('30,0');
+    const t = iso(Date.now());
+    const m = JSON.parse(pliki['data/index.json']);
+    m.updated = t;
+    pliki['data/index.json'] = JSON.stringify(m);
+    pliki[`data/${t.slice(0, 7)}.csv`] += `${t},kuchnia,va_temperature,30.0\n`;
+    await page.evaluate(() => { SH.ustawOstatnieOdswiezenie(0); document.dispatchEvent(new Event('visibilitychange')); });
+    await expect(page.locator('.strona:not(.sasiad) .boh-t')).toContainText('30,0');
+    await expect(page).toHaveURL(/#kuchnia$/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('bez nowej zbiórki dane się nie przebudowują', async ({ page }) => {
+    const { bledy } = await otworz(page);
+    const ta = await page.evaluate(async () => { const przed = SH.dane; const nowe = await SH.odswiezDane(); return { nowe, ta: SH.dane === przed }; });
+    expect(ta).toEqual({ nowe: false, ta: true });
+    expect(bledy).toEqual([]);
+  });
+
+  for (const [opis, odp] of [['503', { status: 503, body: 'Service Unavailable' }], ['404 (Pages w trakcie wdrożenia)', null],
+    ['portal Wi-Fi: HTML ze statusem 200', { status: 200, contentType: 'text/html', body: '<html><body>Zaloguj się do Wi-Fi</body></html>' }]]) {
+    test(`manifest przy odświeżaniu: ${opis} → nic nie zmienia się na ekranie`, async ({ page }) => {
+      const { bledy, pliki } = await otworz(page, { dom: { lazienka: { przewietrz: { od: iso(Date.now() - 2 * GODZ), wilg: 72, granica: 63 } } } }, { hash: '#lazienka' });
+      const przed = await tekstStrony(page);
+      pliki['data/index.json'] = odp;
+      expect(await page.evaluate(() => SH.odswiezDane())).toBe(false);
+      await expect(page).toHaveURL(/#lazienka$/);
+      expect(await page.locator('[data-blad]').count()).toBe(0);
+      expect(await tekstStrony(page)).toBe(przed);
+      expect(bledy).toEqual([]);
+    });
+  }
+
+  test('nowa zbiórka, ale miesiąc CSV odpowiada 503: widok zostaje, a następne odświeżenie dociąga dane', async ({ page }) => {
+    const { bledy, pliki } = await otworz(page, {}, { hash: '#kuchnia' });
+    const t = iso(Date.now()), mies = `data/${t.slice(0, 7)}.csv`, csv = pliki[mies];
+    const m = JSON.parse(pliki['data/index.json']);
+    m.updated = t;
+    pliki['data/index.json'] = JSON.stringify(m);
+    pliki[mies] = { status: 503, body: 'Service Unavailable' };
+    expect(await page.evaluate(() => SH.odswiezDane())).toBe(false);
+    await expect(page.locator('.strona:not(.sasiad) h1')).toHaveText('Kuchnia');
+    expect(await page.locator('[data-blad]').count()).toBe(0);
+    await page.click('[data-tab="dom"]');
+    await expect(page.locator('#v-dom .pokoj')).toHaveCount(4);
+    // serwer znowu działa: ten sam manifest, ale poprzednia próba się nie udała, więc dane przychodzą
+    pliki[mies] = csv + `${t},kuchnia,va_temperature,30.0\n`;
+    expect(await page.evaluate(() => SH.odswiezDane())).toBe(true);
+    await expect(page.locator('[data-idz="kuchnia"] .pokoj-t')).toContainText('30,0');
+    expect(bledy).toEqual([]);
+  });
+
+  test('pierwsze wczytanie z miesiącami 503: komunikat jak dotąd, a odświeżenie z tą samą zbiórką próbuje znowu', async ({ page }) => {
+    const bledy = pilnujBledow(page);
+    await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
+    const pliki = await podstaw(page, {});
+    const miesiace = Object.keys(pliki).filter((k) => /^data\/\d{4}-\d\d\.csv$/.test(k)), csv = {};
+    for (const k of miesiace) { csv[k] = pliki[k]; pliki[k] = { status: 503, body: '' }; }
+    await page.goto('/index.html#dom');
+    await gotowa(page);
+    await expect(page.locator('#v-dom [data-blad]')).toContainText('Pliki z danymi są puste');
+    // nieudany miesiąc nie został zapamiętany jako pusty: serwer działa, manifest ten sam, a dane przychodzą
+    Object.assign(pliki, csv);
+    expect(await page.evaluate(() => SH.odswiezDane())).toBe(true);
+    await expect(page.locator('#v-dom .pokoj')).toHaveCount(4);
+    expect(bledy).toEqual([]);
+  });
+
+  test('plik nieobowiązkowy z błędem przy odświeżaniu: zostaje poprzednia wersja (reguły domu nie znikają)', async ({ page }) => {
+    const { bledy, pliki } = await otworz(page, { dom: { kuchnia: { przewietrz: { od: iso(Date.now() - 3 * GODZ), wilg: 71, granica: 63.2 } } } });
+    await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Przewietrz kuchnię/);
+    const m = JSON.parse(pliki['data/index.json']);
+    m.updated = iso(Date.now());
+    pliki['data/index.json'] = JSON.stringify(m);
+    pliki['data/dom/stan.json'] = { status: 503, body: '' };
+    expect(await page.evaluate(() => SH.odswiezDane())).toBe(true);
+    await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Przewietrz kuchnię/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('karta widoczna godzinami bez nowej zbiórki: co 10 min przerysowanie z zegarem („Ostatnia zbiórka 4 godz. temu")', async ({ page }) => {
+    const teraz = Date.now();
+    await page.clock.install({ time: teraz });
+    const { bledy } = await otworz(page, { teraz });
+    await expect(page.locator('#v-dom [data-spoznienie]')).toHaveCount(0);
+    await page.clock.runFor(4 * GODZ);
+    await expect(page.locator('#v-dom [data-spoznienie]')).toContainText(/Ostatnia zbiórka 4\sgodz\. temu/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('krótki powrót do karty przerysowuje widok bez pobierania („N min temu" idzie z zegarem)', async ({ page }) => {
+    const teraz = Date.now();
+    await page.clock.install({ time: teraz });
+    const { bledy } = await otworz(page, { teraz }, { hash: '#kuchnia' });
+    const pod = page.locator('.strona:not(.sasiad) .podtytul');
+    await expect(pod).not.toContainText(/[45]\sgodz\. temu/);
+    // karta w tle przez 4 godz. (interwał nic wtedy nie robi), a sprawdzenie manifestu było przed chwilą
+    await page.evaluate(() => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => true }); document.dispatchEvent(new Event('visibilitychange')); });
+    await page.clock.runFor(4 * GODZ);
+    let zapytania = 0;
+    page.on('request', (r) => { if (r.url().endsWith('/data/index.json')) zapytania++; });
+    await page.evaluate(() => {
+      SH.ustawOstatnieOdswiezenie(Date.now());
+      Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(pod).toContainText(/[45]\sgodz\. temu/);
+    expect(zapytania).toBe(0);
     expect(bledy).toEqual([]);
   });
 
   test('krótki powrót do karty nie odpytuje serwera', async ({ page }) => {
-    const { bledy } = await start(page);
+    const { bledy } = await otworz(page);
     let zapytania = 0;
     page.on('request', (r) => { if (r.url().endsWith('/data/index.json')) zapytania++; });
-    await page.evaluate(() => { ostatnieOdswiezenie = Date.now(); document.dispatchEvent(new Event('visibilitychange')); });
+    await page.evaluate(() => { SH.ustawOstatnieOdswiezenie(Date.now()); document.dispatchEvent(new Event('visibilitychange')); });
     await page.waitForTimeout(300);
     expect(zapytania).toBe(0);
     expect(bledy).toEqual([]);
   });
 });
 
-test.describe('odporność', () => {
-  test('brak Chart.js nie zabiera tabel ani nagłówka', async ({ page }) => {
-    const bledy = await otworz(page, {}, { cdnDziala: false });
-    await expect(page.locator('.plot-blad').first()).toBeVisible();
-    await expect(page.locator('#summary tbody tr').first()).toBeVisible();
-    await expect(page.locator('#health tbody tr')).toHaveCount(4);
-    await expect(page.locator('#stamp')).toContainText('ostatni zapis');
-    await expect(page.locator('#rytm')).toBeVisible();          // mapa rytmu nie potrzebuje Chart.js
-    expect(bledy).toEqual([]);
-  });
-
-  test('suwak działa też bez wykresów', async ({ page }) => {
-    const bledy = await otworz(page, {}, { ...Z_ODTWARZANIEM, cdnDziala: false });
-    await page.$eval('#suwak', (s) => { s.value = 5; s.dispatchEvent(new Event('input')); });
-    await page.waitForTimeout(300);
-    await expect(page.locator('#plan-tytul')).not.toContainText('aktualny stan');
-    expect(bledy).toEqual([]);
-  });
-
-  /* Na telefonie strona ma kilka ekranów wysokości i kolejność decyduje, co zostanie
-     zobaczone. Dawniej pierwszy ekran zajmowały cztery wiersze diagnostyki, pogoda z radą
-     leżała na samym dole, a tabela zakresów przewijała się w bok bez żadnej wskazówki. */
-  test('na telefonie pogoda i rada są zaraz pod kaflami, a tabela mieści się bez przewijania', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 1400 });
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => {
-      const r = (sel) => document.querySelector(sel).getBoundingClientRect();
-      const t = document.getElementById('summary'), kafle = r('#pens');
-      const ostatni = [...document.querySelectorAll('#pens .pen')].at(-1).getBoundingClientRect();
-      return {
-        pogoda: r('#wx-panel').top, wykres: r('#temp').top, kafle: kafle.bottom,
-        status: r('#statusbar').height, tabela: t.scrollWidth - t.clientWidth,
-        ostatni: ostatni.width, szer: kafle.width,
-      };
+test.describe('układ na telefonie', () => {
+  for (const szer of [390, 360, 320]) {
+    test(`${szer} px: nic nie wystaje w poziomie na żadnej zakładce ani szczególe`, async ({ page }) => {
+      await page.setViewportSize({ width: szer, height: 900 });
+      const { bledy } = await otworz(page, { dom: { kuchnia: { przewietrz: { od: iso(Date.now() - 3 * GODZ), wilg: 71, granica: 63 } } } });
+      for (const h of ['#dom', '#kuchnia', '#zewnatrz', '#rosliny', '#azalia', '#historia', '#powiadomienia']) {
+        await page.goto('/index.html' + h);
+        await gotowa(page);
+        await page.waitForTimeout(150);
+        const nadmiar = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        expect(nadmiar, h).toBeLessThanOrEqual(0);
+      }
+      expect(bledy).toEqual([]);
     });
-    expect(w.pogoda, 'pogoda nad kaflami').toBeGreaterThanOrEqual(w.kafle - 1);
-    expect(w.pogoda, 'pogoda pod wykresami').toBeLessThan(w.wykres);
-    expect(w.status, 'status zajmuje pół ekranu').toBeLessThan(200);
-    expect(w.tabela, 'tabela zakresów przewija się w bok').toBeLessThanOrEqual(1);
-    expect(w.ostatni, 'kafel dworu nie idzie na całą szerokość').toBeGreaterThan(w.szer * 0.9);
+  }
+
+  test('320 px: dolny wiersz kafla pokoju nie jest ucięty; 390 i 360 px mają podpis „24 h" jak w prototypie', async ({ page }) => {
+    const { bledy } = await otworz(page, { trend: { salon: -0.2, sypialnia: 0.4, kuchnia: -1.2, lazienka: 0.6 } });
+    for (const szer of [390, 360, 320]) {
+      await page.setViewportSize({ width: szer, height: 900 });
+      await page.waitForTimeout(100);
+      const w = await page.evaluate(() => Array.prototype.map.call(document.querySelectorAll('#v-dom .pokoj-d'), (d) => ({
+        nadmiar: d.scrollWidth - d.clientWidth, h24: !!Array.prototype.find.call(d.querySelectorAll('.zm-h'), (z) => z.getClientRects().length) })));
+      expect(w.length, `${szer}`).toBe(4);
+      for (const k of w) {
+        expect(k.nadmiar, `${szer} px`).toBeLessThanOrEqual(0);
+        expect(k.h24, `${szer} px: „24 h"`).toBe(szer >= 360);
+      }
+    }
     expect(bledy).toEqual([]);
   });
 
-  // Strażnik: przestawienie kolejności dotyczy wyłącznie telefonu.
-  test('na komputerze pogoda zostaje w prawej kolumnie obok rzutu', async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    const bledy = await otworz(page);
-    const w = await page.evaluate(() => {
-      const r = (sel) => document.querySelector(sel).getBoundingClientRect();
-      return { pogoda: r('#wx-panel'), rzut: r('#floor'), naglowki: document.querySelectorAll('#summary th').length };
-    });
-    expect(w.pogoda.left).toBeGreaterThan(w.rzut.right);
-    expect(w.naglowki).toBe(7);
+  test('bez zagnieżdżonych <svg> (WebKit rozdmuchuje je do rozmiaru rodzica)', async ({ page }) => {
+    const { bledy } = await otworz(page);
+    for (const h of ['#dom', '#kuchnia', '#azalia', '#historia']) {
+      await page.goto('/index.html' + h);
+      await gotowa(page);
+      expect(await page.evaluate(() => document.querySelectorAll('svg svg').length), h).toBe(0);
+    }
     expect(bledy).toEqual([]);
-  });
-
-  test('diagnostyka łączności zwinięta, gdy wszystko gra, i rozwinięta przy kłopocie', async ({ page }) => {
-    await otworz(page);
-    expect(await page.$eval('#diagnostyka', (d) => d.open)).toBe(false);
-    await otworz(page, { martwy: 'kuchnia' });
-    expect(await page.$eval('#diagnostyka', (d) => d.open)).toBe(true);
-  });
-
-  test('na telefonie nic nie wystaje w poziomie', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 1400 });
-    const bledy = await otworz(page);
-    const nadmiar = await page.evaluate(() =>
-      document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(nadmiar).toBeLessThanOrEqual(0);
-    expect(bledy).toEqual([]);
-  });
-
-  test('wąska szyba 320 px też się mieści', async ({ page }) => {
-    await page.setViewportSize({ width: 320, height: 1400 });
-    await otworz(page);
-    const nadmiar = await page.evaluate(() =>
-      document.documentElement.scrollWidth - document.documentElement.clientWidth);
-    expect(nadmiar).toBeLessThanOrEqual(0);
   });
 });
 
 test.describe('pliki towarzyszące', () => {
-  /* Strażnik, nie test: iPhona w Chromium nie da się udać. Na iPhonie strona dodana do
-     ekranu początkowego ma przezroczysty pasek stanu i bez tych dwóch rzeczy nagłówek
-     wchodzi pod zegar — a wycięcie którejkolwiek z nich wygląda jak porządki. */
-  test('na iPhonie strona zostawia miejsce pod paskiem stanu (strażnik)', async () => {
-    const html = require('fs').readFileSync(require('path').join(__dirname, '..', '..', 'index.html'), 'utf8');
-    expect(html).toMatch(/name="apple-mobile-web-app-status-bar-style" content="black-translucent"/);
-    expect(html).toMatch(/name="viewport" content="[^"]*viewport-fit=cover/);
-    expect(html).toMatch(/\.sheet\{padding-top:max\(var\(--gap\),env\(safe-area-inset-top\)\)/);
+  /* Strażnik, nie test: iPhone'a w Chromium nie da się udać. Aplikacja z ekranu ma przezroczysty pasek stanu
+     i bez tych trzech rzeczy nagłówek wchodzi pod zegar albo treść przewija się nad nim. */
+  test('na iPhonie nagłówek zakrywa pas pod paskiem stanu (strażnik)', () => {
+    expect(HTML).toMatch(/name="apple-mobile-web-app-status-bar-style" content="black-translucent"/);
+    expect(HTML).toMatch(/name="viewport" content="[^"]*viewport-fit=cover/);
+    expect(HTML).toMatch(/\.nav\{[^}]*position:sticky;top:0;[^}]*padding-top:env\(safe-area-inset-top,0px\);background:var\(--bg\)\}/);
   });
 
-  // jedyny test, w którym worker ma działać — reszta go blokuje, bo omijałby podstawione dane
+  test('pełny nagłówek PWA, bez modułów ES i bez Chart.js (strażnik)', () => {
+    for (const w of [/<link rel="manifest" href="manifest.json">/, /<meta name="theme-color" content="#0f1419">/, /<link rel="apple-touch-icon" href="ikona-192.png">/,
+      /<meta name="apple-mobile-web-app-capable" content="yes">/]) expect(HTML).toMatch(w);
+    expect(HTML).not.toMatch(/<script[^>]+type=["']module["']/);
+    expect(HTML).not.toMatch(/chart\.js|<script[^>]+src=/i);
+    expect(HTML).not.toMatch(/pleśń|pleśni|pleśnią/i);
+  });
+
   test.describe('z włączonym service workerem', () => {
     test.use({ serviceWorkers: 'allow' });
     test('rejestruje się i nie psuje strony na prawdziwych danych', async ({ page }) => {
       const bledy = pilnujBledow(page);
-      await podepnijChart(page);
+      await page.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.abort());
       await page.goto('/index.html');
-      await page.waitForFunction(() =>
-        !document.getElementById('app').hidden || !document.getElementById('notice').hidden,
-        null, { timeout: 15000 });
-      const gotowy = await page.evaluate(() =>
-        navigator.serviceWorker.ready.then((r) => !!r.active).catch(() => false));
+      await gotowa(page);
+      const gotowy = await page.evaluate(() => navigator.serviceWorker.ready.then((r) => !!r.active).catch(() => false));
       expect(gotowy, 'service worker powinien się zarejestrować').toBe(true);
       expect(bledy).toEqual([]);
     });
   });
 
-  test('manifest PWA i service worker są poprawne', async ({ page, request }) => {
+  test('manifest PWA i service worker są na miejscu', async ({ request }) => {
     const m = await (await request.get('/manifest.json')).json();
     expect(m.start_url).toBe('./');
-    expect(m.icons.length).toBeGreaterThan(0);
-    for (const ikona of m.icons) {
-      const r = await request.get(`/${ikona.src}`);
-      expect(r.status(), `brak pliku ${ikona.src}`).toBe(200);
-    }
-    const sw = await (await request.get('/sw.js')).text();
-    expect(sw).toContain('addEventListener');
-  });
-});
-
-/* --- Przybliżanie osi czasu ---
-
-   Gesty testujemy prawdziwymi zdarzeniami dotyku przez CDP, a nie sztucznym wywołaniem
-   funkcji ze środka strony: przedmiotem testu jest właśnie to, czy palec dochodzi do
-   wykresu — a po drodze stoi CSS touch-action, faza przechwytywania i wtyczka `dotyk`,
-   która zdarzenia dotyku przed Chart.js ukrywa. Wywołanie skalujOkno() wprost przeszłoby
-   nawet wtedy, gdyby żaden z tych trzech elementów nie działał. */
-test.describe('przybliżanie osi czasu', () => {
-  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
-
-  /** Wykres musi być w kadrze — CDP wysyła dotyk we współrzędne okna, nie dokumentu. */
-  async function pole(page, sel = '#temp') {
-    await page.locator(sel).scrollIntoViewIfNeeded();
-    await page.waitForTimeout(150);
-    const b = await page.locator(sel).boundingBox();
-    return { ...b, cx: b.x + b.width / 2, cy: b.y + b.height / 2 };
-  }
-  const stan = (page) => page.evaluate(() => {
-    const t = state.charts.temp, y = t.scales.y;
-    return {
-      // `typeof`, bo test ma padać na zachowaniu, a nie na braku samej zmiennej:
-      // inaczej wersja bez przybliżania wywracałaby się z ReferenceError i nie dałoby
-      // się odróżnić „nie ma funkcji" od „funkcja działa źle"
-      przybliżone: typeof okno !== 'undefined' && okno != null,
-      szerokoscH: (t.scales.x.max - t.scales.x.min) / 3600e3,
-      x: [t.scales.x.min, t.scales.x.max],
-      y: [y.min, y.max],
-      rozpietoscY: y.max - y.min,
-      // brak przycisku czytamy jak „schowany", żeby i ten test padał na zachowaniu
-      lupaUkryta: document.getElementById('pelny-zakres')?.hidden ?? true,
-    };
-  });
-  /** Rozsuwa albo zsuwa dwa palce w poziomie, wokół środka wykresu.
-   *  Palce muszą zostać NA wykresie: dotyk poza jego prostokątem trafia w inny element
-   *  i nasłuch wykresu go nie zobaczy — gest po cichu przestaje działać w połowie. */
-  async function szczypnij(page, p, odleglosci) {
-    const cdp = await page.context().newCDPSession(page);
-    const kres = p.width / 2 - 12;
-    for (const d of odleglosci) expect(d, 'palec wyszedł poza wykres').toBeLessThanOrEqual(kres);
-    const para = (d) => [{ x: p.cx - d, y: p.cy, id: 1 }, { x: p.cx + d, y: p.cy, id: 2 }];
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: para(odleglosci[0]) });
-    for (const d of odleglosci.slice(1)) {
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: para(d) });
-      await page.waitForTimeout(30);
-    }
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await page.waitForTimeout(150);
-  }
-  /** Ciągnie jednym palcem; `dx`/`dy` w pikselach od punktu startowego. */
-  async function pociagnij(page, p, kroki) {
-    const cdp = await page.context().newCDPSession(page);
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: p.cx, y: p.cy, id: 1 }] });
-    for (const [dx, dy] of kroki) {
-      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: p.cx + dx, y: p.cy + dy, id: 1 }] });
-      await page.waitForTimeout(30);
-    }
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await page.waitForTimeout(150);
-  }
-
-  test('rozsunięcie dwóch palców zwęża okno', async ({ page }) => {
-    const bledy = await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    const przed = await stan(page);
-    expect(przed.przybliżone, 'na starcie nic nie jest przybliżone').toBe(false);
-
-    // dwa mocne rozsunięcia — okno schodzi z tygodnia do kilku godzin
-    const p = await pole(page);
-    await szczypnij(page, p, [20, 45, 80, 120, 160]);
-    await szczypnij(page, p, [20, 45, 80, 120, 160]);
-    const po = await stan(page);
-
-    expect(po.przybliżone).toBe(true);
-    expect(po.szerokoscH, 'okno ma się zwęzić co najmniej dziesięciokrotnie')
-      .toBeLessThan(przed.szerokoscH / 10);
-    expect(bledy).toEqual([]);
-  });
-
-  /* Po to jest całe przybliżanie: nurek wietrzenia rozciąga oś pionową na cały tydzień,
-     a w oknie bez nurka oś kurczy się do pasma, w którym pokoje naprawdę chodzą.
-     Fikstura z wietrzeniem daje dokładnie ten układ — dlatego test odjeżdża oknem na
-     prawy skraj, czyli poza epizod. */
-  test('oś pionowa liczy się z okna, nie z całego zakresu', async ({ page }) => {
-    await otworz(page, { dni: 7, wietrzenie: true }, { hash: '#zakres=7d' });
-    const caly = await stan(page);
-    const p = await pole(page);
-
-    await szczypnij(page, p, [20, 45, 80, 120, 160]);
-    await szczypnij(page, p, [20, 45, 80, 120, 160]);
-    for (let i = 0; i < 12; i++) await pociagnij(page, p, [[-60, 0], [-140, 0]]);
-    const wycinek = await stan(page);
-
-    // oś ma objąć to, co w oknie widać — i nic ponad to
-    const dane = await page.evaluate(() => {
-      const ch = state.charts.temp, x = ch.scales.x;
-      let lo = Infinity, hi = -Infinity;
-      for (const ds of ch.data.datasets) for (const p of ds.data) {
-        if (!p || p.y == null || p.x < x.min || p.x > x.max) continue;
-        lo = Math.min(lo, p.y); hi = Math.max(hi, p.y);
-      }
-      return { lo, hi };
-    });
-    expect(wycinek.y[0], 'oś ucina odczyt od dołu').toBeLessThanOrEqual(dane.lo);
-    expect(wycinek.y[1], 'oś ucina odczyt od góry').toBeGreaterThanOrEqual(dane.hi);
-    expect(wycinek.rozpietoscY, 'oś pionowa ma się skurczyć razem z oknem')
-      .toBeLessThan(caly.rozpietoscY);
-    expect(wycinek.y[0], 'dolna krawędź podjeżdża w górę, bo nurka nie ma już w oknie')
-      .toBeGreaterThan(caly.y[0]);
-  });
-
-  test('zsunięcie palców wraca do całego zakresu', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    const p = await pole(page);
-    const przed = await stan(page);
-    await szczypnij(page, p, [20, 50, 90, 130, 165]);
-    expect((await stan(page)).przybliżone).toBe(true);
-    await szczypnij(page, p, [165, 120, 80, 40, 12]);
-    const po = await stan(page);
-    expect(po.przybliżone, 'po zsunięciu widać znów całość').toBe(false);
-    expect(po.szerokoscH).toBeCloseTo(przed.szerokoscH, 3);
-  });
-
-  /* STRAŻNIK — przechodzi też przeciwko wersji bez przybliżania, bo tam okna nie ma
-     czym rozjechać. Pilnuje, żeby przybliżanie nie zaczęło rozjeżdżać paneli. */
-  test('wszystkie panele pokazują dokładnie ten sam wycinek czasu (strażnik)', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    await szczypnij(page, await pole(page), [20, 50, 95, 140]);
-    const osie = await page.evaluate(() => Object.fromEntries(
-      Object.entries(state.charts).map(([id, ch]) => [id, [ch.scales.x.min, ch.scales.x.max]])));
-    const wzorzec = JSON.stringify(osie.temp);
-    for (const [id, os] of Object.entries(osie)) {
-      expect(JSON.stringify(os), `${id} rozjechał się z wykresem temperatury`).toBe(wzorzec);
-    }
-  });
-
-  test('jeden palec w poziomie przesuwa okno, nie zmieniając jego szerokości', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    const p = await pole(page);
-    await szczypnij(page, p, [20, 50, 95, 140]);
-    const przed = await stan(page);
-
-    await pociagnij(page, p, [[-25, 0], [-60, 0], [-100, 0], [-130, 0]]);
-    const po = await stan(page);
-
-    expect(po.x[0], 'ciągnięcie w lewo przesuwa okno w przyszłość').toBeGreaterThan(przed.x[0]);
-    expect(po.szerokoscH, 'przesuwanie nie ma prawa zmieniać szerokości okna')
-      .toBeCloseTo(przed.szerokoscH, 3);
-  });
-
-  /* STRAŻNIK — wersja sprzed zmiany też przechodziła: nie miała czego przesuwać ani
-     czego anulować. Pilnuje rzeczy, którą łatwo zepsuć przy majstrowaniu przy gestach:
-     że palec w pionie dalej przewija stronę i nie zostaje przechwycony przez wykres. */
-  test('jeden palec w pionie zostaje przewijaniem strony (strażnik)', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    const p = await pole(page);
-    await szczypnij(page, p, [20, 50, 95, 140]);
-    const przed = await stan(page);
-    // zdarzenie ma dojść nieanulowane — inaczej przeglądarka nie przewinie strony
-    await page.evaluate(() => {
-      window.__anulowane = [];
-      document.addEventListener('touchmove', (e) => window.__anulowane.push(e.defaultPrevented));
-    });
-
-    await pociagnij(page, p, [[0, -25], [0, -60], [0, -100], [0, -140]]);
-
-    const po = await stan(page);
-    expect(po.x, 'ruch w pionie nie należy do wykresu').toEqual(przed.x);
-    const anulowane = await page.evaluate(() => window.__anulowane);
-    expect(anulowane.length).toBeGreaterThan(0);
-    expect(anulowane.some(Boolean), 'strona musi zostać wolna do przewijania').toBe(false);
-  });
-
-  test('dotknięcie pokazuje dymek, a przeciąganie nie', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    const p = await pole(page);
-    const dymek = () => page.evaluate(() => state.charts.temp.tooltip.getActiveElements().length > 0);
-
-    await pociagnij(page, p, [[-30, 0], [-80, 0], [-130, 0]]);
-    expect(await dymek(), 'przeciąganie ma przesuwać, nie wywoływać dymka').toBe(false);
-
-    const cdp = await page.context().newCDPSession(page);
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: p.cx, y: p.cy, id: 1 }] });
-    await page.waitForTimeout(50);
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
-    await page.waitForTimeout(200);
-    expect(await dymek(), 'dotknięcie ma pokazać odczyt').toBe(true);
-  });
-
-  test('przycisk „cały zakres" pokazuje się po przybliżeniu i wraca do całości', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    const lupa = page.locator('#pelny-zakres');
-    await expect(lupa).toBeHidden();
-
-    const przed = await stan(page);
-    await szczypnij(page, await pole(page), [20, 50, 95, 140]);
-    await expect(lupa).toBeVisible();
-
-    await lupa.click();
-    const po = await stan(page);
-    expect(po.przybliżone).toBe(false);
-    expect(po.x).toEqual(przed.x);
-    await expect(lupa).toBeHidden();
-  });
-
-  test('zmiana zakresu kasuje przybliżenie', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    await szczypnij(page, await pole(page), [20, 50, 95, 140]);
-    expect((await stan(page)).przybliżone).toBe(true);
-
-    await page.click('.range[data-hours="720"]');
-    await page.waitForTimeout(300);
-    const po = await stan(page);
-    expect(po.przybliżone, 'inny zakres to inne dane — okno traci sens').toBe(false);
-    await expect(page.locator('#pelny-zakres')).toBeHidden();
-  });
-
-  /* STRAŻNIK — bez przybliżania okno stoi w miejscu i granice trzymają się same.
-     Pilnuje obu ograniczeń: dolnego progu szerokości i krawędzi danych. */
-  test('przybliżenie nie wyjeżdża poza dane ani nie schodzi poniżej pół godziny (strażnik)', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    const p = await pole(page);
-    const pelne = await page.evaluate(() =>
-      typeof granicePelne === 'function' ? granicePelne()
-        : { min: state.charts.temp.scales.x.min, max: state.charts.temp.scales.x.max });
-
-    // dwadzieścia mocnych rozsunięć — dużo poniżej dolnego ograniczenia
-    for (let i = 0; i < 20; i++) await szczypnij(page, p, [20, 60, 140]);
-    const ciasne = await stan(page);
-    expect(ciasne.szerokoscH, 'najciaśniejsze okno to pół godziny').toBeGreaterThanOrEqual(0.49);
-
-    // i dwadzieścia ciągnięć w bok — okno ma stanąć na krawędzi danych, nie za nią
-    for (let i = 0; i < 20; i++) await pociagnij(page, p, [[-60, 0], [-140, 0]]);
-    const przy = await stan(page);
-    expect(przy.x[1]).toBeLessThanOrEqual(pelne.max + 1);
-    expect(przy.x[0]).toBeGreaterThanOrEqual(pelne.min - 1);
-  });
-
-  /* STRAŻNIK — na wersji bez przybliżania okno równa się całemu zakresowi, więc żaden
-     odcinek nie przecina krawędzi i sprawdzać nie ma czego. Pilnuje domknijKrawedzie(),
-     czyli tego jednego warunku, który postawiłeś wprost: nic nie wychodzi poza wykres. */
-  test('po przybliżeniu żadna linia nie wychodzi poza pole rysowania (strażnik)', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    await szczypnij(page, await pole(page), [20, 50, 95, 140, 165]);
-
-    /* Chart.js liczy oś pionową z samych punktów wpadających w okno. Linia, która
-       wchodzi w kadr z boku, ma na krawędzi wartość interpolowaną — i to ona bywa
-       poza zakresem. Sprawdzamy dokładnie ten przypadek, na wszystkich wykresach. */
-    const poza = await page.evaluate(() => {
-      const zle = [];
-      for (const [id, ch] of Object.entries(state.charts)) {
-        const x = ch.scales.x, y = ch.scales.y;
-        for (const ds of ch.data.datasets) {
-          const d = ds.data, luka = ds.spanGaps;
-          for (let i = 1; i < d.length; i++) {
-            const a = d[i - 1], b = d[i];
-            if (!a || !b || a.y == null || b.y == null) continue;
-            if (isFinite(luka) && b.x - a.x > luka) continue;
-            for (const kr of [x.min, x.max]) {
-              if (a.x < kr && b.x > kr) {
-                const v = a.y + (b.y - a.y) * (kr - a.x) / (b.x - a.x);
-                if (v < y.min - 1e-9 || v > y.max + 1e-9)
-                  zle.push(`${id}/${ds.label}: ${v.toFixed(2)} poza ${y.min}–${y.max}`);
-              }
-            }
-          }
-          for (const p of d) {
-            if (!p || p.y == null || p.x < x.min || p.x > x.max) continue;
-            if (p.y < y.min - 1e-9 || p.y > y.max + 1e-9)
-              zle.push(`${id}/${ds.label}: punkt ${p.y} poza ${y.min}–${y.max}`);
-          }
-        }
-      }
-      return zle;
-    });
-    expect(poza).toEqual([]);
-  });
-
-  test('kółko myszy przybliża, dwuklik wraca do całości', async ({ page }) => {
-    await otworz(page, { dni: 7 }, { hash: '#zakres=7d' });
-    const p = await pole(page);
-    const przed = await stan(page);
-
-    await page.mouse.move(p.cx, p.cy);
-    for (let i = 0; i < 6; i++) await page.mouse.wheel(0, -120);
-    await page.waitForTimeout(200);
-    const po = await stan(page);
-    expect(po.szerokoscH, 'kółko nad wykresem ma przybliżać, a nie przewijać stronę')
-      .toBeLessThan(przed.szerokoscH / 2);
-
-    await page.locator('#temp').dblclick();
-    await page.waitForTimeout(200);
-    expect((await stan(page)).przybliżone).toBe(false);
+    expect(m.scope).toBe('./');
+    for (const ikona of m.icons) expect((await request.get(`/${ikona.src}`)).status(), ikona.src).toBe(200);
+    expect(await (await request.get('/sw.js')).text()).toContain('addEventListener');
   });
 });

@@ -5,9 +5,10 @@ wiedzieć, zanim ruszy się ten projekt dalej. `README.md` opisuje, **jak to dzi
 ten plik mówi, **dlaczego tak** i **na co uważać**. Pomysły na przyszłość siedzą
 w `TODO.md`.
 
-Stan na 8.10.2026: pobieranie przyrostowe w kolektorze, czujniki w doniczkach
-w przygotowaniu (`ROSLINY.md`). Przegląd wrześniowy niżej, sekcje z sierpnia jako historia
-decyzji.
+Stan na 11.10.2026: jedna aplikacja (`index.html`, zakładki Dom · Rośliny · Historia ·
+Powiadomienia), powiadomienia o domu i roślinach na oba telefony, z ustawieniami osobno dla
+każdego. Sekcje od 8.10 wstecz to historia decyzji; te o wykresach, rzucie i odtwarzaniu
+dotyczą dawnej strony (kod: `git show 6b5c01b:index.html`).
 
 ---
 
@@ -37,6 +38,125 @@ prywatnej osoby. Bez bypassu kolektor przestałby zapisywać dane (jego commity 
 checków" odrzuca commit bez checków). Alternatywa to deploy key z bypassem „Deploy keys"
 — rozważona, nie wdrożona. Do tego czasu jedyną bramką jest hook lokalny plus zaglądanie
 do Actions.
+
+---
+
+## 11.10 — jedna aplikacja, reguły domu, ustawienia każdego telefonu
+
+Właściciel zatwierdził projekt nowej aplikacji (cztery rundy podglądu na prawdziwych
+danych, każda z recenzją wyglądu, interakcji i zgodności) i powiedział „wdrażaj”. Zastąpiła
+dawną stronę mieszkania i `rosliny.html`: jeden `index.html` z zakładkami Dom · Rośliny ·
+Historia · Powiadomienia, do tego reguły domu z powiadomieniami (`dom.py`), ustawienia
+i cisza nocna osobno dla każdego telefonu (`telefony.py`) i plan pokoi (`pokoje.json`).
+Pięciu budujących równolegle (rośliny, dom, wysyłka, strona, push), każdy z testami
+puszczonymi przeciw starej wersji i z mutacjami kodu; potem przegląd z trzech stron
+(backend, strona, całość), każde znalezisko odtworzone.
+
+### Decyzje i powody
+
+| | Decyzja | Dlaczego |
+|---|---|---|
+| D1 | Reguły domu (przewietrz, przed snem, zamknij okno, czujniki) liczy `dom.py`, strona tylko wyświetla `data/dom/stan.json`. Wykresy, komfort, zakresy i 30 dni liczy strona | karta i powiadomienie nie mogą mówić co innego, a dwie kopie reguły to dwie prawdy — jak przy werdyktach roślin |
+| D2 | Ocenę światła roślin liczy Python (`swiatlo_ocena`), jeden próg pełnej doby 0,8 | prototyp miał w JS 0,9, więc ta sama doba byłaby pełna w regule i niepełna na karcie |
+| D3 | „Za dużo słońca” uśpione (`swiatlo_za_duzo_lx: null`) | czujnik mierzy do 10 000 lx, progi z prototypu są nieosiągalne; reguła i tak czekała na wiosnę |
+| D4 | Podsumowanie tygodnia domyślnie wyłączone | tak wygląda zatwierdzony ekran. Sygnałem życia zostają „Kolektor stoi”, linia o spóźnionej zbiórce i lista „Ostatnie” |
+| D5 | „Czujnik milczy”: na ekranie po 3 godz., w powiadomieniu po 6 godz., obie liczone od zbiórki (kursora), nie od „teraz”; czujnik z nieudanego pobrania nie milczy | spóźniony kolektor to nie martwe czujniki — ten sam wzorzec co 27.09 |
+| D6 | Bateria trzyma alarm do „high”, też w pokojach | „low” i „middle” potrafią się przeplatać; bez tego drugi alarm o tę samą baterię |
+| D7 | Adresy `#dom`, `#rosliny`, `#historia`, `#powiadomienia`, pokoje po `slug` z `pokoje.json`, rośliny po slugu nazwy; `#roslina=` i `rosliny.html` przekierowują | link z doręczonego powiadomienia ma trafiać przez lata; gatunek nie jest unikalny, nazwa tak |
+| D8 | Seria godzinowa: średnia surowych odczytów z godziny, po filtrze skoków, bez artefaktów, pusta godzina = `null` | przeciągnięta wartość udawałaby pomiar |
+| D9 | Rośliny w aplikacji tylko z `data/rosliny/stan.json` | telefon nie ściąga CSV doniczek; krok 60 min na wykresie wystarcza |
+| D10 | Licznik na ikonie = sprawy wymagające uwagi; żadnych pushy „tylko licznik” | na iPhonie każdy push musi coś pokazać, inaczej Safari cofa zgodę |
+| D11 | Ustawienia w zmiennych repozytorium `POWIADOMIENIA_ANDROID`/`_IPHONE`, zapis z aplikacji kluczem fine-grained z jednym uprawnieniem (Variables), odczyt w workflow tylko przez `env:` | jedyne miejsce, które statyczna aplikacja może zapisać, a kolektor odczytać, bez serwera; klucz nie sięga kodu ani sekretów |
+| D12 | Cisza per telefon i kolejka odłożonych — decyduje kolektor przed commitem | nadawca jest bezstanowy; „dostaniesz rano” po jego stronie to drugi commit, wyścig i duble |
+| D13 | Plan pokoi z `pokoje.json`, po identyfikatorze czujnika | zmiana nazwy w Smart Life nie psuje adresów ani zdań; odmiany w jednym miejscu dla strony i powiadomień |
+| D14 | Bez słowa „pleśń” (jest „za wilgotno”, „granica”), bez form rodzajowych, telefony to „Android” i „iPhone” | „próg pleśni brzmi obrzydliwie” (właściciel); aplikacji używają dwie osoby, a imion nie zgadujemy |
+| D15 | Na Domu, stronach pokoi i w Historii nie ma żadnych wartości z doniczek (zamiast „`index.html` nie pobiera `data/rosliny`”) | warunek właściciela z 8.10 w jednej aplikacji; dawny test usunięty świadomie, z opisem |
+
+**Rozstrzygnięte po drodze, na pomiarze:**
+- **„Zamknij okno” dostało warunek „temperatura już wraca”** (1°, czyli dwa skoki czujnika
+  po 0,5°): jedyne trafienie w 14 dobach (Salon 7.10 0:00) to okno zamknięte ok. 25 min
+  wcześniej. I **bramkę sezonu grzewczego** (październik–kwiecień): Kuchnia 23.08 dała
+  6 godz. fałszywego alarmu przy letnim chłodzeniu, a średnia doba na dworze tego nie
+  odróżnia (23.08: 17,6 °C, 1–8.10: 16,25–17,2 °C).
+- **Przewietrz od 2 godz. − 10 min,** bo przebiegi startują od :00 do :06 — prawdziwy
+  przypadek 28.09 miał 1 godz. 54 min.
+- **Linia nocna na stronie** bierze klucz nocy jak `dom.py` (22–7 bieżąca, inaczej
+  nadchodząca), a nie dosłownie `data_nocy` — inaczej znikałaby co dzień między 7 a 12.
+- **Odłożona pozycja odpada tylko przy świeżym wpisie o tym samym obiekcie** (pokój,
+  roślina), a nie całej reguły — inaczej ginęło odłożone „podlej azalia”, gdy rano szło
+  świeże „podlej fikus”.
+- **„Przestaw” wychodzi tylko przy bieżącej ocenie w kierunku epizodu** — w paśmie
+  histerezy „bliżej okna” przy 40% potrzeby byłoby nieprawdą.
+- **Kliknięcie w powiadomienie przy otwartej aplikacji** idzie wiadomością do jej
+  routingu, bez przeładowania. **Meta refresh w `rosliny.html` stoi w `<noscript>`:**
+  zwykła meta to druga nawigacja, która w WebKit może przegonić `location.replace`
+  i zgubić hash (w Chromium 45 prób bez wyścigu, WebKita nie było czym sprawdzić).
+- **Pierwszy przebieg domu po włączeniu** nie ma powitania, ale trwające reguły wysyła od
+  razu — wdrożenie między 19 a 21 daje od razu „Przewietrz przed snem: łazienka, kuchnia”.
+
+### Przegląd i poprawki przed scaleniem
+
+Krytycznych błędów (dublowanie, spam, zgubione powiadomienia, czerwony kolektor, utrata
+subskrypcji) nie było. „Co najwyżej raz” i idempotencja: 337 kolejnych przebiegów co
+godzinę dla 4 profili ustawień — 0 różnic w bajtach plików powiadomień. Poprawione:
+1. **Zaokrąglanie połówek.** Python (`f"{x:.0f}"`) zaokrąglał 0,5 do parzystej, strona
+   (`Intl.NumberFormat`) w górę: granica 62,5 → powiadomienie „62%”, karta „63%”;
+   u = 0,185 → 18% i 19% (46 różnic na 1000 wartości u). Teraz połówką w górę po obu
+   stronach, a procent światła idzie gotowy w `swiatlo_ocena.proc`. Szósty raz ten sam
+   wzorzec: liczba na krawędzi zaokrąglenia (niżej, „Powtarzający się wzorzec błędu”).
+2. **Okno „przed snem” zawsze przed północą:** `[od − 2, od)` dla ciszy od 14:00–23:00,
+   22–24 dla ciszy od 0:00–2:00, inaczej 19–21. Dawniej cisza od 18:00 dostawała 19–21,
+   leżące w jej środku (reguła nie przychodziła nigdy), a cisza od 1:00 — 23:00–0:59,
+   czyli push po północy, gdy karta już nie radzi „przewietrz przed snem”.
+3. **Limit wpisów na telefon wyliczony z reguł (13),** a nie 10 z błędnym założeniem, że
+   odłożony wpis zastępuje świeży tej samej reguły.
+4. **Odłożone „podlej” a świeże ponowienie:** przy różnych ciszach Android dostawał
+   „Podlej: azalia” o 8:01 (odłożone) i o 9:01 (ponowienie liczone od wysyłki do iPhone'a).
+   Teraz telefon dostaje świeże ponowienie dopiero po odstępie gatunku od doręczenia.
+5. **Strona:** linia o błędzie toru roślin i o starym stanie (dawna `rosliny.html` miała
+   baner, nowa mówiła „Wszystkie trzy w dobrej formie” na danych sprzed doby); odświeżanie
+   przy 503, 404 albo złym JSON-ie nie kasuje widoku (dawniej „Nie ma jeszcze żadnych
+   odczytów” i wyrzucenie na Dom); cisza z Od = Do odrzucona (dla `telefony.py` to brak
+   ciszy, a ekran mówił „Włączona”).
+
+**Zmierzone na prawdziwych danych:** reguły domu w 336 przebiegach 27.09–11.10 dają jedno
+powiadomienie (Przewietrz kuchnię, 28.09), okno 0, czujniki 0; `stan_domu` liczy się w 4–5 ms.
+„Przestaw” ma dziś pustą ocenę (1 pełna doba), rzut daje fikusowi u 0,18 i pierwsze
+„przestaw bliżej okna” ok. 13.10 8:00. Aplikacja: start ok. 0,6 MB, gotowa lokalnie po ok.
+0,25 s, 0 pustych godzin na 169 w seriach z 7 dób, bez przewijania w poziomie przy 390, 360
+i 320 px. Plik powiadomień roślin zmienia się przy wdrożeniu raz (dochodzi `telefony`),
+`wlaczone_od` zostaje, drugiego powitania nie ma.
+
+### Pułapki
+
+- **Ustawienia telefonów są jawne w publicznym logu kroku „Pobierz…”.** Actions wypisuje
+  env kroku w nagłówku, a zmiennych repozytorium, inaczej niż sekretów, nie maskuje
+  (format potwierdzony na logu prawdziwego przebiegu z 11.10: `POWIADOMIENIA: wlaczone`
+  jawnie, `TUYA_CLIENT_ID: ***`). Świadomie zaakceptowane: ustawienia nie są tajne,
+  a publiczne pliki powiadomień (`telefony`, kolejki, `przed_snem`) i tak zdradzają godziny
+  ciszy, więc sekret zapisywany z przeglądarki (sealed box) albo odczyt zmiennych przez API
+  w kolektorze niczego by nie ukryły. **Nigdy `${{ vars.X }}` w `run:`:** treść ustawia
+  każdy z kluczem z telefonu, a w `run:` stałaby się kodem powłoki.
+- **„Przed snem” ostrzega często, a trafia rzadko.** Pomiar budującego reguły domu (14 dób,
+  prognoza przybliżona zapisanymi godzinami dworu, bo historycznej nie ma): wpis w ok.
+  8 wieczorów na 14, z 18 ostrzeżeń pokój-noc 3 skończyły się przekroczeniem granicy,
+  przekroczeń bez ostrzeżenia 0. Mniejszy zapas gubi prawdziwe noce (przy 0 pkt dwie z
+  trzech). Do przeglądu po miesiącu na prawdziwej prognozie, ok. 11.11 (`TODO.md`).
+- **„Zamknij okno” ma bramkę sezonu grzewczego (październik–kwiecień).** Początek wynika
+  z kaloryferów (1.10), koniec w kwietniu to założenie — do sprawdzenia wiosną. Poza
+  sezonem `okno` w `data/dom/stan.json` jest `null`, więc strona też go nie pokaże. Przy
+  przebiegach co godzinę krótkie wietrzenie (Salon 6.10, ok. 45 min) nie trafia w żaden
+  przebieg; potwierdzonego trafienia reguła jeszcze nie ma.
+- **Klucz do ustawień ma datę ważności** wybraną przy tworzeniu (najdłuższa dostępna,
+  odnawiany co roku — `TODO.md`). Po terminie zapis z aplikacji kończy się „Klucz nie
+  działa albo wygasł”, a powiadomienia idą dalej według ostatnich zapisanych ustawień.
+  Na iPhonie klucz wkleja się w aplikacji z ekranu — ma pamięć osobną od Safari.
+- **WebKit niesprawdzony.** Testy chodzą w Chromium; zgoda w geście, wiadomość workera do
+  aplikacji, `<noscript>` w stubie i licznik w workerze na iPhonie sprawdza dopiero
+  właściciel.
+- **Nie zmieniać** klucza VAPID, ścieżki i zakresu `sw.js`, `start_url`/`scope`, nazw
+  `rosliny-subskrypcja`, IDB `rosliny`/`odebrane`, cache `cel-powiadomienia` — każda zmiana
+  gubi subskrypcje na obu telefonach.
 
 ---
 
@@ -153,6 +273,8 @@ na atrapach. Przed scaleniem na main poprawione:
 ---
 
 ## Przegląd z 27.09 — wietrzenie odchodzi, przychodzi zima
+
+*(Sekcje o wykresach, rzucie i kaflach dotyczą dawnej strony, zastąpionej 11.10.)*
 
 Właściciel poprosił o przegląd wrześniowych pomysłów i całej strony, potem zdecydował:
 wykrywanie wietrzenia odpuścić, odtwarzanie historii schować, resztę zrobić według
@@ -334,6 +456,11 @@ w porządku, a błąd siedział w teście albo w warstwie prezentacji.
 **Wniosek do zapamiętania:** jeśli coś wygląda dziwnie na wykresie albo w rysunku,
 najpierw sprawdź, czy jakiś próg nie jest porównywany z liczbą już zaokrągloną.
 A test tej strony musi sam ustalać swoje warunki — nigdy nie polegać na porze doby.
+
+**Szósty raz, 11.10:** ta sama liczba zaokrąglana po dwóch stronach dwiema regułami —
+Python połówkę do parzystej, strona w górę — więc przy x,5 karta mówiła o punkt więcej niż
+powiadomienie. Liczbę, którą pokazują dwie strony, zaokrągla jedna reguła (połówką w górę),
+a test sprawdza właśnie wartość x,5.
 
 **Nocny przebieg z harmonogramu (`testy.yml`, cron `17 4 * * *`) jest najcenniejszy**,
 bo jako jedyny zagląda o nietypowej godzinie i na żywych danych. To on złapał punkt 4.
@@ -792,7 +919,8 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
   przeszedł w 82 sekundy w nocnym przebiegu na kodzie zawierającym ten commit. Zanim
   zaczniesz szukać błędu w kodzie, sprawdź czas trwania — sześć godzin to zawieszenie,
   nie porażka. Wszystkie zadania mają teraz `timeout-minutes`, żeby to się nie powtórzyło.
-- **Podgląd strony w tej sesji wymaga podstawienia Chart.js.** `cdn.jsdelivr.net`
+- *(Nieaktualne od 11.10 — aplikacja nie używa Chart.js; Google Fonts dalej nie przechodzą
+  przez proxy.)* **Podgląd strony w tej sesji wymaga podstawienia Chart.js.** `cdn.jsdelivr.net`
   i Google Fonts nie przechodzą przez proxy, więc zrzut ekranu bez podstawienia pokazuje
   stronę bez wykresów — dokładnie tak, jak wygląda awaria CDN. Pliki leżą
   w `tests/frontend/node_modules`, tak jak bierze je Playwright.
@@ -809,18 +937,23 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 
 | | |
 |---|---|
-| Testy kolektora | **251** (`python -m unittest discover -s tests`) |
-| Testy strony | **189** (`cd tests/frontend && npx playwright test`) |
-| Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 7 zapytań Tuya na przebieg (do 8.10: 29) z pakietu 0,20 USD na miesiąc · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` na żądanie i po każdej zmianie swojego pliku na main. Akcje na wersjach z Node 24 |
+| Testy Pythona | **430** (`python3 -m unittest discover -s tests`; lokalnie 9 pominiętych) |
+| Testy w przeglądarce | **148** (`cd tests/frontend && npx playwright test`) |
+| Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 7 zapytań Tuya na przebieg (do 8.10: 29) z pakietu 0,20 USD na miesiąc; krok wysyłki powiadomień z obu plików · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` i `powiadomienie-testowe` na żądanie i po każdej zmianie swojego pliku na main. Akcje na wersjach z Node 24 |
+| Powiadomienia | Android i iPhone, wysyłka od 11.10; ustawienia w zmiennych `POWIADOMIENIA_ANDROID`/`_IPHONE`, zapisywane z aplikacji |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
-| Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie |
+| Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie + trzy doniczki (fikus i skrzydłokwiat w Salonie, azalia w Kuchni; sondy od 9.10) |
 
 ## Co czeka
 
 - **Po stronie właściciela** — zrobione 27.09: zegar z cron-job.org stoi, data triala
-  sprawdzona. Cyklicznie: odnowienie tokenu i przedłużenie triala (`TODO.md`). Pomiaru
-  fRsi nie będzie — właściciel nie przestawia czujników, zostaje 0,70 z normy.
-- **Listopad:** przyłożyć `TREND_MAX` i `CIEPLO_W_DOMU` do danych z kaloryferami.
+  sprawdzona. Cyklicznie: odnowienie tokenu cron-job.org, klucza do ustawień na obu
+  telefonach i przedłużenie triala (`TODO.md`). Pomiaru fRsi nie będzie — właściciel nie
+  przestawia czujników, zostaje 0,70 z normy.
+- **Ok. 11.11:** trafność „przed snem” na prawdziwej prognozie. **Listopad:** „zamknij
+  okno” na danych z kaloryferami.
+- **Wiosna 2027:** koniec sezonu grzewczego w `dom.py`, „za dużo słońca” dla roślin,
+  strojenie progów podlewania (etap 5 w `ROSLINY.md`).
 - **Maj 2027:** model cieplny pokój ↔ dwór.
 - Ochrona gałęzi — opisana wyżej, wymaga decyzji o deploy key albo pozostania przy
   hooku lokalnym.
