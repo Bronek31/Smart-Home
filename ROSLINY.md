@@ -860,8 +860,11 @@ daje od razu „Przewietrz przed snem”).
 
 **Telefon:**
 - Zakładka **Powiadomienia**: grupa „Ten telefon” (włączenie, kopiowanie subskrypcji do
-  sekretu, ostrzeżenia), przełączniki reguł i cisza dla każdego z dwóch telefonów, lista
-  „Ostatnie” (do 10 wpisów z obu plików, z telefonami i czasem), klucz dostępu.
+  sekretu, ostrzeżenia) — pokazuje się tylko, gdy jest coś do zrobienia, a kroki po
+  „Kopiuj” zostają pół godziny; przy działających powiadomieniach grupy nie ma (właściciel
+  11.10: kafelek „Włączone” był bez sensu), przełączniki reguł i cisza dla każdego z dwóch
+  telefonów, lista „Ostatnie” (do 10 wpisów z obu plików, z telefonami i czasem), klucz
+  dostępu.
 - **Adresy:** `url` wpisu to `#fikus` (jedna roślina), `#rosliny` (kilka, podsumowanie),
   `#lazienka` (jeden pokój), `#dom` (kilka pokoi). Stare `#roslina=<nazwa>`
   i `rosliny.html#roslina=…` (doręczone powiadomienia, cel zapisany przez stary service

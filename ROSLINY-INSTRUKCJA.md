@@ -229,7 +229,10 @@ przy wymianie pary — tę zrobimy razem. **Klucza prywatnego nie wklejaj do cza
 3. **Kopiuj** → sekret `PUSH_IPHONE` → wklej całość.
 4. Ustawienia → Powiadomienia → Smart Home: włącz baner i ekran blokady.
 
-Subskrypcję włączonego telefonu da się skopiować jeszcze raz: Ten telefon → **Pokaż**.
+Kroki z **Kopiuj** zostają na ekranie przez pół godziny od skopiowania — po powrocie z GitHuba
+można skopiować jeszcze raz. Gdy powiadomienia już działają, grupy **Ten telefon** nie widać;
+wraca sama, kiedy jest coś do zrobienia (subskrypcja się zmieniła, „Powiadomienia nie
+dochodzą”, zgoda wyłączona).
 
 **D. Sprawdzenie**
 - Napisz w czacie „sekret podmieniony”. Wyślę powiadomienie testowe „Powiadomienia

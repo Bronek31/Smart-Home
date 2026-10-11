@@ -498,7 +498,6 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .tel .wiersz-ik.ok{color:var(--ok)}
 .tel .wiersz-ik.warn{color:var(--warn)}
 .tel .wiersz-ik.bad{color:var(--bad)}
-.tel-btn{margin-right:-12px}
 .tel-tresc{padding:0 16px 16px;font:400 15px/20px var(--f-t);color:var(--dim)}
 .tel-tresc>p+p,.tel-tresc>div>p,.tel-tresc>div>p+textarea{margin-top:8px}
 .tel-tresc>.przycisk{margin-top:12px}
@@ -512,6 +511,7 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .tel-przyciski{grid-template-columns:repeat(auto-fit,minmax(0,1fr));margin-top:8px}
 .tel-przyciski .przycisk{margin-top:0}
 .tel .status{margin-top:12px}
+.tel #pow-telefon[hidden]+.status{margin-top:8px}   /* samo „nie dochodzą” pod nagłówkiem: odstęp jak w innych grupach */
 .tel .status .przycisk{margin-top:12px}
 
 /* zakładki */
@@ -3210,12 +3210,19 @@ async function stanTelefonu() {
   if (sub) return { stan: 'subskrypcja', sub };
   return { stan: 'wylaczone' };
 }
-const TEL = { stan: 'sprawdzam', html: '', sub: null, nasza: null, dochodza: '', zajety: false, nr: 0 };
+// swieza/swiezaDo: adres ostatnio skopiowanej subskrypcji i do kiedy jej kroki zostają na ekranie (KROKI_PO_KOPIUJ)
+const TEL = { stan: 'sprawdzam', html: '', sub: null, nasza: null, dochodza: '', zajety: false, nr: 0, swieza: null, swiezaDo: 0 };
+/* Po „Kopiuj” stan liczy się już jako „włączone” (subskrypcja zapamiętana), ale wklejenia do sekretu nie widać.
+   Kto wraca z GitHuba po drugie skopiowanie (np. kod 2FA nadpisał schowek), ma zastać kroki, a nie pusty ekran —
+   więc przez pół godziny od ostatniego skopiowania zostają one na wierzchu, pod neutralnym nagłówkiem. Potem grupa
+   znika jak przy każdych działających powiadomieniach; dłużej wisiałby kafel, który po udanym wklejeniu jest bez
+   sensu. Wcześniej tę drogę dawał arkusz „Pokaż”, usunięty razem z kafelkiem „Włączone”. */
+const KROKI_PO_KOPIUJ = 30 * 60e3;
 const PRZYCISK_WLACZ = '<button class="przycisk" type="button" data-push="wlacz">Włącz powiadomienia</button>';
 function wierszTel(ikona, kl, tytul, podpis, prawa) {
   return `<div class="wiersz"><span class="wiersz-ik${kl ? ' ' + kl : ''}">${ik(ikona, 'm')}</span><span class="wiersz-n">${tytul}${podpis ? `<small>${podpis}</small>` : ''}</span>${prawa || ''}</div>`;
 }
-/* trzy kroki od subskrypcji do sekretu — na karcie zaraz po włączeniu i w arkuszu „Subskrypcja” */
+/* trzy kroki od subskrypcji do sekretu — na karcie po włączeniu (do zamknięcia aplikacji, patrz TEL.swieza) */
 function htmlKrokowSubskrypcji(sub, id) {
   return '<ol class="kroki tel-kroki">' +
     `<li><b>1</b><div><p>Skopiuj subskrypcję tego telefonu.</p><textarea class="pole pole-sub" id="${id}" readonly rows="4" aria-label="Subskrypcja tego telefonu">${esc(JSON.stringify(sub.toJSON()))}</textarea>` +
@@ -3258,9 +3265,12 @@ function htmlStanu(w) {
       return wierszTel('uwaga', 'warn', 'Subskrypcja się zmieniła', `Włącz ponownie i podmień sekret ${sekret}`) +
         tresc('<p>Bez tego powiadomienia nie dojdą do tego telefonu.</p>' + PRZYCISK_WLACZ);
     case 'wlaczone':
-      return wierszTel('check', 'ok', 'Włączone', `Subskrypcja w sekrecie ${sekret}`,
-        '<button class="tekst-btn tel-btn" type="button" data-push="subskrypcja" aria-haspopup="dialog" aria-label="Pokaż subskrypcję">Pokaż</button>');
+      return '';   // działa — grupa się chowa (widocznoscTelefonu), wraca dopiero przy „nie dochodzą”
     case 'subskrypcja':
+      if (w.skopiowana) {
+        return wierszTel('dzwonek', '', 'Skopiowane — wklej do sekretu', `${sekret} na github.com · kroki poniżej`) +
+          tresc(htmlKrokowSubskrypcji(w.sub, 'pow-subskrypcja'));
+      }
       return wierszTel('dzwonek', 'warn', w.nowa ? 'Jeszcze jeden krok' : 'Subskrypcji nie ma w sekrecie',
         w.nowa ? `Bez sekretu ${sekret} nadawca nie wie, dokąd wysyłać` : `Ten telefon ma subskrypcję, ale nie widać, żeby trafiła do ${sekret}`) +
         tresc(htmlKrokowSubskrypcji(w.sub, 'pow-subskrypcja'));
@@ -3275,16 +3285,27 @@ function htmlStanu(w) {
 }
 /* Grupa rysuje się od razu z ostatnio znanego stanu (przerysowanie zakładki nie mruga „Sprawdzam…”), a świeży stan
    dochodzi asynchronicznie (odswiezTelefon po każdym narysowaniu zakładki i po powrocie do aplikacji). */
+/* Działające powiadomienia nie potrzebują kafelka (właściciel 11.10: „Włączone · Subskrypcja w sekrecie…” był bez
+   sensu). Grupa pokazuje się tylko wtedy, gdy jest coś do zrobienia, a przy „nie dochodzą” — samo ostrzeżenie.
+   #pow-telefon zostaje w DOM z data-stan, ukryty. Przed pierwszym sprawdzeniem też nic, bez mrugania „Sprawdzam…”. */
+const listaTelefonu = () => TEL.stan !== 'wlaczone' && TEL.stan !== 'sprawdzam';
+function widocznoscTelefonu() {
+  const g = $('#ten-telefon'), l = $('#pow-telefon');
+  if (l) l.hidden = !listaTelefonu();
+  if (g) g.hidden = !listaTelefonu() && !TEL.dochodza;
+}
 function htmlTenTelefon() {
-  return `<section class="grupa tel" id="ten-telefon" aria-labelledby="tel-t"><h2 class="grupa-t" id="tel-t" tabindex="-1">Ten telefon${TEN_TEL ? ` (${NAZWA_TEL[TEN_TEL]})` : ''}</h2>` +
-    `<div class="lista" id="pow-telefon" data-stan="${TEL.stan}">${TEL.html || htmlStanu(TEL)}</div>` +
+  const lista = listaTelefonu(), grupa = lista || !!TEL.dochodza;
+  return `<section class="grupa tel" id="ten-telefon" aria-labelledby="tel-t"${grupa ? '' : ' hidden'}><h2 class="grupa-t" id="tel-t" tabindex="-1">Ten telefon${TEN_TEL ? ` (${NAZWA_TEL[TEN_TEL]})` : ''}</h2>` +
+    `<div class="lista" id="pow-telefon" data-stan="${TEL.stan}"${lista ? '' : ' hidden'}>${TEL.html || htmlStanu(TEL)}</div>` +
     `<section class="status" id="pow-dochodza" role="alert"${TEL.dochodza ? '' : ' hidden'}>${TEL.dochodza}</section></section>`;
 }
 function pokazTelefon(w) {
   const html = htmlStanu(w);
   TEL.stan = w.stan;
   TEL.sub = w.sub || null;
-  TEL.nasza = w.stan === 'wlaczone' ? w.zap : null;
+  // przypięte kroki po „Kopiuj” niosą zapamiętaną subskrypcję — „nie dochodzą” liczy się także wtedy
+  TEL.nasza = w.zap || null;
   const el = $('#pow-telefon');
   // ten sam stan: DOM zostaje (np. „Skopiowano” na przycisku i zaznaczenie w polu)
   if (html === TEL.html && el && el.getAttribute('data-stan') === w.stan) return;
@@ -3292,6 +3313,7 @@ function pokazTelefon(w) {
   if (!el) return;
   el.setAttribute('data-stan', w.stan);
   el.innerHTML = html;
+  widocznoscTelefonu();
 }
 // w trakcie włączania przyciski „Włącz” i „Odnów” stoją wygaszone, także po przerysowaniu zakładki
 function oznaczWlaczanie() {
@@ -3303,6 +3325,10 @@ async function odswiezTelefon() {
   let w;
   try { w = await stanTelefonu(); } catch (e) { w = { stan: 'blad', blad: (e && e.message) || String(e) }; }
   if (nr !== TEL.nr || TEL.zajety) return;   // w międzyczasie ruszyło nowsze sprawdzenie albo włączanie
+  // KROKI_PO_KOPIUJ: świeżo skopiowana subskrypcja zostaje krokami do sekretu
+  if (w.stan === 'wlaczone' && TEL.swieza && w.sub.endpoint === TEL.swieza && Date.now() < TEL.swiezaDo) {
+    w = { stan: 'subskrypcja', sub: w.sub, zap: w.zap, skopiowana: true };
+  }
   pokazTelefon(w);
   await sprawdzDochodzenie();
 }
@@ -3316,6 +3342,7 @@ async function sprawdzDochodzenie() {
     '<button class="przycisk" type="button" data-push="wlacz" data-odnow>Odnów subskrypcję</button>' : '';
   const el = $('#pow-dochodza');
   if (!el) return;
+  widocznoscTelefonu();
   if (el.hidden === !w && (!w || el.getAttribute('data-id') === w.id)) return;
   el.innerHTML = TEL.dochodza;
   el.hidden = !w;
@@ -3344,8 +3371,8 @@ async function wlacz(odnow) {
   TEL.nr++;   // sprawdzenie sprzed stuknięcia nie nadpisze wyniku
   // zawsze od nowa: ten sam wynik co przed stuknięciem (np. druga odmowa) zostawiłby przyciski wygaszone na „Włączam…”
   TEL.html = '';
-  pokazTelefon(w);
   if (w.stan === 'subskrypcja') TEL.dochodza = '';
+  pokazTelefon(w);
   const d = $('#pow-dochodza');
   if (d) {
     // nieudane „Odnów”: ostrzeżenie zostaje, z czynnym przyciskiem; udane — znika, nowa subskrypcja dopiero idzie do sekretu
@@ -3353,6 +3380,7 @@ async function wlacz(odnow) {
     d.hidden = !TEL.dochodza;
     if (!TEL.dochodza) d.removeAttribute('data-id');
   }
+  widocznoscTelefonu();
   if (w.stan === 'subskrypcja') {
     fokus('#pow-telefon [data-push="kopiuj"]');
     oglos('Powiadomienia włączone. Skopiuj subskrypcję do sekretu ' + sekretTelefonu() + '.');
@@ -3371,7 +3399,12 @@ async function przekaz(b) {
   let ok = true;
   if (b.dataset.push === 'udostepnij') { try { await navigator.share({ text: pole.value }); } catch (e) { ok = false; } } else b.textContent = (await kopiuj(pole)) ? 'Skopiowano' : 'Zaznaczone — skopiuj ręcznie';
   if (ok && 'subskrypcja' in b.dataset) {
-    try { zapamietaj(JSON.parse(pole.value).endpoint); } catch (e) { /* zepsute pole — bez zapamiętania */ }
+    try {
+      const adres = JSON.parse(pole.value).endpoint;
+      zapamietaj(adres);
+      TEL.swieza = adres;
+      TEL.swiezaDo = Date.now() + KROKI_PO_KOPIUJ;
+    } catch (e) { /* zepsute pole — bez zapamiętania */ }
     TEL.nasza = zapamietana();
   }
 }
@@ -3384,19 +3417,12 @@ async function utworzIPokaz(b) {
     b.hidden = true; // druga para po cichu podmieniłaby pierwszą; nową daje ponowne otwarcie aplikacji
   } catch (e) { b.insertAdjacentHTML('afterend', `<p>Nie udało się utworzyć kluczy: ${esc((e && e.message) || String(e))}</p>`); }
 }
-/* arkusz „Subskrypcja” (stan „włączone”): ta sama subskrypcja do ponownego wklejenia, np. przy podmianie sekretu */
-function trescSubskrypcji() {
-  if (!TEL.sub) return '<p class="arkusz-tekst">Ten telefon nie ma teraz subskrypcji. Zamknij i włącz powiadomienia jeszcze raz.</p>';
-  return `<p class="arkusz-op">Ta sama subskrypcja jest już w sekrecie ${esc(sekretTelefonu())}. Wklej ją jeszcze raz tylko wtedy, gdy sekret trzeba odtworzyć.</p>` +
-    htmlKrokowSubskrypcji(TEL.sub, 'pow-subskrypcja-ark');
-}
 document.addEventListener('click', (e) => {
   const b = e.target && e.target.closest ? e.target.closest('button[data-push]') : null;
   if (!b || b.disabled) return;
   const a = b.dataset.push;
   if (a === 'wlacz') wlacz('odnow' in b.dataset);
   else if (a === 'klucze') utworzIPokaz(b);
-  else if (a === 'subskrypcja') otworzArkusz('subskrypcja');
   else przekaz(b);
 });
 // zgoda zmieniona w ustawieniach systemu albo sekret podmieniony z komputera: powrót do aplikacji pokazuje świeży stan
@@ -3812,7 +3838,6 @@ function trescOdlacz() {
 const ARKUSZE = {
   klucz: ['Skąd wziąć klucz?', trescKlucza],
   odlacz: ['Odłączyć ten telefon?', trescOdlacz],
-  subskrypcja: ['Subskrypcja tego telefonu', trescSubskrypcji],
 };
 let fokusPrzed = null, arkuszTyp = null;
 function otworzArkusz(typ) {
