@@ -77,9 +77,10 @@ jobs:
           # Strefa, według której tną się doby w agregatach data/dzienne.csv
           TZ_LOCAL: 'Europe/Warsaw'
           # Powiadomienia o roślinach (ROSLINY.md, etap 4). „na-sucho": reguły liczą się
-          # i lądują w data/rosliny/powiadomienia.json, ale nic nie idzie na telefon —
-          # pierwszy tydzień po wdrożeniu. „wlaczone": krok niżej wysyła.
-          POWIADOMIENIA: 'na-sucho'
+          # i lądują w data/rosliny/powiadomienia.json, ale nic nie idzie na telefon.
+          # „wlaczone": krok niżej wysyła. Włączone 11.10 na prośbę właściciela, przed
+          # końcem planowanego tygodnia na sucho (oba telefony potwierdziły dostarczenie).
+          POWIADOMIENIA: 'wlaczone'
           # Znacznik przebiegu w każdym wpisie powiadomień: wysyłka bierze tylko wpisy
           # z tym znacznikiem z opublikowanego commita, więc ponowienie, przegrany wyścig
           # ani „Re-run" w Actions nie wyślą niczego drugi raz.

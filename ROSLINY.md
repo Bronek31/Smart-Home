@@ -725,7 +725,7 @@ listy wymaganych plików.
 
 ### Etap 4: powiadomienia
 
-**Stan na 9.10: zbudowane, na sucho** — reguły (`rosliny.zaplanuj_powiadomienia`,
+**Stan na 11.10: włączone** (9–11.10 na sucho) — reguły (`rosliny.zaplanuj_powiadomienia`,
 `data/rosliny/powiadomienia.json`), nadawca (`wyslij.py`, krok w `zbieraj.yml`,
 `powiadomienie-testowe.yml`), telefon (sekcja „Powiadomienia" w `rosliny.html`, obsługa
 `push`/`notificationclick` w `sw.js` v5, zimny start w `index.html`). Trzech wykonawców
@@ -743,9 +743,12 @@ w osobnych kopiach repozytorium, potem przegląd z czterech stron ze sceptykiem.
   sekret `PUSH_ANDROID`; test z `powiadomienie-testowe.yml` → FCM odpowiedział 201,
   powiadomienie doszło, kliknięcie otworzyło zakładkę „Rośliny". Stała w stronie
   zgadza się z kluczem w sekrecie (inaczej `--test` kończy się błędem).
-- **Niezweryfikowane:** prawdziwe odpowiedzi Apple (sieć tego środowiska blokuje
-  web.push.apple.com) i obejście zimnego startu na iPhonie — `PUSH_IPHONE` dojdzie
-  później; wtedy drugi test.
+- **iPhone 10.10:** sekret `PUSH_IPHONE`, drugi test z `powiadomienie-testowe.yml` →
+  201 dla obu telefonów, właściciel potwierdził, że powiadomienia dochodzą. Obejście
+  zimnego startu na iPhonie nie było osobno sprawdzane.
+- **Włączone 11.10** (`POWIADOMIENIA: 'wlaczone'` w `zbieraj.yml`) na prośbę właściciela,
+  po dwóch dniach na sucho zamiast tygodnia. Pierwszy dzienny przebieg po włączeniu
+  wysyła powitanie „Powiadomienia włączone” z tym, co już trwa.
 
 **Kanał:**
 
