@@ -2,14 +2,20 @@
 """
 Nadawca powiadomień Web Push — osobny krok w zbieraj.yml, po udanym zapisz.sh.
 
-Wywołanie (tylko ten krok dostaje sekrety powiadomień):
+Wywołanie (tylko ten krok dostaje sekrety powiadomień) — oba pliki powiadomień, roślin
+i domu, z opublikowanego commita, każdy osobnym --plik (pliku, którego na main jeszcze
+nie ma, krok nie podaje):
 
-    git show origin/main:data/rosliny/powiadomienia.json > "$RUNNER_TEMP/powiadomienia.json" || true
+    git show origin/main:data/rosliny/powiadomienia.json > "$RUNNER_TEMP/rosliny/powiadomienia.json"
+    git show origin/main:data/dom/powiadomienia.json > "$RUNNER_TEMP/dom/powiadomienia.json"
     pip install -r requirements-powiadomienia.txt
-    python wyslij.py --plik "$RUNNER_TEMP/powiadomienia.json" \\
+    python wyslij.py --plik "$RUNNER_TEMP/rosliny/powiadomienia.json" \\
+                     --plik "$RUNNER_TEMP/dom/powiadomienia.json" \\
                      --przebieg "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 
-a z powiadomienie-testowe.yml (ręcznie, „czy telefon w ogóle coś dostaje"):
+Bez --plik nadawca czyta oba pliki z data/ obok siebie (wygodne lokalnie; zbieraj.yml
+zawsze podaje kopie z origin/main). A z powiadomienie-testowe.yml (ręcznie, „czy telefon
+w ogóle coś dostaje"):
 
     python wyslij.py --test --przebieg "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
 
@@ -18,7 +24,15 @@ Wysyła wyłącznie wpisy z `historia`, które zapisał TEN przebieg (`przebieg`
 z opublikowanego commita, więc wpis albo jest w historii main, albo nie ma go wcale:
 dwa przebiegi naraz, przegrany wyścig ani „Re-run" nie mają czego wysłać drugi raz.
 Zasada: co najwyżej raz — nieudanej wysyłki następny przebieg nie ponawia (ROSLINY.md,
-„Etap 4"). Brak pliku albo pusty plik to „nic do wysłania".
+„Etap 4"). Brak pliku albo pusty plik to „nic do wysłania". Zepsuty jeden plik nie
+zatrzymuje drugiego: reguły domu i roślin mają działać niezależnie.
+
+Komu — mówi pole `telefony` wpisu (id z telefony.py: "android", "iphone"). Które reguły
+telefon chce i czy jest w ciszy nocnej, rozstrzygnął kolektor przed commitem, razem
+z wpisem; nadawca tylko to wykonuje i niczego nie zapisuje (drugi commit to wyścig
+i dublowanie). Brak pola = wszystkie telefony (wpisy sprzed ustawień per telefon),
+pusta lista = nikt, zły typ albo nieznany telefon = wpis pominięty i zgłoszenie
+„Reguły" — przy wątpliwości lepiej nie wysłać niż wysłać nie temu.
 
 Środowisko:
 - VAPID_KLUCZ_PRYWATNY — base64url surowego klucza P-256 (32 B), czyli pole `d` z JWK,
@@ -33,12 +47,17 @@ Kody wyjścia:
   oraz błędy pojedynczej subskrypcji (404/410, 429/5xx po trzech próbach, sieć, inne
   kody): zgłoszenie wystarczy, kolektor nie ma świecić na czerwono co godzinę;
 - 1 — błąd konfiguracji: zły JSON sekretu, zły format klucza, pusta albo inna niż
-  wyliczona stała VAPID_PUBLICZNY w rosliny.html („klucz w sekrecie nie pasuje do
+  wyliczona stała VAPID_PUBLICZNY w index.html („klucz w sekrecie nie pasuje do
   strony"), 403 od serwera push (ten sam klucz nie pasuje do subskrypcji), brak
   biblioteki, nieczytelny plik, nieoczekiwany wyjątek;
 - 2 — złe argumenty (argparse);
 - w trybie --test każdy błąd i brak subskrypcji to 1, bo jedynym sensem tego trybu
   jest sprawdzenie, czy powiadomienie doszło.
+
+Zgłoszenie „Powiadomienia nie dochodzą" zamyka się samo dopiero w przebiegu bez błędów,
+w którym KAŻDY telefon z poprawną subskrypcją dostał co najmniej jedno powiadomienie.
+Przebieg, który poszedł tylko na Androida (iPhone w ciszy albo z wyłączoną regułą), nic
+nie mówi o subskrypcji iPhone'a — zamknięcie ukryłoby martwą subskrypcję.
 
 Logi Actions są publiczne. Adres subskrypcji (endpoint) to jedyna rzecz, która
 pozwala wysyłać na telefon, a biblioteki wkładają go w treść wyjątków i ostrzeżeń.
@@ -89,11 +108,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlsplit
 
-STRONA = Path(__file__).resolve().parent / "rosliny.html"
-# Klucz publiczny VAPID leży w jednym miejscu — w rosliny.html. Strona z niego zakłada
-# subskrypcje, nadawca tylko sprawdza, czy sekret do niego pasuje. Zapis musi zostać
-# dokładnie taki (pojedyncze apostrofy, średnik), bo czytamy go tym wzorcem.
+REPO = Path(__file__).resolve().parent
+STRONA = REPO / "index.html"
+# Klucz publiczny VAPID leży w jednym miejscu — w index.html (zakładka „Powiadomienia”,
+# „Ten telefon”; rosliny.html to już tylko przekierowanie starych linków). Strona z niego
+# zakłada subskrypcje, nadawca tylko sprawdza, czy sekret do niego pasuje. Zapis musi
+# zostać dokładnie taki (pojedyncze apostrofy, średnik), bo czytamy go tym wzorcem.
 WZOR_STALEJ = re.compile(r"const VAPID_PUBLICZNY='([^']*)';")
+# Pliki, które czyta nadawca bez --plik: stan powiadomień roślin (rosliny.py) i domu (dom.py).
+PLIKI = (REPO / "data" / "rosliny" / "powiadomienia.json",
+         REPO / "data" / "dom" / "powiadomienia.json")
 
 # `sub` to adres strony bez ścieżki: py_vapid przyjmuje tylko mailto: albo https://host
 # (zmierzone, patrz wyżej), a mailto z adresem właściciela trafiłby do każdego serwera push.
@@ -108,18 +132,39 @@ LIMIT_SIECI_S = 30
 PRZERWY_S = (2, 10)
 # Największa treść, której ciało po zaszyfrowaniu mieści się w 4096 B (zmierzone).
 MAKS_TRESCI_B = 3993
-# Reguły dokładają na przebieg najwyżej trzy wpisy (zwykły, czujnik, podsumowanie).
-# Więcej to błąd w regułach, a nie powód, żeby zasypać telefony.
-MAKS_WPISOW = 3
+# Limit wpisów na JEDEN telefon w jednym przebiegu — liczony osobno dla każdego, bo wpis
+# bez danego telefonu nic mu nie zabiera. To górna granica tego, co oba planery mogą dać
+# jednemu telefonowi w jednym przebiegu (pierwszym po końcu jego ciszy, gdy drugi telefon
+# nie śpi i reguły idą też świeżo):
+# - rośliny (rosliny.py): świeże podlej, czujnik, przestaw i podsumowanie — po jednym
+#   wpisie na regułę i telefon (4) — oraz odłożone tych samych czterech reguł (4). Odłożona
+#   pozycja odpada tylko wtedy, gdy świeży wpis tej reguły niesie TEN SAM obiekt, więc
+#   świeże „Podlej: skrzydłokwiat" i odłożone „Podlej: fikus" idą razem (dawne wyliczenie
+#   zakładało, że odłożony zastępuje świeży tej reguły — przegląd, B5). Podsumowanie nie ma
+#   obiektu, więc świeże i odłożone się wykluczają (−1). Powitanie wychodzi samo, bez
+#   innych wpisów i bez kolejki. Razem 7.
+# - dom (dom.py): świeże przewietrz, przed snem, okno i czujniki (4) oraz odłożone
+#   przewietrz i czujniki (2 — przed snem i okno nigdy nie czekają). Przed snem razem
+#   z odłożonymi wypada, gdy cisza kończy się w jego oknie (np. cisza 14–12) albo
+#   przebiegi stały całą noc. Razem 6.
+# Razem 13 — TestKilkaPlikow w tests/test_wyslij.py odtwarza taki przebieg prawdziwymi
+# planerami. Więcej to błąd w planerze, a nie powód, żeby zasypać telefon: nadmiar idzie
+# do zgłoszenia.
+MAKS_WPISOW = 13
 ETYKIETA = "powiadomienia"
-TELEFONY = (("Android", "PUSH_ANDROID"), ("iPhone", "PUSH_IPHONE"))
+# (id z pola `telefony` wpisu — te same co telefony.TELEFONY, nazwa do logu, sekret)
+TELEFONY = (("android", "Android", "PUSH_ANDROID"), ("iphone", "iPhone", "PUSH_IPHONE"))
+ID_TELEFONOW = tuple(t[0] for t in TELEFONY)
+NAZWY_TELEFONOW = {t[0]: t[1] for t in TELEFONY}
 # RFC 8030: Topic to najwyżej 32 znaki z alfabetu base64url, inaczej serwer odrzuci całość.
 WZOR_TOPIC = re.compile(r"[A-Za-z0-9_-]{1,32}")
 
+# Bez pola `telefony` — test idzie na każdy podpięty telefon, niezależnie od jego ustawień:
+# sprawdza drogę sekret → serwer push → telefon, a nie reguły.
 TESTOWE = {"tytul": "Powiadomienia działają",
            "tresc": "Powiadomienie testowe z GitHub Actions. Skoro je widać, na ten telefon "
-                    "dojdą też „Podlej” i alarmy czujników.",
-           "tag": "test", "url": "rosliny.html"}
+                    "dojdą też powiadomienia o domu i roślinach, które ma włączone.",
+           "tag": "test", "url": "#powiadomienia"}
 
 # Krzywa P-256 (SEC 2, secp256r1): pole, współczynnik a, rząd grupy i punkt bazowy.
 # Klucz publiczny liczymy sami, bo testy jednostkowe w CI mają tylko `requests`, a to
@@ -141,6 +186,7 @@ class BladKonfiguracji(Exception):
 
 @dataclass
 class Telefon:
+    id: str             # "android"/"iphone" — jak w polu `telefony` wpisu
     nazwa: str          # „Android"/„iPhone" — jedyne, czym telefon występuje w logu
     sekret: str         # nazwa sekretu, do podpowiedzi w zgłoszeniu
     subskrypcja: dict
@@ -148,7 +194,7 @@ class Telefon:
 
 @dataclass
 class Blad:
-    kto: str            # „Android", „iPhone" albo „Konfiguracja"
+    kto: str            # „Android", „iPhone", „Konfiguracja", „Dane" (plik) albo „Reguły"
     opis: str           # do logu i zgłoszenia — bez adresu i bez treści wyjątku
     rada: str = ""
     konfiguracja: bool = False
@@ -204,7 +250,7 @@ def publiczny_z_prywatnego(prywatny: str) -> str:
 
 
 def klucz_ze_strony(strona: Path) -> str:
-    """Stała VAPID_PUBLICZNY z rosliny.html; '' = jeszcze nieskonfigurowana."""
+    """Stała VAPID_PUBLICZNY ze strony (index.html); '' = jeszcze nieskonfigurowana."""
     try:
         html = Path(strona).read_text(encoding="utf-8")
     except OSError:
@@ -221,8 +267,8 @@ def klucz_ze_strony(strona: Path) -> str:
         except ValueError:
             surowy = b""
         if len(surowy) != 65 or surowy[0] != 4:
-            raise BladKonfiguracji("stała VAPID_PUBLICZNY w rosliny.html to nie jest klucz "
-                                   "publiczny P-256 (65 B base64url, eksport 'raw')")
+            raise BladKonfiguracji(f"stała VAPID_PUBLICZNY w {Path(strona).name} to nie jest "
+                                   "klucz publiczny P-256 (65 B base64url, eksport 'raw')")
     return klucz
 
 
@@ -232,13 +278,14 @@ def sprawdz_klucz(klucz: str, strona: Path) -> None:
     na_stronie = klucz_ze_strony(strona)
     if not na_stronie:
         raise BladKonfiguracji(
-            "stała VAPID_PUBLICZNY w rosliny.html jest pusta, a sekret VAPID_KLUCZ_PRYWATNY "
-            "już jest — przekaż Claude'owi klucz publiczny z przycisku „Utwórz klucze”")
+            f"stała VAPID_PUBLICZNY w {Path(strona).name} jest pusta, a sekret "
+            "VAPID_KLUCZ_PRYWATNY już jest — przekaż Claude'owi klucz publiczny z przycisku "
+            "„Utwórz klucze”")
     if z_base64url(na_stronie) != z_base64url(wyliczony):
         raise BladKonfiguracji(
             "klucz w sekrecie nie pasuje do strony — VAPID_KLUCZ_PRYWATNY i stała "
-            "VAPID_PUBLICZNY w rosliny.html pochodzą z różnych par; wygeneruj parę jeszcze "
-            "raz i podmień oba")
+            f"VAPID_PUBLICZNY w {Path(strona).name} pochodzą z różnych par; wygeneruj parę "
+            "jeszcze raz i podmień oba")
 
 
 def _maskuj(wartosc) -> None:
@@ -252,7 +299,7 @@ def _maskuj(wartosc) -> None:
 def wczytaj_telefony(env) -> tuple[list[Telefon], list[Blad]]:
     """Subskrypcje z sekretów. Najpierw maski — zanim cokolwiek innego trafi do logu."""
     telefony, bledy = [], []
-    for nazwa, sekret in TELEFONY:
+    for ident, nazwa, sekret in TELEFONY:
         tekst = (env.get(sekret) or "").strip()
         if not tekst:
             continue
@@ -273,7 +320,7 @@ def wczytaj_telefony(env) -> tuple[list[Telefon], list[Blad]]:
             _maskuj(klucze.get("auth"))
             _maskuj(klucze.get("p256dh"))
         try:
-            telefony.append(Telefon(nazwa, sekret, _subskrypcja(sub)))
+            telefony.append(Telefon(ident, nazwa, sekret, _subskrypcja(sub)))
         except ValueError as blad:
             bledy.append(Blad(nazwa, f"sekret {sekret} {blad}",
                               f"Skopiuj JSON subskrypcji ze strony jeszcze raz i podmień nim "
@@ -301,6 +348,12 @@ def _subskrypcja(sub) -> dict:
     return {"endpoint": endpoint, "keys": {"p256dh": klucze["p256dh"], "auth": klucze["auth"]}}
 
 
+def _nazwa_pliku(plik: Path) -> str:
+    # Oba pliki nazywają się powiadomienia.json — w logu i zgłoszeniu musi być widać który.
+    plik = Path(plik)
+    return f"{plik.parent.name}/{plik.name}" if plik.parent.name else plik.name
+
+
 def wpisy_przebiegu(plik: Path, przebieg: str) -> list[dict]:
     """Wpisy do wysłania w tym przebiegu: z jego numerem i wysłane naprawdę (nie na sucho)."""
     plik = Path(plik)
@@ -309,22 +362,70 @@ def wpisy_przebiegu(plik: Path, przebieg: str) -> list[dict]:
     try:
         dane = json.loads(plik.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        raise BladKonfiguracji(f"nie da się odczytać {plik.name} jako JSON") from None
+        raise BladKonfiguracji(f"nie da się odczytać {_nazwa_pliku(plik)} jako JSON") from None
     historia = dane.get("historia") if isinstance(dane, dict) else None
     if not isinstance(historia, list):
-        raise BladKonfiguracji(f"{plik.name} nie ma listy „historia”")
+        raise BladKonfiguracji(f"{_nazwa_pliku(plik)} nie ma listy „historia”")
     # `is False`, nie „nie prawda": wpis bez pola na_sucho to wpis, o którym nie wiemy,
     # czy miał pójść — a zasada brzmi „co najwyżej raz", nie „co najmniej raz".
     return [w for w in historia if isinstance(w, dict)
             and w.get("przebieg") == przebieg and w.get("na_sucho") is False]
 
 
+def adresaci(wpis: dict) -> tuple[str, ...] | None:
+    """Id telefonów, do których wpis ma pójść (w kolejności TELEFONY); None = zepsute pole.
+
+    Brak pola to wpis sprzed ustawień per telefon — wtedy szedł na wszystkie. `null`, tekst
+    czy nieznany telefon to błąd planera: zgadywanie mogłoby wysłać nie temu telefonowi
+    albo w jego ciszy nocnej.
+    """
+    if "telefony" not in wpis:
+        return ID_TELEFONOW
+    lista = wpis["telefony"]
+    if not isinstance(lista, list) or not all(isinstance(t, str) and t in ID_TELEFONOW
+                                              for t in lista):
+        return None
+    return tuple(t for t in ID_TELEFONOW if t in lista)
+
+
+def rozdziel(wpisy: list[dict], telefony: list[Telefon]
+             ) -> tuple[list[tuple[dict, list[Telefon]]], list[Blad]]:
+    """Plan wysyłki: (wpis, podpięte telefony, które mają go dostać) w kolejności wpisów.
+
+    Wpis z zepsutym polem `telefony` odpada; telefon ponad MAKS_WPISOW dostaje pierwsze
+    MAKS_WPISOW swoich wpisów. Oba przypadki to Blad „Reguły” do zgłoszenia.
+    """
+    plan, bledy = [], []
+    ile = dict.fromkeys(ID_TELEFONOW, 0)
+    for wpis in wpisy:
+        komu = adresaci(wpis)
+        if komu is None:
+            bledy.append(Blad("Reguły", f"wpis {wpis.get('id') or '?'} ma zepsute pole "
+                                        f"„telefony” — pominięty",
+                              "To błąd w planerze powiadomień (rosliny.py albo dom.py)."))
+            continue
+        odbiorcy = []
+        for ident in komu:
+            ile[ident] += 1
+            if ile[ident] <= MAKS_WPISOW:
+                odbiorcy += [t for t in telefony if t.id == ident]
+        plan.append((wpis, odbiorcy))
+    for ident, n in ile.items():
+        if n > MAKS_WPISOW:
+            bledy.append(Blad("Reguły", f"przebieg zapisał {n} wpisów dla telefonu "
+                                        f"{NAZWY_TELEFONOW[ident]}, wysyłam pierwsze {MAKS_WPISOW}",
+                              "To błąd w planerze powiadomień (rosliny.py albo dom.py)."))
+    return plan, bledy
+
+
 def tresc_push(wpis: dict) -> str:
     """JSON dla sw.js: {title, body, tag, url, id}; za długie `body` przycięte z „…”."""
-    tresc = {"title": str(wpis.get("tytul") or "Rośliny"),
+    # Domyślne tylko dla wpisu bez pola — planery zawsze je wypełniają. Wpis może być
+    # z domu albo z roślin, więc tytuł to nazwa aplikacji, a adres to jej pierwsza zakładka.
+    tresc = {"title": str(wpis.get("tytul") or "Smart Home"),
              "body": str(wpis.get("tresc") or ""),
-             "tag": str(wpis.get("tag") or "rosliny"),
-             "url": str(wpis.get("url") or "rosliny.html"),
+             "tag": str(wpis.get("tag") or "smart-home"),
+             "url": str(wpis.get("url") or "#dom"),
              "id": str(wpis.get("id") or "")}
     dane = json.dumps(tresc, ensure_ascii=False)
     # Każdy usunięty znak to co najmniej bajt, więc pętla kończy się po jednym, dwóch
@@ -366,8 +467,9 @@ def wyslij_jedno(biblioteka, telefon: Telefon, dane: str, tag: str, vapid, spij)
             kod = getattr(getattr(blad, "response", None), "status_code", None)
             if kod in (404, 410):
                 return Blad(telefon.nazwa, f"subskrypcja wygasła ({kod})",
-                            f"Na tym telefonie: zakładka „Rośliny” → „Włącz powiadomienia na tym "
-                            f"telefonie”, skopiuj pokazany JSON i podmień nim sekret `{telefon.sekret}`.")
+                            f"Na tym telefonie: zakładka „Powiadomienia” → „Ten telefon” — włącz "
+                            f"powiadomienia jeszcze raz, skopiuj pokazany JSON i podmień nim "
+                            f"sekret `{telefon.sekret}`.")
             if kod == 403:
                 return Blad(telefon.nazwa, "serwer push odrzucił podpis VAPID (403)",
                             f"Subskrypcja powstała przy innym kluczu publicznym niż ten, który "
@@ -416,7 +518,10 @@ def tresc_zgloszenia(bledy: list[Blad], przebieg: str, env, wpisy: list[dict]) -
         linie += ["", f"Log przebiegu: {adres}"]
     linie += ["", "Adresów subskrypcji tu nie ma i nie będzie — zgłoszenia i logi Actions są "
                   "publiczne. Treść odświeża się przy kolejnych błędach, a zgłoszenie zamknie "
-                  "się samo po pierwszej wysyłce, która dojdzie do wszystkich telefonów."]
+                  "się samo po pierwszym przebiegu bez błędów, w którym każdy podpięty telefon "
+                  "dostanie powiadomienie. Telefon z wyłączonymi regułami może czekać na to "
+                  "długo — wtedy zamyka je ręczne „Powiadomienie testowe” w Actions, bo idzie "
+                  "na wszystkie telefony."]
     return "\n".join(linie) + "\n"
 
 
@@ -466,7 +571,11 @@ def zamknij_zgloszenie(env, gh) -> None:
 
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="Wysyła powiadomienia Web Push zapisane przez ten przebieg.")
-    p.add_argument("--plik", type=Path, help="powiadomienia.json z opublikowanego commita")
+    # default=None, a domyślne pliki dopiero po parsowaniu: argparse przy action="append"
+    # DOKŁADA podane --plik do listy domyślnej, więc jawne --plik czytałoby też data/.
+    p.add_argument("--plik", type=Path, action="append", default=None,
+                   help="plik powiadomień z opublikowanego commita; można podać kilka "
+                        "(domyślnie oba z data/: rosliny i dom)")
     p.add_argument("--przebieg", default="", help="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT")
     p.add_argument("--test", action="store_true",
                    help="jedno powiadomienie testowe do wszystkich telefonów, bez pliku")
@@ -479,8 +588,10 @@ def main(argv=None, *, env=None, spij=time.sleep, gh=None, strona=None) -> int:
     (lista argumentów) → (kod wyjścia, stdout)."""
     parser = _parser()
     args = parser.parse_args(argv)
-    if not args.test and (args.plik is None or not args.przebieg):
-        parser.error("bez --test potrzebne są --plik i --przebieg")
+    if not args.test and not args.przebieg:
+        parser.error("bez --test potrzebny jest --przebieg")
+    if args.plik is None:
+        args.plik = list(PLIKI)
     env = os.environ if env is None else env
     if gh is None and shutil.which("gh"):
         gh = uruchom_gh
@@ -514,60 +625,75 @@ def _main(args, env, spij, gh, strona: Path) -> int:
                 print(f"Uwaga: {blad}.", flush=True)
         return 1 if args.test else 0
 
-    wpisy: list[dict] = []
     try:
         sprawdz_klucz(klucz, strona)
-        if args.test:
-            wpisy = [dict(TESTOWE, id=f"test-{args.przebieg}" if args.przebieg else "test")]
-        else:
-            wpisy = wpisy_przebiegu(args.plik, args.przebieg)
     except BladKonfiguracji as blad:
         bledy.append(Blad("Konfiguracja", str(blad), konfiguracja=True))
+    wpisy: list[dict] = []
+    if args.test:
+        wpisy = [dict(TESTOWE, id=f"test-{args.przebieg}" if args.przebieg else "test")]
+    else:
+        for plik in args.plik:
+            # Każdy plik osobno: zepsuty plik domu nie może zabrać powiadomień o roślinach
+            # (i odwrotnie) — wpisy z drugiego idą, a przebieg i tak kończy się kodem 1.
+            try:
+                wpisy += wpisy_przebiegu(plik, args.przebieg)
+            except BladKonfiguracji as blad:
+                bledy.append(Blad("Dane", str(blad), "To plik, który zapisał kolektor (fetch.py).",
+                                  konfiguracja=True))
 
-    if len(wpisy) > MAKS_WPISOW:
-        bledy.append(Blad("Reguły", f"przebieg zapisał {len(wpisy)} wpisy do wysłania, "
-                                    f"wysyłam pierwsze {MAKS_WPISOW}",
-                          "To błąd w zaplanuj_powiadomienia() (rosliny.py)."))
-        wpisy = wpisy[:MAKS_WPISOW]
-    wyslane = 0
-    if wpisy and telefony and not any(b.kto == "Konfiguracja" for b in bledy):
-        try:
-            import pywebpush as biblioteka
-        except ImportError:
-            biblioteka = None
-            bledy.append(Blad("Konfiguracja", "brak biblioteki pywebpush",
-                              "Krok wysyłki musi zrobić pip install -r requirements-powiadomienia.txt.",
-                              konfiguracja=True))
+    zablokowane = any(b.kto == "Konfiguracja" for b in bledy)
+    wyslane = {t.id: 0 for t in telefony}
+    if not wpisy:
+        if not zablokowane:
+            print(f"Przebieg {args.przebieg}: nic do wysłania.", flush=True)
+    elif not zablokowane:
+        plan, bledy_regul = rozdziel(wpisy, telefony)
+        bledy += bledy_regul
+        biblioteka = None
+        if any(odbiorcy for _, odbiorcy in plan):
+            try:
+                import pywebpush as biblioteka
+            except ImportError:
+                bledy.append(Blad("Konfiguracja", "brak biblioteki pywebpush",
+                                  "Krok wysyłki musi zrobić pip install -r requirements-powiadomienia.txt.",
+                                  konfiguracja=True))
         if biblioteka is not None:
             # Instancja, a nie tekst klucza: przy tekście webpush() najpierw sprawdza
             # os.path.isfile(klucz), dopiero potem woła Vapid.from_string.
             vapid = biblioteka.Vapid.from_string(klucz)
-            for wpis in wpisy:
+            for wpis, odbiorcy in plan:
+                if not odbiorcy:
+                    continue
                 dane = tresc_push(wpis)
                 tag = json.loads(dane)["tag"]
                 if not WZOR_TOPIC.fullmatch(tag):
                     print(f"Tag {tag!r} nie nadaje się na nagłówek Topic — wysyłam bez niego.",
                           flush=True)
-                for telefon in telefony:
+                for telefon in odbiorcy:
                     wynik = wyslij_jedno(biblioteka, telefon, dane, tag, vapid, spij)
                     if isinstance(wynik, Blad):
                         bledy.append(wynik)
                     else:
-                        wyslane += 1
+                        wyslane[telefon.id] += 1
                         print(f"{telefon.nazwa}: wysłano „{json.loads(dane)['title']}” ({wynik}).",
                               flush=True)
-    elif not wpisy and not any(b.kto == "Konfiguracja" for b in bledy):
-        print(f"Przebieg {args.przebieg}: nic do wysłania.", flush=True)
+        # Bez powodu (ustawienia czy cisza nocna) — to rozstrzygnął kolektor, a log ma
+        # mówić tylko, że ten telefon w tym przebiegu nic nie miał dostać.
+        for telefon in telefony:
+            if not any(telefon in odbiorcy for _, odbiorcy in plan):
+                print(f"{telefon.nazwa}: nic w tym przebiegu.", flush=True)
 
     for b in bledy:
         poziom = "error" if b.konfiguracja or args.test else "warning"
         print(f"::{poziom}::{b.kto}: {b.opis}." + (f" {b.rada}" if b.rada else ""), flush=True)
     if bledy:
         zglos(tresc_zgloszenia(bledy, args.przebieg or "?", env, wpisy), env, gh)
-    elif wyslane:
+    elif telefony and all(wyslane.values()):
+        # Tylko gdy KAŻDY podpięty telefon coś dostał — patrz docstring na górze.
         zamknij_zgloszenie(env, gh)
     if args.test:
-        return 1 if bledy or not wyslane else 0
+        return 1 if bledy or not any(wyslane.values()) else 0
     return 1 if any(b.konfiguracja for b in bledy) else 0
 
 

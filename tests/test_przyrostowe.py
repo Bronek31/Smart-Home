@@ -147,10 +147,10 @@ class PrzebiegKolektora(unittest.TestCase):
         os.chdir(self.poprzedni)
         shutil.rmtree(self.katalog, ignore_errors=True)
 
-    def przebieg(self, atrapa: AtrapaTuya, **stale) -> str:
+    def przebieg(self, atrapa: AtrapaTuya, env: dict | None = None, **stale) -> str:
         srodowisko = {"TUYA_CLIENT_ID": "x", "TUYA_CLIENT_SECRET": "y",
                       "TUYA_DEVICE_IDS": ",".join(atrapa.logi), "TUYA_SINCE": "",
-                      "TZ_LOCAL": "Europe/Warsaw"}
+                      "TZ_LOCAL": "Europe/Warsaw", **(env or {})}
         wyjscie = io.StringIO()
         latki = [
             mock.patch.dict(os.environ, srodowisko),
@@ -479,6 +479,125 @@ class TestOdkryjDziwneOdpowiedzi(PrzebiegKolektora):
             self.assertEqual(fetch.main(), 0)
         self.assertIn("pole: humidity", wyjscie.getvalue())
         self.assertIn("Zapytań do Tuya", wyjscie.getvalue())
+
+
+def odczyty_z_bateria(teraz: int, bateria: str, do_ms: int | None = None) -> list[dict]:
+    """Tydzień raportów czujnika pokojowego z podanym stanem baterii; `do_ms` ucina raporty
+    (czujnik od tej chwili milczy)."""
+    out = []
+    for w in tydzien_odczytow(teraz, bateria=True):
+        if do_ms is not None and w["event_time"] > do_ms:
+            continue
+        out.append(dict(w, value=bateria) if w["code"] == "battery_state" else w)
+    return out
+
+
+class TestRegulyDomuWKolektorze(PrzebiegKolektora):
+    """Reguły domu (dom.py) w całym main(): pliki data/dom/*.json, idempotencja, awarie.
+
+    Obie ciszę nocne są wyłączone w ustawieniach (POWIADOMIENIA_*), żeby wynik nie zależał
+    od pory uruchomienia testu — reguły wspólnej nocy sprawdza test_dom.py."""
+
+    URZADZENIA = ("salon", "kuchnia")
+    BEZ_CISZY = {"POWIADOMIENIA": "wlaczone", "PRZEBIEG": "101-1",
+                 "POWIADOMIENIA_ANDROID": '{"cisza": false}', "POWIADOMIENIA_IPHONE": '{"cisza": false}'}
+
+    def setUp(self):
+        super().setUp()
+        kody = dict(KODY, battery_state={"kind": "battery", "unit": "%", "scale": 0})
+        fetch.MANIFEST.write_text(json.dumps({"devices": {
+            i: {"name": i.capitalize(), "codes": kody} for i in self.URZADZENIA
+        }}), encoding="utf-8")
+        self.pokoje = self.katalog / "pokoje.json"
+        self.pokoje.write_text(json.dumps({"pokoje": {"kuchnia": {
+            "slug": "kuchnia", "nazwa": "Kuchnia", "dop": "kuchni", "bier": "kuchnię", "miejsc": "kuchni"}}}),
+            encoding="utf-8")
+
+    def atrapa(self, **logi) -> AtrapaTuya:
+        domyslne = {"salon": odczyty_z_bateria(self.teraz, "high"), "kuchnia": odczyty_z_bateria(self.teraz, "low")}
+        return AtrapaTuya({**domyslne, **logi})
+
+    def json(self, plik: Path) -> dict:
+        return json.loads(plik.read_text(encoding="utf-8"))
+
+    def test_pliki_domu_powstaja_a_drugi_przebieg_nie_zmienia_powiadomien(self):
+        atrapa = self.atrapa()
+        wyjscie = self.przebieg(atrapa, env=self.BEZ_CISZY, POKOJE_PLIK=self.pokoje)
+        stan = self.json(fetch.STAN_DOMU)
+        self.assertEqual(set(stan["pokoje"]), {"salon", "kuchnia"})
+        self.assertEqual(stan["pokoje"]["kuchnia"]["bateria"], "low")
+        self.assertEqual(stan["updated"], self.json(fetch.MANIFEST)["updated"],
+                         "stan domu i manifest mają tę samą chwilę zbiórki")
+        powiadomienia = self.json(fetch.POWIADOMIENIA_DOMU)
+        self.assertEqual([(w["tytul"], w["telefony"], w["przebieg"], w["url"]) for w in powiadomienia["historia"]],
+                         [("Słaba bateria czujnika w kuchni", ["android", "iphone"], "101-1", "#kuchnia")])
+        self.assertIn("Powiadomienie: Słaba bateria czujnika w kuchni", wyjscie)
+        self.assertIn("Ustawienia telefonów — Android: własne, iPhone: własne.", wyjscie)
+        self.assertNotIn('"cisza"', wyjscie, "treść ustawień nie trafia do publicznego logu")
+        przed = fetch.POWIADOMIENIA_DOMU.read_bytes()
+        self.przebieg(atrapa, env=dict(self.BEZ_CISZY, PRZEBIEG="102-1"), POKOJE_PLIK=self.pokoje)
+        self.assertEqual(fetch.POWIADOMIENIA_DOMU.read_bytes(), przed,
+                         "ten sam stan — plik powiadomień identyczny co do bajtu (inaczej commit co godzinę)")
+
+    def test_brak_pogody_i_planu_pokoi_nie_wywraca(self):
+        """fetch_weather → None i brak pogoda.json; pokoje.json nie istnieje — nazwy z manifestu."""
+        self.przebieg(self.atrapa(), env=self.BEZ_CISZY, POKOJE_PLIK=self.katalog / "nie-ma.json")
+        stan = self.json(fetch.STAN_DOMU)
+        self.assertEqual({p["noc"] for p in stan["pokoje"].values()}, {None})
+        self.assertEqual([w["tytul"] for w in self.json(fetch.POWIADOMIENIA_DOMU)["historia"]],
+                         ["Słaba bateria czujnika w kuchnia"])
+
+    def test_wyjatek_w_regulach_domu_daje_alert_a_odczyty_sie_zapisuja(self):
+        import dom
+        atrapa = self.atrapa()
+        with mock.patch.object(dom, "stan_domu", side_effect=KeyError("tresc-ze-zmiennej")):
+            wyjscie = self.przebieg(atrapa, env=self.BEZ_CISZY, POKOJE_PLIK=self.pokoje)
+        self.assertEqual(self.w_csv("salon"), {(fetch.iso(w["event_time"]), w["code"]) for w in atrapa.logi["salon"]},
+                         "odczyty zapisane mimo błędu reguł domu")
+        alerty = self.json(fetch.MANIFEST)["alerty"]
+        self.assertIn("**Powiadomienia w domu** — błąd reguł (KeyError), szczegóły w logu przebiegu.", alerty)
+        self.assertIn("Dom: błąd reguł powiadomień — KeyError (", wyjscie)
+        self.assertNotIn("tresc-ze-zmiennej", wyjscie + json.dumps(alerty))
+        self.assertFalse(fetch.POWIADOMIENIA_DOMU.exists())
+
+    def test_tor_roslin_nie_zabiera_regul_domu(self):
+        with mock.patch.object(fetch, "zbierz_rosliny", side_effect=RuntimeError("Tuya doniczki")):
+            self.przebieg(self.atrapa(), env=self.BEZ_CISZY, POKOJE_PLIK=self.pokoje)
+        self.assertEqual(len(self.json(fetch.POWIADOMIENIA_DOMU)["historia"]), 1)
+        self.assertFalse([a for a in self.json(fetch.MANIFEST)["alerty"] if "Powiadomienia w domu" in a])
+
+    def test_nieodswiezony_czujnik_nie_milczy_i_nie_konczy_epizodu(self):
+        """Kuchnia ostatni raz 10 godz. temu, a kolektor pobrał wszystko do teraz — milczy.
+        W przebiegu, w którym Tuya odmówi logów kuchni, „milczy" jej nie przysługuje,
+        a epizod (już wysłany) trwa: plik powiadomień bez zmian."""
+        cicha = odczyty_z_bateria(self.teraz, "high", do_ms=self.teraz - 10 * GODZ)
+        atrapa = self.atrapa(kuchnia=cicha)
+        self.przebieg(atrapa, env=self.BEZ_CISZY, POKOJE_PLIK=self.pokoje)
+        self.assertIsNotNone(self.json(fetch.STAN_DOMU)["pokoje"]["kuchnia"]["milczy_od"])
+        powiadomienia = self.json(fetch.POWIADOMIENIA_DOMU)
+        self.assertEqual([w["tytul"] for w in powiadomienia["historia"]], ["Czujnik w kuchni milczy"])
+        atrapa.odmowa = lambda path, params: path == "/v1.0/devices/kuchnia/logs"
+        self.przebieg(atrapa, env=dict(self.BEZ_CISZY, PRZEBIEG="102-1"), POKOJE_PLIK=self.pokoje)
+        self.assertIsNone(self.json(fetch.STAN_DOMU)["pokoje"]["kuchnia"]["milczy_od"])
+        self.assertEqual(self.json(fetch.POWIADOMIENIA_DOMU), powiadomienia)
+
+    def test_ustawienia_parsowane_raz_dla_obu_planerow(self):
+        env = dict(self.BEZ_CISZY, POWIADOMIENIA_ANDROID='{"cisza": false, "czujniki": false, "podlej": false}')
+        with mock.patch.object(fetch, "zbierz_rosliny") as rosliny, \
+                mock.patch.object(fetch, "zbierz_dom", wraps=fetch.zbierz_dom) as dom_:
+            self.przebieg(self.atrapa(), env=env, POKOJE_PLIK=self.pokoje)
+        u_roslin, u_domu = rosliny.call_args.args[-1], dom_.call_args.args[-1]
+        self.assertIs(u_roslin, u_domu)
+        self.assertFalse(u_roslin["android"]["podlej"])
+        self.assertTrue(u_roslin["iphone"]["podlej"])
+        self.assertEqual([w["telefony"] for w in self.json(fetch.POWIADOMIENIA_DOMU)["historia"]], [["iphone"]])
+
+    def test_planer_roslin_dostaje_ustawienia(self):
+        import rosliny
+        ustawienia = {"android": {"podlej": False}, "iphone": {}}
+        with mock.patch.object(rosliny, "zaplanuj_powiadomienia", return_value={"historia": []}) as planer:
+            fetch.zaplanuj_powiadomienia_roslin([], self.teraz, fetch.ZoneInfo("Europe/Warsaw"), ustawienia)
+        self.assertIs(planer.call_args.kwargs["ustawienia"], ustawienia)
 
 
 class TestPodpowiedzi(unittest.TestCase):

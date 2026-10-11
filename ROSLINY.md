@@ -1,9 +1,11 @@
 # Rośliny — przygotowanie
 
-Plan przed wdrożeniem czujników w doniczkach, stan na 8.10.2026. Czujniki są kupione,
-w kodzie zmieniło się dotąd tylko pobieranie przyrostowe i rozszerzone `--discover`
-(etapy 0 i 1, 8.10); zbierania roślin jeszcze nie ma. Ten plik zbiera to, co wiadomo o czujniku,
-o roślinach i o tym, gdzie nowa funkcja zahacza o istniejący kod.
+Plan i dziennik czujników w doniczkach. Stan na 11.10.2026: etapy 0–4 zrobione — tor
+danych roślin (8.10), sondy wbite 9.10, zakładka Rośliny (9.10, od 11.10 w jednej aplikacji
+`index.html`) i powiadomienia na oba telefony (wysyłka od 11.10, od tego dnia także o domu,
+z ustawieniami osobno dla każdego telefonu). Czeka etap 5: strojenie progów po 2–3
+podlaniach. Plik zbiera to, co wiadomo o czujniku, o roślinach i o tym, gdzie ta funkcja
+zahacza o resztę kodu; sekcje z 8.10 opisują plan sprzed budowy.
 
 Czynności dla właściciela, krok po kroku, są w osobnym pliku `ROSLINY-INSTRUKCJA.md`.
 
@@ -30,7 +32,9 @@ Oznaczenia:
 
 **Warunek właściciela (8.10):** odczyty z doniczek **nie mieszają się** z tym, co strona
 pokazuje dziś. Wykresy, kafle, rzut, strefa komfortu i alarmy pleśni zostają wyłącznie
-dla pokoi. Rośliny dostają **osobną zakładkę** w aplikacji.
+dla pokoi. Rośliny dostają **osobną zakładkę** w aplikacji. Od 11.10 pilnuje tego
+niezmiennik nowej aplikacji: na Domu, stronach pokoi i w Historii nie ma żadnych wartości
+z doniczek (test); wolno tylko kropkę na zakładce Rośliny i licznik na ikonie.
 
 ---
 
@@ -42,10 +46,10 @@ dla pokoi. Rośliny dostają **osobną zakładkę** w aplikacji.
    - fikus: nie przestawiać na ślepo — najpierw czujnik zmierzy światło.
 
    Szczegóły w „Rady już teraz".
-2. **Warunek właściciela jest do spełnienia bez kompromisów.** Rośliny mają osobny
-   tor danych (własna konfiguracja, pliki w `data/rosliny/`) i osobną stronę
-   `rosliny.html`. Na dzisiejszej stronie dochodzi tylko pasek zakładek. Izolacji
-   pilnuje test.
+2. **Warunek właściciela jest spełniony bez kompromisów.** Rośliny mają osobny tor
+   danych (własna konfiguracja, pliki w `data/rosliny/`) i własną zakładkę. Od 11.10 to
+   zakładka jednej aplikacji (`index.html`, adresy `#rosliny`, `#fikus`…), a nie osobna
+   strona; `rosliny.html` tylko przekierowuje stare adresy. Izolacji pilnuje test.
 3. **Limit Tuya: najpierw pobieranie przyrostowe (etap 0, zrobione 8.10).**
    - Trial to pakiet **0,20 USD na miesiąc**. Nasze zapytania Tuya liczy jako
      zagraniczne, po 3,71 USD za milion, więc pakiet to ok. 54 000 zapytań. Tak wynika
@@ -76,9 +80,11 @@ dla pokoi. Rośliny dostają **osobną zakładkę** w aplikacji.
      **[do sprawdzenia po parowaniu]**.
 7. **Brak powiadomienia nie znaczy „wszystko w porządku".**
    - Gdy wygaśnie trial Tuya albo token cron-job.org, powiadomienia ustaną po cichu.
-   - Sygnałem życia jest niedzielne podsumowanie: przychodzi zawsze, także gdy nic
-     się nie dzieje.
-   - Zapasowym sygnałem jest mail „Kolektor stoi" od watchdoga.
+   - Niedzielne podsumowanie miało być sygnałem życia, ale na zatwierdzonym ekranie jest
+     domyślnie wyłączone (11.10). Zastępują je: mail „Kolektor stoi" od watchdoga (co
+     6 godz.), linia „Ostatnia zbiórka N godz. temu” na zakładce Dom (po 3 godz.)
+     i lista „Ostatnie” w Powiadomieniach — co i kiedy poszło na który telefon.
+     Podsumowanie każdy telefon może włączyć.
 8. **Zimą „przestaw" powie niewiele.**
    - Salon i Kuchnia mają okna na północ i do ok. 20 marca nie zobaczą bezpośredniego
      słońca (przy oknach dokładnie na północ).
@@ -660,6 +666,14 @@ Pozostałe zasady:
 
 ### Etap 3: zakładka „Rośliny"
 
+**Od 11.10 zastąpione jedną aplikacją.** Zakładka Rośliny, karty, wykresy i szczegół
+rośliny są w `index.html` (adresy `#rosliny`, `#fikus`, `#skrzydlokwiat`, `#azalia` — slug
+z nazwy, jak `_slug` w `rosliny.py`), dane tylko z `data/rosliny/stan.json` (godzinowy
+`szereg`, bez CSV roślin), ocena światła z `swiatlo_ocena` liczonej w Pythonie (jeden próg
+pełnej doby, 0,8). `rosliny.html` to przekierowanie starych adresów (1252 B, było 48 791 B).
+Powody osobnej strony z listy niżej (hash nadpisywany przez `boot()`, 177 KB logiki
+mieszkania) odeszły razem z dawną stroną. Opis niżej to wersja z 9.10.
+
 **Stan na 9.10: zrobione** (`rosliny.html`, 30 testów w `tests/frontend/rosliny.spec.js`).
 Po przeglądzie (cztery soczewki, każda ze sceptykiem):
 - **Werdykt, rady i próg przychodzą z Pythona.** Rada „wyjmij czujnik i zanurz
@@ -725,134 +739,235 @@ listy wymaganych plików.
 
 ### Etap 4: powiadomienia
 
-**Stan na 11.10: włączone** (9–11.10 na sucho) — reguły (`rosliny.zaplanuj_powiadomienia`,
-`data/rosliny/powiadomienia.json`), nadawca (`wyslij.py`, krok w `zbieraj.yml`,
-`powiadomienie-testowe.yml`), telefon (sekcja „Powiadomienia" w `rosliny.html`, obsługa
-`push`/`notificationclick` w `sw.js` v5, zimny start w `index.html`). Trzech wykonawców
-w osobnych kopiach repozytorium, potem przegląd z czterech stron ze sceptykiem.
-- **Zmierzone na prawdziwej bibliotece** (pywebpush 2.5.0, py-vapid 1.9.4): wszystkie trzy
-  pułapki potwierdzone; klucz prywatny jako JWK `d` z WebCrypto działa w
-  `Vapid.from_string`, a wyliczony publiczny = eksport `raw` co do bajta. Treść powyżej
-  3993 B nie mieści się w 4096 B po zaszyfrowaniu — nadawca przycina.
-- **Odstępstwa od planu:** jeden wpis na regułę na przebieg (nie jeden zbiorczy na
-  wszystko) — każda reguła ma własny tag, a tag podmienia powiadomienie na telefonie;
-  tolerancja 10 min na „2 godz." i „co dobę", bo przebiegi co godzinę pływają o sekundy;
-  ponowienie nie czeka na poranne 2 godz. (azalia naprawdę co 12 godz.); bateria
-  „trzyma" alarm do „high"; wpis czujnika niesie wszystkie trwające powody.
-- **Sprawdzone na Androidzie 9.10:** klucze z przycisku „Utwórz klucze" (na Androidzie),
-  sekret `PUSH_ANDROID`; test z `powiadomienie-testowe.yml` → FCM odpowiedział 201,
-  powiadomienie doszło, kliknięcie otworzyło zakładkę „Rośliny". Stała w stronie
-  zgadza się z kluczem w sekrecie (inaczej `--test` kończy się błędem).
-- **iPhone 10.10:** sekret `PUSH_IPHONE`, drugi test z `powiadomienie-testowe.yml` →
-  201 dla obu telefonów, właściciel potwierdził, że powiadomienia dochodzą. Obejście
-  zimnego startu na iPhonie nie było osobno sprawdzane.
-- **Włączone 11.10** (`POWIADOMIENIA: 'wlaczone'` w `zbieraj.yml`) na prośbę właściciela,
-  po dwóch dniach na sucho zamiast tygodnia. Pierwszy dzienny przebieg po włączeniu
-  wysyła powitanie „Powiadomienia włączone” z tym, co już trwa.
+**Stan na 11.10: włączone** — na sucho 9–11.10, wysyłka od 11.10 (`POWIADOMIENIA:
+'wlaczone'` w `zbieraj.yml`), na prośbę właściciela po dwóch dniach zamiast tygodnia.
+Tego samego dnia weszła nowa aplikacja (`KONTEKST.md`, sekcja z 11.10): jedna strona
+`index.html` z zakładką Powiadomienia, reguły domu w `dom.py` obok roślin, ustawienia
+i cisza nocna osobno dla każdego telefonu.
+- **Telefony sprawdzone:** Android 9.10, iPhone 10.10 — test z `powiadomienie-testowe.yml`
+  → 201 dla obu, powiadomienia dochodzą. Nowa aplikacja zachowała klucz VAPID, `sw.js`
+  i jego zakres, `start_url`, nazwę `rosliny-subskrypcja`, bazę IDB `rosliny`/`odebrane`
+  i cache `cel-powiadomienia` — zmiana któregokolwiek zgubiłaby subskrypcje obu telefonów.
+- **Zmierzone na prawdziwej bibliotece** (pywebpush 2.5.0, py-vapid 1.9.4): trzy pułapki
+  niżej potwierdzone; klucz prywatny jako JWK `d` z WebCrypto działa w `Vapid.from_string`.
+  Treść powyżej 3993 B nie mieści się w 4096 B po zaszyfrowaniu — nadawca przycina.
+
+**Droga wpisu:**
+1. `fetch.py` czyta ustawienia telefonów raz i podaje je obu planerom:
+   `rosliny.zaplanuj_powiadomienia` → `data/rosliny/powiadomienia.json`,
+   `dom.zaplanuj_powiadomienia` → `data/dom/powiadomienia.json`. Tory są niezależne: błąd
+   reguł domu (limit 60 s) to alert „Powiadomienia w domu” w `data/index.json` dla
+   watchdoga, a odczyty i rośliny idą dalej; błąd Tuya przy doniczce nie zabiera
+   powiadomień domu.
+2. Wpis niesie `telefony` (komu wysłać teraz; może być `[]`) i `przebieg` =
+   `$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT`. Stan „wysłane / odłożone” powstaje w tym samym
+   commicie co wpis.
+3. Po udanym `zapisz.sh` krok wysyłki bierze oba pliki z opublikowanego commita
+   (`git show origin/main:…`, brak pliku domu = pomiń), jq liczy wpisy tego przebiegu
+   z niepustym `telefony`, a przy zerze krok kończy się bez `pip install`. Inaczej
+   `wyslij.py --plik … --plik … --przebieg …`. Tylko ten krok dostaje sekrety powiadomień.
+
+Zasada: **co najwyżej raz**. Dwa przebiegi naraz, ponowienie po przegranym wyścigu,
+„nic do zapisania” ani „Re-run” w Actions nie mają czego wysłać drugi raz, a nieudanej
+wysyłki następny przebieg nie ponawia — reguły z ponowieniem nadrobią same. Bez zmian
+w danych oba pliki powiadomień są identyczne co do bajtu (inaczej commit co godzinę):
+przegląd odtworzył 337 kolejnych przebiegów dla 4 profili ustawień — 0 różnic.
+
+**Ustawienia per telefon** — zmienne repozytorium `POWIADOMIENIA_ANDROID`
+i `POWIADOMIENIA_IPHONE`, JSON w kształcie `DOMYSLNE` z `telefony.py`: siedem reguł
+(`przewietrz`, `okno`, `czujniki`, `podlej`, `przestaw`, `czujnik`, `podsumowanie`)
+i cisza (`cisza`, `od`, `do`). Domyślnie wszystko poza podsumowaniem, cisza 21–8.
+- Zapisuje je aplikacja (zakładka Powiadomienia) przez REST API GitHuba (PATCH zmiennej,
+  przy 404 POST) **kluczem fine-grained z jednym uprawnieniem: Variables: Read and
+  write, tylko Smart-Home**, wklejonym raz na każdym telefonie
+  (`ROSLINY-INSTRUKCJA.md`, krok 10). Klucz trafia do pamięci aplikacji dopiero po udanym
+  odczycie obu zmiennych. Nieudany zapis cofa przełącznik z komunikatem (401 „Klucz nie
+  działa albo wygasł”, 403 „…nie ma uprawnienia Variables…”, „Brak połączenia”).
+- Workflow podaje je wyłącznie przez `env:` kroku „Pobierz…” — **nigdy `${{ vars.X }}`
+  w `run:`**: treść ustawia każdy, kto ma klucz z telefonu, a wyrażenie w `run:` stałoby
+  się kodem powłoki.
+- Brak zmiennej albo zły JSON → wartości domyślne, nigdy wyjątek. Kolektor loguje tylko
+  „Android: własne / domyślne / nieczytelne”.
+- **Wartości są jawne w publicznym logu** kroku „Pobierz…”: Actions wypisuje env kroku
+  w nagłówku, a zmiennych, inaczej niż sekretów, nie maskuje (format potwierdzony na
+  prawdziwym logu z 11.10). Świadomie zaakceptowane: to nie sekret, a godziny ciszy i tak
+  da się wyczytać z publicznych plików powiadomień.
+
+**Cisza nocna per telefon i kolejka odłożonych** (`telefony.py`):
+- Decyduje kolektor, przed commitem. Nadawca jest bezstanowy, a „dostaniesz rano” po jego
+  stronie wymagałoby drugiego commita, czyli wyścigu i dubli.
+- Telefon z włączoną regułą, ale w ciszy, dostaje pozycję w kolejce `telefony.<t>.odlozone`
+  tego samego pliku. W pierwszym przebiegu po końcu jego ciszy pozycje są sprawdzane na
+  świeżym stanie (nieaktualne odpadają) i wychodzą jako wpis z `telefony: [t]`
+  i `odlozone: true`, a kolejka czyści się w tym samym wyniku. Pozycja starsza niż doba
+  odpada, najwyżej 20 na telefon.
+- Nigdy nie czekają: „przed snem”, „zamknij okno” i powitanie — rano nie mają sensu.
+- Dawna noc 21–8 to dziś „wszystkie telefony w ciszy”, a dawne „8:00” — koniec ostatniej
+  wspólnej nocy. Przy domyślnych ustawieniach obu telefonów decyzje są takie same jak przed
+  11.10 (test regresji).
+- Cisza z `od` równym `do` nie trwa wcale, więc aplikacja takiej nie przyjmuje.
+- Symulacja przeglądu (prawdziwy kolektor co godzinę 11–18.10, pięć profili ustawień):
+  przy iPhonie z ciszą 23–7 „przed snem” idzie do Androida o 19:01, do iPhone'a o 21:01,
+  raz na noc; kolejki schodzą w pierwszym przebiegu po ciszy.
+
+**Nadawca** (`wyslij.py`):
+- Domyślnie oba pliki; zepsuty jeden nie zatrzymuje drugiego. Filtr `telefony`: brak pola
+  = oba telefony, lista = tylko te, zły typ = wpis pominięty i błąd „Reguły”.
+- Najwyżej **13 wpisów na telefon** w jednym przebiegu — górna granica wyliczona
+  z reguł (rośliny 7, dom 6; komentarz przy `MAKS_WPISOW`), odtworzona w teście
+  prawdziwymi planerami. Więcej to błąd planera i zgłoszenie, a nie powód, żeby zasypać
+  telefon.
+- Zgłoszenie `powiadomienia` zamyka się samo dopiero, gdy każdy telefon z poprawną
+  subskrypcją dostał w przebiegu co najmniej jedną wysyłkę i nie było błędów. Telefon
+  z wyłączonymi wszystkimi regułami nic nie dostanie — wtedy zamyka je ręczne
+  „Powiadomienie testowe”.
+- Klucz publiczny VAPID leży w jednym miejscu: stała `VAPID_PUBLICZNY` w `index.html`
+  (dokładnie raz, 87 znaków, ta sama wartość co klucz telefonów — test). Nadawca wylicza
+  go z klucza prywatnego i porównuje ze stroną; niezgodność to czerwony krok z „klucz
+  w sekrecie nie pasuje do strony”.
+- `pywebpush` w osobnym pliku wymagań kroku. Trzy zmierzone pułapki obchodzimy jawnie,
+  każdą pilnuje test:
+  - świeży słownik `claims` przy każdym wywołaniu, bo biblioteka zmienia go w miejscu
+    i drugi telefon dostałby zły `aud`;
+  - `ttl` podany jawnie, bo domyślne 0 Apple odrzuca;
+  - `sub` bez ścieżki w adresie.
+- Nagłówki: `TTL` 12 godz., `Urgency: normal`, `Topic`/`tag` ASCII (np. `podlej-azalia`,
+  `przewietrz-lazienka`), więc nowe powiadomienie zastępuje stare.
+
+**Awarie wysyłki:**
+- 404/410 (subskrypcja wygasła) albo 403 (klucz VAPID nie pasuje): sam krok wysyłki
+  zakłada albo odświeża zgłoszenie z etykietą `powiadomienia` (`issues: write`
+  w `zbieraj.yml`) z radą „zakładka Powiadomienia → Ten telefon”. Watchdog by tego nie
+  zobaczył, bo wynik wysyłki powstaje już po commicie.
+- 429 i 5xx: dwie ponowne próby w tym samym kroku, potem zgłoszenie.
+- Brak sekretów: krok kończy się na zielono z linią „brak subskrypcji”.
+
+**Przełącznik `POWIADOMIENIA: na-sucho | wlaczone`** w `zbieraj.yml` to globalny
+wyłącznik obu planerów. Na sucho reguły zapisują `na_sucho`, a nie „wysłano”. Pierwszy
+przebieg po włączeniu: rośliny wysyłają powitanie z tym, co trwa; plik domu dostaje tylko
+`wlaczone_od`, bez powitania, ale trwające reguły wysyła od razu (wdrożenie między 19 a 21
+daje od razu „Przewietrz przed snem”).
+
+**Sekrety i prywatność:**
+- `VAPID_KLUCZ_PRYWATNY` oraz subskrypcja każdego telefonu w osobnym sekrecie
+  (`PUSH_ANDROID`, `PUSH_IPHONE`). Sekretów GitHuba nie da się odczytać ani zmienić
+  częściowo.
+- Parę kluczy generuje sama aplikacja (WebCrypto). Prywatny właściciel wkleja od razu
+  jako sekret. **Prywatny nigdy nie przechodzi przez czat.**
+- **Logi Actions są publiczne.** Nadawca nigdy nie wypisuje adresu subskrypcji ani treści
+  wyjątków `requests`; na starcie kroku `::add-mask::` dla każdego adresu.
+- **Subskrypcji nigdy nie trzymać w `data/`**, bo `data/` jest publiczne.
+
+**Telefon:**
+- Zakładka **Powiadomienia**: grupa „Ten telefon” (włączenie, kopiowanie subskrypcji do
+  sekretu, ostrzeżenia), przełączniki reguł i cisza dla każdego z dwóch telefonów, lista
+  „Ostatnie” (do 10 wpisów z obu plików, z telefonami i czasem), klucz dostępu.
+- **Adresy:** `url` wpisu to `#fikus` (jedna roślina), `#rosliny` (kilka, podsumowanie),
+  `#lazienka` (jeden pokój), `#dom` (kilka pokoi). Stare `#roslina=<nazwa>`
+  i `rosliny.html#roslina=…` (doręczone powiadomienia, cel zapisany przez stary service
+  worker) aplikacja tłumaczy na nowy adres; `rosliny.html` to już tylko przekierowanie.
+- `sw.js` v6: kliknięcie przy otwartej aplikacji idzie wiadomością do jej routingu, bez
+  przeładowania; bez otwartego okna cel trafia do Cache API (`cel-powiadomienia`,
+  obejście zimnego startu na iPhonie, WebKit 263687) i `openWindow`. Licznik na ikonie:
+  po pokazaniu powiadomienia ustawia go worker, po otwarciu — aplikacja (liczba spraw
+  wymagających uwagi). Tylko przy zgodzie na powiadomienia; na Androidzie zwykle go nie ma.
+- **Android:** Chrome, aplikacja zainstalowana. **iPhone:** iOS ≥ 16.4, aplikacja dodana
+  z **Safari** i otwarta z ikony (na iOS 26 włączone „Otwórz jako aplikację webową”).
+  Safari cofa zgodę, jeśli push nie pokaże powiadomienia, więc obsługa `push` pokazuje je
+  **zawsze** — dlatego filtr telefonów działa u nadawcy, a nie w workerze. W UE Apple
+  w 2024 r. wycofało się z wyłączenia aplikacji z ekranu początkowego.
+
+**Czy powiadomienia dochodzą:**
+1. Adres z `getSubscription()` porównujemy z ostatnio skopiowanym. Inny albo brak →
+   „Subskrypcja się zmieniła — włącz ponownie i podmień sekret”.
+2. Obsługa `push` zapisuje w IndexedDB identyfikator odebranego powiadomienia. Zakładka
+   porównuje je z oboma plikami powiadomień (liczą się tylko wpisy z tym telefonem
+   w `telefony`): wysłane ponad godzinę temu i nieodebrane → „Powiadomienia nie
+   dochodzą do tego telefonu”. Tylko to łapie martwą subskrypcję na iPhonie, którą Apple
+   dalej potwierdza kodem 201.
 
 **Kanał:**
 
 | Kanał | Za | Przeciw | Rola |
 |---|---|---|---|
-| **Web Push do aplikacji** | przychodzi *z tej* aplikacji; kliknięcie otwiera zakładkę „Rośliny"; za darmo; treść szyfrowana | najwięcej pracy; na iPhonie subskrypcja potrafi po cichu wygasnąć | **główny** |
+| **Web Push do aplikacji** | przychodzi *z tej* aplikacji; kliknięcie otwiera właściwy pokój albo roślinę; za darmo; treść szyfrowana | najwięcej pracy; na iPhonie subskrypcja potrafi po cichu wygasnąć | **główny** |
 | ntfy.sh | 10 minut konfiguracji; aplikacje na Androida i iOS | powiadomienie z aplikacji ntfy, nie z naszej; ntfy.sh widzi treść; na iPhonie kliknięcie otwiera Safari | zapas, gdyby Web Push zawiódł |
 | automatyzacja Smart Life | zero kodu | jeden próg bez histerezy, bez uczenia; nie wiadomo, czy gleba jest dostępna jako warunek ani czy dostanie je drugi domownik **[do sprawdzenia]** | **tymczasowo**, do etapu 5 |
-| zgłoszenie GitHub (mail) | już działa | zwłoka do kilkunastu godzin przez watchdoga | awarie: martwa subskrypcja, cisza czujnika, bateria |
-
-**Jak wysyłać bez dublowania:**
-- `fetch.py` zapisuje decyzję w `data/rosliny/powiadomienia.json` z polem
-  `przebieg` = `$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT`.
-- Po udanym `zapisz.sh` osobny krok w `zbieraj.yml` wysyła **wyłącznie** wpisy z tym
-  polem, odczytane z opublikowanego commita (`git show origin/main:…`). Tylko ten krok
-  dostaje sekrety powiadomień.
-- Wpis jest w opublikowanym commicie albo nie ma go wcale. Dwa przebiegi naraz,
-  ponowienie po przegranym wyścigu, ścieżka „nic do zapisania" ani „Re-run" w Actions
-  nie mają czego wysłać drugi raz.
-- Zasada: **co najwyżej raz**. Nieudanej wysyłki następny przebieg nie ponawia. Reguły
-  z ponowieniem nadrobią to same, a nieudana wysyłka zakłada zgłoszenie.
-
-**Awarie wysyłki:**
-- 404/410 (subskrypcja wygasła) albo 403 (klucz VAPID nie pasuje): **sam krok wysyłki**
-  zakłada albo odświeża zgłoszenie z etykietą `powiadomienia`. `zbieraj.yml` dostaje
-  do tego `issues: write`. Watchdog by tego nie zobaczył, bo wynik wysyłki powstaje
-  już po commicie.
-- 429 i 5xx: dwie ponowne próby w tym samym kroku, potem zgłoszenie.
-- Brak sekretów: krok kończy się na zielono z linią „brak subskrypcji". Dzięki temu
-  etap 3 da się wdrożyć przed etapem 4.
-
-**Przełącznik `POWIADOMIENIA: na-sucho | wlaczone`** w `zbieraj.yml` trafia do
-`fetch.py`, a nie tylko do kroku wysyłki:
-- na sucho reguły zapisują `na_sucho` z godziną, a nie „wysłano", więc ponowienia
-  i zasada „raz, potem karta" liczą się dopiero od włączenia;
-- pierwszy przebieg po włączeniu wysyła jedno zbiorcze powiadomienie o tym, co już
-  trwa.
-
-**Sekrety:**
-- `VAPID_KLUCZ_PRYWATNY`.
-- Subskrypcja każdego telefonu w osobnym sekrecie (`PUSH_ANDROID`, `PUSH_IPHONE`).
-  Sekretów GitHuba nie da się odczytać ani zmienić częściowo.
-- Klucz publiczny VAPID leży **w jednym miejscu**: w `rosliny.html`. Nadawca wylicza
-  go z klucza prywatnego i porównuje ze stroną. Gdy się nie zgadzają, krok kończy się
-  na czerwono z komunikatem „klucz w sekrecie nie pasuje do strony". Test w CI
-  sprawdza tylko format stałej — to strażnik i tak go podpisujemy.
-- Parę kluczy generuje sama strona (WebCrypto), jednym przyciskiem. Prywatny właściciel
-  wkleja od razu jako sekret, a publiczny przekazuje do kodu. **Prywatny nigdy nie
-  przechodzi przez czat.**
-- **Logi Actions są publiczne.** Nadawca nigdy nie wypisuje adresu subskrypcji ani
-  treści wyjątków `requests`, bo zawierają URL. Na starcie kroku `::add-mask::` dla
-  każdego adresu. Test: przy wyjątku sieciowym z adresem w treści log nie zawiera
-  adresu.
-- **Subskrypcji nigdy nie trzymać w `data/`**, bo `data/` jest publiczne.
-
-**Nadawca:**
-- `pywebpush` w osobnym pliku wymagań kroku wysyłki. Trzy zmierzone pułapki obchodzimy
-  jawnie, a każdą pilnuje test:
-  - świeży słownik `claims` przy każdym wywołaniu, bo biblioteka zmienia go w miejscu
-    i drugi telefon dostałby zły `aud`;
-  - `ttl` podany jawnie, bo domyślne 0 Apple odrzuca;
-  - `sub` bez ścieżki w adresie.
-- Zapas: własna implementacja na samej bibliotece `cryptography` (ok. 100 linii).
-  Prototyp przeszedł lokalnie test z biblioteką referencyjną `http_ece`, ale nie był
-  puszczany na prawdziwe serwery Google i Apple.
-- Nagłówki:
-  - `TTL` 12 godz., `Urgency: normal`;
-  - `Topic`/`tag` ASCII (np. `podlej-azalia`), więc nowe powiadomienie zastępuje stare.
-
-**Telefony:** kroki w `ROSLINY-INSTRUKCJA.md`.
-- **Android:** Chrome, aplikacja już zainstalowana.
-- **iPhone:**
-  - iOS ≥ 16.4, aplikacja dodana z **Safari** i otwarta z ikony. Na iOS 26
-    przełącznik „Otwórz jako aplikację webową" ma być włączony.
-  - Safari cofa zgodę, jeśli push nie pokaże powiadomienia, więc obsługa `push`
-    pokazuje je **zawsze**.
-  - W UE Apple w 2024 r. wycofało się z wyłączenia aplikacji z ekranu początkowego.
-
-**Czy powiadomienia dochodzą:**
-1. Adres z `getSubscription()` porównujemy z ostatnio skopiowanym (localStorage).
-   Inny albo brak → „włącz ponownie i podmień sekret".
-2. Obsługa `push` zapisuje w IndexedDB identyfikator odebranego powiadomienia.
-   Zakładka porównuje je z `powiadomienia.json`: wysłane ponad godzinę temu
-   i nieodebrane → „Powiadomienia nie dochodzą do tego telefonu".
-
-   Tylko to łapie martwą subskrypcję na iPhonie, którą Apple dalej potwierdza
-   kodem 201.
+| zgłoszenie GitHub (mail) | już działa | zwłoka do kilkunastu godzin przez watchdoga | awarie: martwa subskrypcja, cisza czujnika, bateria, stojący kolektor |
 
 ### Reguły powiadomień
 
-**Wersja 1 — trzy reguły, które odpowiadają na „podlej albo przestaw":**
+Reguły liczy Python (`rosliny.py`, `dom.py`), a strona tylko wyświetla ten sam stan
+z `data/*/stan.json` — karta i powiadomienie nie mogą mówić co innego. Dlatego liczby
+w treściach są zaokrąglane połówką w górę, tak jak na stronie: przegląd 11.10 znalazł, że
+Python zaokrąglał połówki do parzystej (granica 62,5 → powiadomienie „62%”, karta „63%”;
+u = 0,185 → 18% i 19%). Procent światła idzie do strony gotowy (`swiatlo_ocena.proc`).
 
-| Reguła | Kiedy | Ponowienie | Treść |
+**Rośliny:**
+
+| Reguła | Kiedy | Ile razy | Treść |
 |---|---|---|---|
-| **Podlej** | R poniżej progu rośliny przez ≥ 2 godz.; histereza 6 punktów | co 24 godz. (azalia co 12), najwyżej 3 razy; gaśnie po wykrytym podlaniu | azalia poniżej R 0,60: ta sama reguła zmienia treść na instrukcję zanurzenia (najpierw wyjąć czujnik) |
-| **Czujnik** | cisza > 12 godz., bateria `low`, sonda wyjęta (nagły spadek gleby) | raz, potem karta | „Fikus: czujnik milczy od…" |
-| **Niedzielne podsumowanie** | niedziela, 10:00 | co tydzień, **zawsze** — też jako sygnał, że system żyje | stan trzech roślin, ostatnie podlania, światło tygodnia wobec potrzeby; raz na sezon „przestaw do …" albo „lepszego miejsca nie ma" |
+| **Podlej** | R poniżej progu rośliny przez ≥ 2 godz.; histereza 6 punktów | ponowienie co 24 godz. (azalia co 12), najwyżej 3 razy, najwyżej 2 zwykłe na dobę; gaśnie po podlaniu. Telefon, któremu doręczono odłożone „podlej”, dostaje świeże ponowienie dopiero po odstępie gatunku od tego doręczenia | „Podlej: azalia”; azalia poniżej R 0,60: instrukcja zanurzenia (najpierw wyjąć czujnik) |
+| **Przestaw** | 3 ostatnie pełne doby światła (pokrycie ≥ 0,8, po dniu wbicia, bez dziś): u = średnie lx·h ÷ potrzeba gatunku < 0,35 | raz na epizod; kończy go „ok” albo u ≥ 0,45 (histereza). W paśmie 0,35–0,45 epizod trwa, ale nic nie wychodzi — „bliżej okna” przy 40% byłoby nieprawdą | „Fikus: przestaw bliżej okna” / „Ostatnie 3 doby: średnio 22% potrzebnego światła.” Fikus dostaje dopisek „gubi liście po każdej przeprowadzce — przestaw raz, w najjaśniejsze miejsce” („nie przestawiać na ślepo”, wyżej) |
+| **Czujnik** | cisza > 12 godz., bateria `low` (alarm trzyma do `high`), sonda wyjęta | raz na powód; zdarzenie z nocy przychodzi rano, także gdy już minęło | „Fikus: czujnik milczy od…” |
+| **Podsumowanie tygodnia** | niedziela, 10:00 | co tydzień; **domyślnie wyłączone** (wpis powstaje z `telefony: []`) | stan roślin, ostatnie podlania, światło tygodnia |
+
+**Dom** (pokoje, bez dworu):
+
+| Reguła | Kiedy | Ile razy | Treść |
+|---|---|---|---|
+| **Przewietrz** | wilgotność nad granicą „za wilgotno” (PN-EN ISO 13788, wzór progu pleśni z kolektora; bez temperatury pokoju albo dworu nie ma granicy, a nie zapasowe 65%) bez przerwy ≥ 2 godz. − 10 min zapasu na pływanie przebiegów; ostatni odczyt ≤ 3 godz. | raz na epizod, najwyżej 2 na pokój na dobę | „Przewietrz łazienkę” / „Łazienka: 71% od 2 godz., za wilgotno powyżej 63%.” |
+| **Przewietrz przed snem** | granica z najniższej temperatury prognozy nocy 22–7; „zwykle” = średnia nocnych maksimów wilgotności (23–7) z 7 nocy; ostrzeżenie, gdy zwykle ≥ granica − 2 pkt | raz na noc na telefon, w jego oknie wieczornym; nigdy do kolejki | „Przewietrz przed snem: łazienka” / „Łazienka: w nocy za wilgotno od ok. 62%, zwykle masz do 61%.” |
+| **Zamknij okno** | tylko sezon grzewczy (październik–kwiecień): spadek ≥ 1,5° w ≤ 1 godz.; ostatni odczyt ≥ 1,5° pod poziomem sprzed (mediana 3 godz.), ale start nie jest szczytem grzania; dwór ≥ 4° chłodniej; robi się zimno (< 20,5 °C albo wilgotność −2 pkt); temperatura jeszcze nie wraca (< 1° nad dołkiem) | raz na epizod, tylko do telefonów poza ciszą; gdy śpią wszystkie, epizod czeka do rana | „Zamknij okno w sypialni?” / „Od 19:40 spadło 2,8° (z 21,2 do 18,4°).” |
+| **Czujniki w pokojach** | ostatni odczyt ≥ 6 godz. starszy od kursora zbiórki (nie od „teraz”); bateria `low` (trzyma do `high`) | raz na powód | „Czujnik w kuchni milczy”, „Słaba bateria czujnika w kuchni” |
+
+**Okno „przed snem”** liczy `telefony.przed_snem` osobno dla każdego telefonu, w pełnych
+godzinach lokalnych, i zawsze kończy je przed północą — karta pokoju daje radę „przewietrz
+przed snem” tylko przed północą, więc push po północy polecałby coś, czego otwarta z niego
+karta już nie mówi:
+- cisza od 14:00–23:00 → dwie godziny przed nią, `[od − 2, od)` (21–8 → 19–21, 23–7 → 21–23);
+- cisza od 0:00–2:00 → 22:00–24:00;
+- bez ciszy albo z ciszą od 3:00–13:00 → 19:00–21:00.
+
+Okno, które przy bardzo długiej ciszy wpada w ciszę, nie daje nic.
+
+**Trafność „przed snem”** (pomiar przy budowie: 14 dób, prognoza przybliżona zapisanymi
+godzinami dworu, bo historycznej prognozy nie ma): wpis w 8 wieczorów na 14; z 18
+ostrzeżeń pokój-noc 3 skończyły się przekroczeniem granicy w nocy, przekroczeń bez
+ostrzeżenia 0. Zapas 1 pkt: 14 ostrzeżeń, 2 trafne; zapas 0: 7 ostrzeżeń, 1 trafne (gubi
+2 z 3 prawdziwych). Zostaje 2 pkt — tak stoi na zatwierdzonym ekranie („tuż pod granicą”).
+Przegląd po miesiącu, ok. 11.11 (`TODO.md`).
+
+**Pomiary reguł domu** (stan domu dla każdej godziny 27.09–11.10, 336 przebiegów, domyślne
+ustawienia):
+- przewietrz: 1 wpis — Kuchnia 28.09 (1 godz. 54 min nad granicą; wyszedł dzięki zapasowi
+  10 min). Cała historia 16.08–11.10: 15 epizodów, 8 powiadomień, najwięcej 3 wpisy na
+  dobę, limit 2 na pokój nie zadziałał ani razu;
+- zamknij okno: 0. Przed warunkiem „temperatura już wraca” — 1 fałszywe (Salon 7.10 0:00,
+  okno zamknięte ok. 25 min wcześniej); bez bramki sezonu — Kuchnia 23.08, 6 godz. przy
+  letnim chłodzeniu; bez poziomu sprzed spadku (przy przebiegach co 10 min) — farelka w Łazience 3.10 i 8.10;
+- czujniki: 0 (wszystkie baterie „średnie”).
+
+**Pomiar „przestaw”** (11.10): każda roślina ma dopiero 1 pełną dobę (10.10), więc ocena
+jest pusta. Rzut z ostatnią dobą powtórzoną na 12 i 13.10: fikus u 0,18 → pierwsze
+„przestaw bliżej okna” ok. 13.10 8:00 (okna na północ — będzie to prawdą całą zimę, ale
+idzie raz na epizod); skrzydłokwiat u 0,37, tuż nad progiem; azalia 0,63.
 
 **Zasady ogólne:**
-- Cisza 21:00–8:00 czasu polskiego. Po 8:00 reguły liczą się od nowa. Tylko alarm
-  czujnika zapisuje zdarzenie nocy i wysyła je rano.
-- Jedno zbiorcze powiadomienie na przebieg („Podlej: azalia, skrzydłokwiat"),
-  najwyżej 2 zwykłe na dobę.
-- Pierwszy tydzień po etapie 4 na sucho.
+- Jeden wpis na regułę na przebieg, z własnym tagiem — tag podmienia powiadomienie na
+  telefonie. Kilka roślin albo pokoi to jeden wpis („Podlej: azalia, skrzydłokwiat”).
+- Tolerancja 10 min na „2 godz.” i „co dobę”, bo przebiegi co godzinę startują od :00 do
+  :06. Ponowienie „podlej” nie czeka na poranne 2 godz. (azalia naprawdę co 12 godz.).
+- Reguła wyłączona na obu telefonach i tak daje wpis (`telefony: []`) i liczy się do
+  znaczników i limitów — włączenie jej w trakcie epizodu nie wyśle starego zdarzenia.
+- Słownictwo: „za wilgotno”, „granica”; słowa „pleśń” nie ma w aplikacji
+  ani w powiadomieniach.
+
+**„Za dużo słońca” — dalej wersja 2.** Czujnik mierzy 0–10 000 lx, a progi „przestaw
+dalej od okna” z prototypu są dla niego nieosiągalne. `swiatlo_za_duzo_lx` jest `null` dla
+wszystkich gatunków; gałąź „ciemniej” jest w kodzie i w testach (na sztucznym progu), ale na
+prawdziwych danych nie zadziała. Opis przełącznika „Przestaw” w aplikacji („za ciemno albo
+za dużo słońca”) zostaje jak na zatwierdzonym ekranie.
 
 **Wersja 2 — po zebraniu danych, jeśli będą potrzebne:**
 - za mokro za długo („wylej wodę z osłonki / podstawki");
@@ -928,15 +1043,17 @@ Przy schodkach po 3 punkty każda histereza musi mieć co najmniej 6 punktów.
 - **Do zrobienia przez właściciela:** napisać godzinę wbicia sond — trafi do pola
   `od` w `rosliny.json`, od niej zaczyna się nauka progów.
 
-**Etap 3. Zakładka „Rośliny"**
+**Etap 3. Zakładka „Rośliny"** — zrobione 9.10 (`rosliny.html`), od 11.10 zakładka
+w `index.html`.
 - **Claude:** `rosliny.html`, pasek zakładek, karty, wykres, `sw.js`.
 - Tryb nauki, bez powiadomień.
 
-**Etap 4. Powiadomienia**
+**Etap 4. Powiadomienia** — zrobione; na sucho 9–11.10, wysyłka od 11.10.
 - **Claude:** nadawca, krok w `zbieraj.yml`, przycisk, obsługa w `sw.js`, przebieg
-  próbny.
-- **Właściciel:** klucz VAPID i subskrypcje do sekretów.
-- Potem tydzień na sucho.
+  próbny; 11.10 ustawienia i cisza per telefon, reguły domu.
+- **Właściciel:** klucz VAPID i subskrypcje do sekretów (9–10.10), klucz dostępu do
+  ustawień na obu telefonach (`ROSLINY-INSTRUKCJA.md`, krok 10).
+- Na sucho dwa dni zamiast tygodnia — na prośbę właściciela.
 
 **Etap 5. Strojenie** (razem)
 - Po 2–3 cyklach podlewania przyłożyć progi do danych.

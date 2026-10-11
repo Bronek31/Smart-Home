@@ -16,7 +16,7 @@ import sys
 import time
 import unittest
 from contextlib import redirect_stdout
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -27,6 +27,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import fetch  # noqa: E402
 import rosliny  # noqa: E402
+import telefony  # noqa: E402
 from test_przyrostowe import (AtrapaTuya, GODZ, KODY, PrzebiegKolektora,  # noqa: E402
                               tydzien_odczytow)
 
@@ -197,6 +198,119 @@ class TestSwiatlo(unittest.TestCase):
                 rosliny.luksogodziny(pkt, WAWA, ms("2026-10-07T00:00:00Z"), ms("2026-10-08T20:00:00Z"))}
         self.assertEqual(doby["2026-10-07"], 100)
         self.assertEqual(doby["2026-10-08"], 100)
+
+    def test_szczyt_trzymany_przez_polnoc(self):
+        """5000 lx o 23:00 trzymane do odczytu o 1:00 — szczyt ma też następna doba, bo
+        suma lx·h liczy tam tę samą godzinę."""
+        pkt = [(ms("2026-10-07T21:00:00Z"), 5000.0), (ms("2026-10-07T23:00:00Z"), 300.0),
+               (ms("2026-10-08T08:00:00Z"), 1200.0)]
+        doby = {d["data"]: d for d in
+                rosliny.luksogodziny(pkt, WAWA, ms("2026-10-06T22:00:00Z"), ms("2026-10-08T21:59:59Z"))}
+        self.assertEqual(doby["2026-10-07"]["szczyt_lx"], 5000)
+        self.assertEqual(doby["2026-10-08"]["szczyt_lx"], 5000)
+        self.assertEqual(doby["2026-10-08"]["lxh"], 5000 + 300 * 3 + 1200 * 3)
+
+    def test_dziura_nie_przedluza_szczytu(self):
+        """Odczyt sprzed dziury dłuższej niż 3 godz. nie sięga za nią: 5000 lx o 20:00 nie
+        jest szczytem doby, która zaczyna się po 23:00 bez pomiaru."""
+        pkt = [(ms("2026-10-07T18:00:00Z"), 5000.0), (ms("2026-10-08T01:30:00Z"), 100.0)]
+        doby = {d["data"]: d for d in
+                rosliny.luksogodziny(pkt, WAWA, ms("2026-10-05T22:00:00Z"), ms("2026-10-08T21:59:59Z"))}
+        self.assertEqual(doby["2026-10-07"]["szczyt_lx"], 5000)
+        self.assertEqual(doby["2026-10-08"]["szczyt_lx"], 100)
+        self.assertIsNone(doby["2026-10-06"]["szczyt_lx"], "doba bez pomiaru to brak szczytu, nie 0")
+
+    def test_szczyt_w_lokalnej_dobie_przy_zmianie_czasu(self):
+        """25.10.2026 ma 25 godz. 23:30 UTC to już 26.10 (0:30 CET), a 22:30 UTC jeszcze
+        25.10. Doba według UTC (prototyp w Actions) albo stałego +2 pomyliłaby oba."""
+        pkt = [(ms("2026-10-25T22:30:00Z"), 4000.0), (ms("2026-10-25T22:45:00Z"), 0.0),
+               (ms("2026-10-25T23:30:00Z"), 6000.0), (ms("2026-10-25T23:45:00Z"), 0.0)]
+        doby = {d["data"]: d for d in
+                rosliny.luksogodziny(pkt, WAWA, ms("2026-10-24T22:00:00Z"), ms("2026-10-26T22:59:59Z"))}
+        self.assertEqual((doby["2026-10-25"]["szczyt_lx"], doby["2026-10-26"]["szczyt_lx"]), (4000, 6000))
+
+
+def doby_swiatla(*doby, od="2026-10-01") -> list[dict]:
+    """swiatlo_dobowe od daty `od`: (lxh, pokrycie, szczyt) na kolejne doby."""
+    start = datetime.fromisoformat(od).date()
+    return [{"data": (start + timedelta(days=i)).isoformat(), "lxh": lxh, "pokrycie": pokrycie, "szczyt_lx": szczyt}
+            for i, (lxh, pokrycie, szczyt) in enumerate(doby)]
+
+
+class TestOcenaSwiatla(unittest.TestCase):
+    """rosliny.ocena_swiatla — jedna decyzja dla karty rośliny i reguły „przestaw"."""
+    OD = ms("2026-10-01T06:35:00Z")              # wbicie 1.10 rano
+    TERAZ = ms("2026-10-05T10:00:00Z")           # 5.10 — pełne mogą być 2, 3 i 4.10
+
+    def ocena(self, doby, potrzeba=1000, za_duzo=None, teraz=None, werdykt=None, od=None):
+        return rosliny.ocena_swiatla(doby, potrzeba, za_duzo, self.OD if od is None else od,
+                                     teraz or self.TERAZ, WAWA, werdykt)
+
+    def test_trzy_ostatnie_pelne_doby_bez_dzisiejszej_i_dnia_wbicia(self):
+        # 1.10 (wbicie, jasne), 2–4.10 pełne, 5.10 dzisiejsza (jasna)
+        doby = doby_swiatla((9000, 1.0, 900), (100, 1.0, 50), (200, 1.0, 60), (300, 1.0, 70), (9000, 0.5, 900))
+        o = self.ocena(doby)
+        self.assertEqual(o, {"kierunek": "jasniej", "u": 0.2, "proc": 20,
+                             "doby": ["2026-10-02", "2026-10-03", "2026-10-04"], "szczyt_lx": 70})
+
+    def test_proc_z_zapisanego_u_polowka_w_gore(self):
+        """`proc` to procent, który pokazuje karta i powiadomienie „przestaw". Liczony z u
+        zapisanego w stan.json (trzy miejsca) połówką w górę, jak Math.round na stronie:
+        0,185 → 19, a nie 18 (f"{18.5:.0f}" w Pythonie). u = 0,18451 zapisuje się jako
+        0,185 — z nieprzyciętego wyszłoby 18, a karta pokazałaby 19 (przegląd, C1)."""
+        for lxh, u, proc in ((185, 0.185, 19), (184.51, 0.185, 19), (125, 0.125, 13), (375, 0.375, 38),
+                             (184.49, 0.184, 18), (349.9, 0.35, 35)):
+            with self.subTest(lxh=lxh):
+                doby = doby_swiatla((0, 0, None), *[(lxh, 1.0, 50)] * 3, (0, 0.5, None))
+                o = json.loads(json.dumps(self.ocena(doby)))
+                self.assertEqual((o["u"], o["proc"]), (u, proc))
+
+    def test_mniej_niz_trzy_pelne_doby_to_brak_oceny(self):
+        doby = doby_swiatla((9000, 1.0, 900), (100, 1.0, 50), (200, 1.0, 60), (300, 0.5, 70), (9000, 0.5, 900))
+        self.assertIsNone(self.ocena(doby))
+        self.assertIsNone(self.ocena(doby[:4], teraz=ms("2026-10-04T10:00:00Z")), "dzisiejsza się nie liczy")
+
+    def test_bez_daty_wbicia_brak_pelnych_dob(self):
+        doby = doby_swiatla(*[(100, 1.0, 50)] * 5)
+        self.assertEqual(rosliny.pelne_doby_swiatla(doby, None, self.TERAZ, WAWA), [])
+        self.assertIsNone(rosliny.ocena_swiatla(doby, 1000, None, None, self.TERAZ, WAWA))
+
+    def test_granica_pokrycia_z_obu_stron(self):
+        for pokrycie, pelna in ((0.79, False), (rosliny.POKRYCIE_PELNEJ_DOBY, True)):
+            with self.subTest(pokrycie=pokrycie):
+                doby = doby_swiatla((0, 0, None), (100, 1.0, 50), (200, pokrycie, 60), (300, 1.0, 70), (0, 0.5, None))
+                self.assertEqual(self.ocena(doby) is not None, pelna)
+
+    def test_progi_u(self):
+        """u = 0,349 to „jaśniej", 0,35 już nie; 0,6 to „ok". Decyzja na nieprzyciętym u."""
+        for lxh, kierunek in ((349, "jasniej"), (349.9, "jasniej"), (350, "malo"), (599, "malo"), (600, "ok")):
+            with self.subTest(lxh=lxh):
+                doby = doby_swiatla((0, 0, None), *[(lxh, 1.0, 50)] * 3, (0, 0.5, None))
+                self.assertEqual(self.ocena(doby)["kierunek"], kierunek)
+
+    def test_za_duzo_slonca_ma_pierwszenstwo(self):
+        """Szczyt ostatniej pełnej doby ponad próg daje „ciemniej" także przy małej sumie;
+        szczyt równy progowi — nie. Bez progu (D3: dziś wszystkie gatunki) nigdy."""
+        doby = doby_swiatla((0, 0, None), (100, 1.0, 9000), (100, 1.0, 9000), (100, 1.0, 4001), (0, 0.5, None))
+        self.assertEqual(self.ocena(doby, za_duzo=4000)["kierunek"], "ciemniej")
+        self.assertEqual(self.ocena(doby, za_duzo=4001)["kierunek"], "jasniej")
+        self.assertEqual(self.ocena(doby)["kierunek"], "jasniej")
+
+    def test_czujnik_bez_oceny(self):
+        doby = doby_swiatla((0, 0, None), *[(100, 1.0, 50)] * 3, (0, 0.5, None))
+        self.assertIsNone(self.ocena(doby, werdykt="czujnik"))
+        self.assertIsNotNone(self.ocena(doby, werdykt="nauka"), "w nauce światło liczy się normalnie")
+
+    def test_gatunki_maja_stale_karty_i_uspiony_prog(self):
+        """D3: czujnik mierzy do 10 000 lx, progi z projektu były nieosiągalne — `null`, aż
+        wiosną zmierzymy nasycenie. Strażnik: nowy gatunek bez tych pól wywróciłby stan."""
+        for nazwa, g in rosliny.GATUNKI.items():
+            with self.subTest(nazwa):
+                self.assertIsInstance(g["nazwa_pelna"], str)
+                self.assertLess(g["temp_zakres"][0], g["temp_zakres"][1])
+                self.assertLess(g["wilg_zakres"][0], g["wilg_zakres"][1])
+                self.assertIn("swiatlo_za_duzo_lx", g)
+                self.assertIsNone(g["swiatlo_za_duzo_lx"])
 
 
 class TestPodlania(unittest.TestCase):
@@ -464,6 +578,32 @@ class TestWerdykt(unittest.TestCase):
         s = self.werdykt(konf(), self.wiersze(20))
         self.assertEqual(len(s["swiatlo_dobowe"]), 30)
         self.assertEqual(len(s["szereg"]["gleba"]), 30 * 24 + 1)
+
+    def test_pola_swiatla_i_gatunku_w_stanie(self):
+        """Stan niesie wszystko, czego karta rośliny potrzebuje, żeby niczego nie liczyć:
+        stałe gatunku, pełne doby, wczorajszą sumę i szczyt oraz ocenę światła."""
+        w = self.wiersze(20) + seria(self.TERAZ - 32 * DOBA_MS, self.TERAZ, GODZ, 100, "illumiance")
+        s = self.werdykt(konf(od="2026-10-08T00:00:00Z"), w)
+        self.assertEqual((s["nazwa_pelna"], s["temp_zakres"], s["wilg_zakres"], s["swiatlo_za_duzo_lx"]),
+                         ("Fikus 'Ginseng' (Ficus microcarpa)", [16, 24], [40, 70], None))
+        # wbicie 8.10 (2:00 w Warszawie), teraz 12.10: pełne 9, 10 i 11.10
+        self.assertEqual((s["swiatlo_pelne_doby"], s["swiatlo_wczoraj_lxh"], s["swiatlo_szczyt_lx_wczoraj"]),
+                         (3, 2400, 100))
+        self.assertEqual(s["swiatlo_ocena"], {"kierunek": "jasniej", "u": 0.12, "proc": 12,
+                                              "doby": ["2026-10-09", "2026-10-10", "2026-10-11"], "szczyt_lx": 100})
+        json.dumps(s, allow_nan=False)
+
+    def test_bez_swiatla_i_przy_czujniku_ocena_pusta(self):
+        s = self.werdykt(konf(od="2026-10-08T00:00:00Z"), self.wiersze(20))
+        self.assertEqual((s["swiatlo_pelne_doby"], s["swiatlo_wczoraj_lxh"], s["swiatlo_szczyt_lx_wczoraj"],
+                          s["swiatlo_ocena"]), (0, None, None, None))
+        k = konf(od="2026-10-08T00:00:00Z")
+        w = [x for x in self.wiersze(40, ostatni_ms=self.TERAZ - 20 * GODZ) if x["code"] != "battery_state"]
+        w += seria(self.TERAZ - 32 * DOBA_MS, self.TERAZ - 20 * GODZ, GODZ, 100, "illumiance")
+        s = self.werdykt(k, w)
+        self.assertEqual(s["werdykt"], "czujnik")
+        self.assertGreaterEqual(s["swiatlo_pelne_doby"], 3)
+        self.assertIsNone(s["swiatlo_ocena"], "milczący czujnik — światło jest stare")
 
 
 class TorRoslin(PrzebiegKolektora):
@@ -744,6 +884,44 @@ class TestTorRoslin(TorRoslin):
         stan = self.stan()
         self.assertIn("powiadomienia", stan.get("blad") or "")
         self.assertTrue(stan.get("rosliny"), "błąd reguł nie może skasować stanu roślin")
+
+    def test_ustawienia_telefonow_z_env_trafiaja_do_wpisow(self):
+        """D11/D12: POWIADOMIENIA_ANDROID/IPHONE przez env kroku „Pobierz…". Bez ciszy na
+        Androidzie i z ciszą iPhone'a od bieżącej godziny powitanie idzie tylko na Androida —
+        niezależnie od pory, o której biegnie test. Treść zmiennych nie trafia do logu."""
+        self.napisz_rosliny()
+        godzina = datetime.now(WAWA).hour
+        env = {"PRZEBIEG": "77-1", "POWIADOMIENIA": "wlaczone",
+               "POWIADOMIENIA_ANDROID": '{"cisza": false}',
+               "POWIADOMIENIA_IPHONE": json.dumps({"cisza": True, "od": godzina, "do": (godzina + 2) % 24})}
+        with mock.patch.dict(os.environ, env):
+            wyjscie = self._przebieg(self.atrapa(), "salon")
+        self.assertEqual(self.kod, 0)
+        dane = json.loads((self.KATALOG / "powiadomienia.json").read_text(encoding="utf-8"))
+        self.assertEqual([(w["regula"], w["telefony"]) for w in dane["historia"] if w["przebieg"] == "77-1"],
+                         [("wlaczone", ["android"])])
+        self.assertNotIn('"cisza"', wyjscie)
+        self.assertRegex(wyjscie, r"(?i)android:\s*własne")
+
+    def test_zla_wartosc_ustawien_to_domyslne_i_kod_0(self):
+        self.napisz_rosliny()
+        env = {"PRZEBIEG": "78-1", "POWIADOMIENIA": "wlaczone", "POWIADOMIENIA_ANDROID": "{zepsute",
+               "POWIADOMIENIA_IPHONE": "[1, 2]"}
+        przed = datetime.now(WAWA)
+        with mock.patch.dict(os.environ, env):
+            wyjscie = self._przebieg(self.atrapa(), "salon")
+        po = datetime.now(WAWA)
+        self.assertEqual(self.kod, 0)
+        self.assertNotIn("zepsute", wyjscie)
+        self.assertRegex(wyjscie, r"(?i)iphone:\s*nieczytelne \(działają domyślne\)", "zła wartość musi być w logu nieczytelna, nie „własne”")
+        dane = json.loads((self.KATALOG / "powiadomienia.json").read_text(encoding="utf-8"))
+        cisza = telefony.w_ciszy(telefony.DOMYSLNE, przed)
+        if cisza != telefony.w_ciszy(telefony.DOMYSLNE, po):
+            self.skipTest("przebieg na granicy ciszy 21:00/8:00")
+        wpisy = [w for w in dane["historia"] if w["przebieg"] == "78-1"]
+        # domyślne obu telefonów: cisza 21–8 obu to wspólna noc — powitanie czeka do rana
+        self.assertEqual([(w["regula"], w["telefony"]) for w in wpisy],
+                         [] if cisza else [("wlaczone", ["android", "iphone"])])
 
     def test_bez_rosliny_json_nic_nie_powstaje(self):
         """Strażnik: dopóki nie ma konfiguracji, tor roślin nie dotyka data/."""

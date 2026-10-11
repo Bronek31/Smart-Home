@@ -1,13 +1,15 @@
 # Smart Home
 
-Historia temperatury i wilgotności z czterech czujników Zigbee (Tuya / Smart Life),
-zbierana za darmo przez GitHub Actions i pokazywana na stronie GitHub Pages.
+Temperatura i wilgotność z czterech czujników Zigbee w pokojach i trzech w doniczkach
+(Tuya / Smart Life), zbierane za darmo przez GitHub Actions. Aplikacja na GitHub Pages
+pokazuje dom i rośliny, a powiadomienia („przewietrz”, „zamknij okno?”, „podlej”,
+„przestaw”) przychodzą na Androida i iPhone'a.
 
 Smart Life nie przechowuje historii — ten projekt to nadrabia: raz na godzinę
-pobiera logi z chmury Tuya, dopisuje je do plików CSV w repozytorium i rysuje z nich
-wykresy. Żadnego serwera, bazy danych ani Raspberry Pi.
+pobiera logi z chmury Tuya, dopisuje je do plików CSV w repozytorium, liczy z nich
+reguły i wysyła powiadomienia. Żadnego serwera, bazy danych ani Raspberry Pi.
 
-**Podgląd:** https://bronek31.github.io/Smart-Home/
+**Aplikacja:** https://bronek31.github.io/Smart-Home/
 
 ---
 
@@ -16,9 +18,11 @@ wykresy. Żadnego serwera, bazy danych ani Raspberry Pi.
 ```
 czujniki Zigbee → bramka → chmura Tuya → fetch.py (GitHub Actions, co godzinę)
                                             ↓
-                          data/*.csv  +  data/dzienne.csv  +  data/index.json
-                                            ↓
-                                    index.html (GitHub Pages)
+   pokoje      data/*.csv, data/dzienne.csv, data/index.json, data/pogoda.json
+   dom.py      data/dom/stan.json, data/dom/powiadomienia.json
+   rosliny.py  data/rosliny/*.csv, data/rosliny/stan.json, data/rosliny/powiadomienia.json
+                                            ↓  commit na main (zapisz.sh)
+            index.html (GitHub Pages)            wyslij.py → Web Push → Android, iPhone
 ```
 
 Tuya udostępnia **7 dni logów wstecz**. Każdy przebieg pobiera odcinek od miejsca,
@@ -32,8 +36,7 @@ Czujniki raportują **przy zmianie temperatury o 0,5 °C** albo **raz na godzin�
 cokolwiek wypadnie pierwsze. Odstępy 60-minutowe to norma, nie awaria.
 
 Poza czujnikami klimatu kolektor zbiera też **włączniki urządzeń** — z klimatyzatora
-w salonie bierze wyłącznie to, kiedy chodził. Strona tego dziś nie pokazuje: pasma
-pracy służyły wykrywaniu wietrzenia i odeszły razem z nim (27.09.2026). Wiersze
+w salonie bierze wyłącznie to, kiedy chodził. Aplikacja tego nie pokazuje; wiersze
 zostają w CSV, gdyby urządzenie wróciło do łask.
 
 ---
@@ -42,33 +45,40 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 
 | Plik | Do czego |
 |---|---|
-| `fetch.py` | kolektor: pobiera logi z Tuya, pogodę i smog z Open-Meteo, przelicza agregaty |
-| `index.html` | cała strona — wykresy, rzut mieszkania, diagnostyka. Bez budowania |
-| `zapisz.sh` | pobiera odczyty i zapisuje je na gałąź, przeżywając wyścig dwóch przebiegów |
-| `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami |
-| `artefakty.json` | znane artefakty: przedziały, w których czujnik mierzył coś innego niż pokój. Ręczna lista |
-| `rosliny.json` | czujniki w doniczkach: identyfikator, roślina, gatunek, kody pól Tuya, odczyt „sucho" i data wbicia. Ręczna lista |
-| `rosliny.py` | obliczenia dla doniczek bez sieci i plików: przerzedzanie, światło dobowe, podlania, progi, werdykt |
-| `rosliny.html` | zakładka „Rośliny": karty roślin z werdyktem i wykresy gleby oraz światła z `data/rosliny/stan.json`. Osobna strona w tej samej aplikacji — strona mieszkania ma tylko pasek zakładek |
-| `wyslij.py` | nadawca powiadomień Web Push: wysyła z `data/rosliny/powiadomienia.json` tylko wpisy tego przebiegu (krok w `zbieraj.yml`); sekrety `VAPID_KLUCZ_PRYWATNY`, `PUSH_ANDROID`, `PUSH_IPHONE` |
+| `fetch.py` | kolektor: pobiera logi z Tuya, pogodę i smog z Open-Meteo, przelicza agregaty, woła tor roślin i reguły domu |
+| `dom.py` | reguły domu bez sieci i plików: przewietrz, przed snem, zamknij okno, czujniki w pokojach — stan dla strony i plan powiadomień |
+| `rosliny.py` | obliczenia dla doniczek bez sieci i plików: przerzedzanie, światło dobowe i jego ocena, podlania, progi, werdykt, plan powiadomień |
+| `telefony.py` | ustawienia każdego telefonu (które reguły, cisza nocna) i kolejka odłożonych na koniec jego ciszy — wspólne dla `dom.py` i `rosliny.py` |
+| `wyslij.py` | nadawca Web Push: z obu plików powiadomień wysyła tylko wpisy tego przebiegu, każdemu telefonowi tylko jego; sekrety `VAPID_KLUCZ_PRYWATNY`, `PUSH_ANDROID`, `PUSH_IPHONE` |
 | `requirements-powiadomienia.txt` | biblioteki nadawcy (pywebpush), instalowane tylko w kroku wysyłki |
+| `index.html` | cała aplikacja: zakładki Dom · Rośliny · Historia · Powiadomienia, strony pokoi i roślin, obsługa powiadomień. Jeden plik, bez budowania i bez bibliotek z CDN |
+| `rosliny.html` | tylko przekierowanie starych adresów (`rosliny.html#roslina=…` z dawnych powiadomień i zakładek) na `./#…` |
+| `pokoje.json` | pokoje po identyfikatorze czujnika: adres (`slug`), nazwa, odmiany do zdań, strona świata okna, wywiew. Ręczna lista; czyta ją strona i `dom.py` |
+| `zapisz.sh` | pobiera odczyty i zapisuje je na gałąź, przeżywając wyścig dwóch przebiegów |
+| `artefakty.json` | znane artefakty: przedziały, w których czujnik mierzył coś innego niż pokój. Ręczna lista |
+| `rosliny.json` | czujniki w doniczkach: identyfikator, roślina, gatunek, kody pól Tuya, odczyt „sucho” i data wbicia. Ręczna lista |
+| `manifest.json`, `sw.js`, `ikona*` | instalacja na ekranie głównym telefonu, tryb offline, powiadomienia (push, kliknięcie, licznik na ikonie) |
+| `.nojekyll` | pusty plik, który mówi Pages: serwuj repozytorium jak jest, bez Jekylla |
 | `KONTEKST.md` | notatka przekazania: dlaczego jest tak, jak jest, i na co uważać przy dalszej pracy |
-| `ROSLINY.md` | plan czujników w doniczkach i powiadomień na telefon — w przygotowaniu |
-| `ROSLINY-INSTRUKCJA.md` | co zrobić z czujnikami w doniczkach krok po kroku — dla właściciela |
-| `tests/` | testy kolektora i strony; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
+| `TODO.md` | pomysły na później i te świadomie odrzucone, wraz z powodami; terminy właściciela |
+| `ROSLINY.md` | czujniki w doniczkach i powiadomienia: plan, pomiary, reguły |
+| `ROSLINY-INSTRUKCJA.md` | czynności właściciela krok po kroku: czujniki, podpięcie telefonów, klucz do ustawień |
+| `tests/` | testy kolektora, reguł, nadawcy i aplikacji; nie trafiają na Pages, bo Pages serwuje tylko katalog główny |
 | `.githooks/pre-push` | nie przepuszcza pusha, dopóki testy nie przejdą |
-| `.github/workflows/zbieraj.yml` | zbieranie; zapasowy harmonogram co godzinę o :19, właściwym zegarem jest zewnętrzny cron co godzinę (patrz „Kolektor co godzinę") |
-| `.github/workflows/watchdog.yml` | co 6 godzin sprawdza, czy kolektor żyje i czy czujniki nie wołają o rękę |
+| `.github/workflows/zbieraj.yml` | zbieranie i wysyłka powiadomień; zapasowy harmonogram co godzinę o :19, właściwym zegarem jest zewnętrzny cron co godzinę (patrz „Kolektor co godzinę”) |
+| `.github/workflows/watchdog.yml` | co 6 godzin sprawdza, czy kolektor żyje i czy czujniki (także w doniczkach) nie wołają o rękę |
+| `.github/workflows/powiadomienie-testowe.yml` | jedno powiadomienie „Powiadomienia działają” na każdy podpięty telefon. Na żądanie i po zmianie swojego pliku na `main` |
 | `.github/workflows/odkryj.yml` | wypisuje urządzenia w Tuya i ich pola, a dla nowych także bieżące wartości i liczbę wpisów z ostatniej godziny (ok. 20 zapytań). Na żądanie i sam po każdej zmianie swojego pliku na `main` |
 | `.github/workflows/testy.yml` | testy przy każdej zmianie kodu i raz na dobę na żywych danych |
-| `manifest.json`, `sw.js`, `ikona*` | instalacja na ekranie głównym telefonu i tryb offline |
-| `.nojekyll` | pusty plik, który mówi Pages: serwuj repozytorium jak jest, bez Jekylla |
-| `data/RRRR-MM.csv` | surowe odczyty: `ts,device_id,code,value` |
-| `data/dzienne.csv` | dobowe min/średnia/max — z tego rysuje się widok „całość" |
+| `data/RRRR-MM.csv` | surowe odczyty pokoi: `ts,device_id,code,value` |
+| `data/dzienne.csv` | dobowe min/średnia/max — z tego „Zakresy 7 dni” i „Ostatnie 30 dni” |
 | `data/pogoda.json` | migawka: teraz, prognoza na 3 dni i godzinowa na dobę, jakość powietrza. Nadpisywana co przebieg |
-| `data/index.json` | lista urządzeń, miesięcy, czas ostatniej zbiórki i diagnostyka dla watchdoga |
+| `data/index.json` | lista urządzeń, miesięcy, czas ostatniej zbiórki, kursory i diagnostyka (`alerty`) dla watchdoga |
+| `data/dom/stan.json` | reguły domu dla strony, po pokoju: `przewietrz`, `okno`, `noc` (przed snem), `milczy_od`, `bateria`. Nadpisywany co przebieg |
+| `data/dom/powiadomienia.json` | powiadomienia o domu: historia z 60 dni, stan reguł, kolejki odłożonych i znacznik „przed snem” każdego telefonu. Zmienia się tylko przy wpisie albo zmianie epizodu |
 | `data/rosliny/RRRR-MM.csv` | odczyty czujników w doniczkach, przerzedzone (zmiany plus jeden wiersz na godzinę). Osobno od pokoi |
-| `data/rosliny/stan.json` | to, co pokazuje zakładka „Rośliny": ostatnie odczyty, szereg godzinowy z 30 dni, światło dobowe, podlania, werdykty, alarmy dla watchdoga; do tego kursory i skale toru roślin |
+| `data/rosliny/stan.json` | to, co pokazuje zakładka „Rośliny”: ostatnie odczyty, szereg godzinowy z 30 dni, światło dobowe i jego ocena, podlania, werdykty, alarmy dla watchdoga; do tego kursory i skale toru roślin |
+| `data/rosliny/powiadomienia.json` | powiadomienia o roślinach: historia z 60 dni, stan reguł, kolejki odłożonych każdego telefonu |
 
 ---
 
@@ -81,10 +91,13 @@ zostają w CSV, gdyby urządzenie wróciło do łask.
 2. **Sekrety repozytorium.** *Settings → Secrets and variables → Actions*:
    `TUYA_CLIENT_ID` i `TUYA_CLIENT_SECRET` z zakładki *Overview → Authorization Key*.
 3. **Identyfikatory czujników.** `python fetch.py --discover` wypisze listę.
-   Wklej je do `TUYA_DEVICE_IDS` w `zbieraj.yml`.
+   Wklej je do `TUYA_DEVICE_IDS` w `zbieraj.yml`, a pokoje opisz w `pokoje.json`
+   (adres, odmiany nazwy, strona świata okna).
 4. **GitHub Pages.** *Settings → Pages → Source: Deploy from a branch → main / (root)*.
 5. **Pierwszy przebieg.** *Actions → Zbieranie odczytów → Run workflow*.
-   Po minucie w `data/` pojawią się pliki, a strona zacznie coś pokazywać.
+   Po minucie w `data/` pojawią się pliki, a aplikacja zacznie coś pokazywać.
+6. **Powiadomienia** (nieobowiązkowe): klucz VAPID i subskrypcje telefonów w sekretach,
+   klucz do ustawień na każdym telefonie — `ROSLINY-INSTRUKCJA.md`, kroki 9 i 10.
 
 Repozytorium musi być **publiczne** — przy prywatnym Pages wymaga płatnego planu.
 
@@ -92,419 +105,147 @@ Repozytorium musi być **publiczne** — przy prywatnym Pages wymaga płatnego p
 
 ## Ustawienia
 
-Wszystkie w sekcji `env` w `.github/workflows/zbieraj.yml`:
+W sekcji `env` kroku „Pobierz…” w `.github/workflows/zbieraj.yml`:
 
 | Zmienna | Domyślnie | Znaczenie |
 |---|---|---|
 | `TUYA_REGION` | `eu` | data center projektu Tuya |
 | `TUYA_DEVICE_IDS` | — | identyfikatory czujników po przecinku |
 | `TUYA_SINCE` | puste | granica: starsze odczyty są kasowane i nie wracają |
-| `OUTDOOR_LAT` / `OUTDOOR_LON` | Katowice | pogoda i smog z Open-Meteo, a także wschód i zachód na łuku doby. Puste = wyłączone |
-| `TZ_LOCAL` | `Europe/Warsaw` | według tej strefy tną się doby w agregatach i przelicza się prognozę godzinową. Musi być nazwą strefy, nie przesunięciem: prognoza sięga 36 godz. naprzód, więc dwa razy w roku przechodzi przez zmianę czasu |
+| `OUTDOOR_LAT` / `OUTDOOR_LON` | Katowice | pogoda i smog z Open-Meteo. Puste = wyłączone |
+| `TZ_LOCAL` | `Europe/Warsaw` | według tej strefy tną się doby w agregatach i przelicza się prognoza godzinowa. Musi być nazwą strefy, nie przesunięciem: prognoza sięga 36 godz. naprzód, więc dwa razy w roku przechodzi przez zmianę czasu |
+| `POWIADOMIENIA` | `wlaczone` | globalny wyłącznik powiadomień o domu i roślinach: `na-sucho` liczy reguły i zapisuje wpisy, ale nic nie wysyła |
+| `POWIADOMIENIA_ANDROID` / `POWIADOMIENIA_IPHONE` | brak = domyślne | ustawienia każdego telefonu — patrz niżej |
 
-Proporcje pokoi na rzucie mieszkania siedzą w stałej `PLAN` w `index.html` —
-to `x, y, w, h` w siatce 400×500. Progi alarmów (`HEARTBEAT`, `STALE_WARN`),
-progu pleśni (`FRSI`, `WILG_POWIERZCHNI`) i filtra chwilowych skoków (`SPIKE`) są tuż obok.
-Próg pleśni też ma bliźniaka w `fetch.py` i też pilnuje go test zgodności.
-`SPIKE` ma bliźniaka po stronie kolektora (`SPIKE_JUMP`, `SPIKE_RISE`, `SPIKE_MAX`
-w `fetch.py`) i obie kopie muszą się zgadzać — inaczej agregaty dobowe pokazują co
-innego niż wykres. Pilnuje tego osobny test.
+**Ustawienia telefonów** to zmienne repozytorium (*Settings → Secrets and variables →
+Actions → Variables*), JSON w kształcie `DOMYSLNE` z `telefony.py`: siedem reguł
+(`przewietrz`, `okno`, `czujniki`, `podlej`, `przestaw`, `czujnik`, `podsumowanie`)
+i cisza nocna (`cisza`, `od`, `do`). Domyślnie wszystko poza podsumowaniem, cisza 21–8.
+- Zapisuje je aplikacja (zakładka Powiadomienia) przez API GitHuba kluczem fine-grained
+  z jednym uprawnieniem — **Variables: Read and write**, tylko to repozytorium.
+  Klucz wkleja się raz na każdym telefonie (`ROSLINY-INSTRUKCJA.md`, krok 10).
+- Do kroku „Pobierz…” trafiają wyłącznie przez `env:`. **Nigdy `${{ vars.X }}` wewnątrz
+  `run:`** — treść ustawia każdy, kto ma klucz z telefonu, a wyrażenie w `run:` stałoby
+  się kodem powłoki.
+- Brak zmiennej albo zły JSON to wartości domyślne, nigdy błąd. Log kolektora mówi tylko
+  „Android: własne / domyślne / nieczytelne”.
+- **Ich treść widać w publicznym logu** kroku „Pobierz…”: Actions wypisuje env kroku,
+  a zmiennych, inaczej niż sekretów, nie maskuje. Przyjęte świadomie — to nie sekret,
+  a godziny ciszy i tak da się wyczytać z publicznych plików powiadomień.
 
-Tam też stoi **orientacja mieszkania**: pole `okno` mówi, na którą stronę świata
-patrzy pokój (`pld` albo `pln`, opisane w `STRONY`). Sypialnia wychodzi na południe,
-salon i kuchnia na północ — na rzucie góra to więc południe. To nie jest ozdoba:
-z tego bierze się rada, żeby w upalne, słoneczne godziny zaczynać wietrzenie od
-strony północnej, bo okno od południa wpuszcza wtedy ciepło, którego prognoza
-temperatury nie pokazuje. Obok są `dop` i `bier` — nazwy pokoi w dopełniaczu
-i bierniku, bo podpowiedzi wklejają je wprost w zdanie.
+**Pokoje** opisuje `pokoje.json`, po identyfikatorze czujnika, a nie po nazwie ze Smart
+Life — zmiana nazwy w aplikacji Tuya nie psuje adresów ani zdań. `slug` to adres
+(`#lazienka`), `dop`, `bier`, `miejsc` to odmiany wklejane wprost w zdania („przewietrz
+łazienkę”, „zamknij okno w sypialni?”), `okno` to strona świata (`pld`, `pln`). Sypialnia
+wychodzi na południe, Salon i Kuchnia na północ, Łazienka okna nie ma — z tego bierze się
+rada, od którego pokoju zacząć wietrzenie na przestrzał. Pokój bez wpisu dostaje adres
+z nazwy z manifestu.
 
-> **Odtwarzanie historii i łuk doby są od 27.09.2026 schowane** (`ODTWARZANIE` w `index.html`).
-> Kod zostaje i chodzi pod testami, które włączają go flagą `window.odtwarzanieWlaczone`;
-> przywrócenie to zmiana jednej linii. Rzut pokazuje stan bieżący, a jego skala barw
-> liczy się dalej z tygodniowego okna. Opis poniżej dotyczy wersji włączonej.
+**Bliźniacze stałe** — każda para ma test zgodności:
+- granica „za wilgotno” (`FRSI`, `WILG_POWIERZCHNI`, `HUM_ALERT`) w `index.html`
+  i `fetch.py`, a jej wzór w `dom.py` równy `fetch.prog_plesni` na siatce;
+- filtr chwilowych skoków (`SPIKE` w `index.html`, `SPIKE_JUMP`, `SPIKE_RISE`, `SPIKE_MAX`
+  w `fetch.py`) — inaczej agregaty dobowe pokazują co innego niż wykres;
+- próg pełnej doby światła (`POKRYCIE_PELNEJ_DOBY`) w `index.html` i `rosliny.py`;
+- ustawienia domyślne telefonów (`DOMYSLNE`) w `index.html` i `telefony.py`.
 
-Nad suwakiem odtwarzania biegnie **łuk doby** — rzeczywista droga słońca nad
-horyzontem tego dnia, na który patrzy klatka. Znacznik siedzi na krzywej: nad kreską
-słońce, pod kreską księżyc, a przy końcach podpisane godziny wschodu i zachodu. Sam
-stempel z datą wymaga przeliczenia w głowie, a zmierzch w sierpniu i w grudniu wypada
-o zupełnie innej porze — łuk odpowiada na „która to była pora dnia" jednym spojrzeniem.
-Krzywa jest liczona, nie brana z prognozy: dobowa prognoza Open-Meteo sięga trzech dni
-w przód, a odtwarzanie chodzi tydzień wstecz, więc i tak trzeba by ją uzupełniać.
-Wzór NOAA daje dokładność rzędu minuty — sprawdzone testem przez tożsamość
-„wysokość w południe w przesilenie = 90° − szerokość ± 23,44°". Potrzebne są tylko
-współrzędne; kolektor zapisuje je w `data/pogoda.json` jako `gdzie`, a bez nich łuk
-po prostu się nie pokazuje. Rysowana kreska to nie zero, lecz próg wschodu (−0,833°,
-czyli moment, gdy zza horyzontu wychodzi górna krawędź tarczy) — dzięki temu „słońce
-nad kreską" i „jest dzień" znaczą dokładnie to samo.
+---
 
-Pod rzutem siedzi **odtwarzanie historii**: suwak przewija mieszkanie w czasie, a
-przycisk puszcza jeden przebieg. Po dojściu do końca rzut wraca do stanu bieżącego
-i przycisk sam przełącza się na trójkąt — kolejny przebieg wymaga kolejnego kliknięcia.
-Pauza w trakcie zatrzymuje tam, gdzie akurat jest. Odtwarzanie zatrzymuje
-się też samo, gdy karta przestaje być widoczna. Pokazuje to, czego cztery nałożone linie nie
-pokazują — którędy ciepło wędruje przez mieszkanie. Pasek pod suwakiem to średnia
-mieszkania przez całe okno ze znacznikiem bieżącej klatki; wykresy są półtora tysiąca
-pikseli wyżej, więc bez niego nie wiadomo, czy ogląda się szczyt dnia, czy noc.
-Klatki idą stałym krokiem dobranym do okna (`KLATKI_CEL`, `KROKI_MIN`, `KLATKA_MS`),
-a wartości między odczytami są interpolowane, bo czujniki raportują raz na godzinę
-i bez tego byłby to pokaz slajdów.
+## Aplikacja
 
-Pod spodem są dwa przełączniki. Pierwszy wybiera **okno**: ostatni tydzień albo ostatnia doba —
-niezależnie od zakresu wykresów. Drugi wybiera, **co znaczy kolor**:
+Jeden plik `index.html`, bez budowania i bez bibliotek z CDN — wykresy rysuje sam.
+Cztery zakładki, każdy widok ma własny adres:
 
-| Tryb | Kolor mówi | Kiedy przydatny |
-|---|---|---|
-| `temperatura` | ile stopni, wspólna skala dla całego mieszkania | gdy chcesz porównać pokoje między sobą |
-| `odchyłka pokoju` | o ile pokój odbiega od własnej średniej w oknie | gdy chcesz zobaczyć sam ruch |
-
-Drugi tryb istnieje, bo przez dobę różnice między pokojami są ponad dwa razy większe
-niż ruch któregokolwiek z nich — na wspólnej skali widać wtedy tylko stały ranking
-„łazienka najcieplejsza", a on się nie zmienia. Po odjęciu średniej pokoju zostaje
-sama dynamika i widać, że sypialnia od południa nagrzewa się 2 godziny po dworze,
-a pokoje od północy dopiero po 4–5. Liczba w pokoju pozostaje bezwzględna, więc
-w tym trybie kolor i cyfra mówią o dwóch różnych rzeczach — stąd osobny przycisk,
-a nie zamiennik.
-
-**Skala kolorów rzutu dobiera się do danych w oknie**, a nie stoi na stałych 19–28 °C:
-spokojna doba mieści się w jednym stopniu i na stałej skali wszystkie pokoje wyglądały
-identycznie. Końce skali są podpisane w legendzie pod rzutem, więc widać, co znaczy
-dany odcień. `SKALA_ROZPIETOSC` pilnuje, żeby przy bardzo równej dobie nie rozdmuchać
-szumu czujnika, a `RAMPA` to sama paleta.
-
-**Rytm doby** to mapa cieplna godzina × doba dla wybranego pokoju: wiersz to doba,
-kolumna godzina. Wykres liniowy przy kilku tygodniach zamienia się w kłębek, a mapa
-rośnie o jeden wiersz dziennie i zostaje czytelna. Doba i godzina liczone po zegarze
-lokalnym, bo rytm mieszkania chodzi za mieszkańcami, nie za południkiem zerowym.
-
-Mapa obejmuje ostatnie 30 dób, niezależnie od zakresu wykresów.
-Skala jest domyślnie **wspólna dla wszystkich pokoi**, żeby przełączanie zakładek dało
-się czytać jako porównanie — przy osobnych skalach ten sam kolor znaczyłby w każdej
-zakładce co innego. Kosztuje to zaskakująco mało: pokoje o szerokim zakresie tracą na
-kontraście tyle co nic, płaci tylko ten najbardziej stabilny, i to jest uczciwe.
-`skala pokoju` rozciąga paletę na zakres jednego pomieszczenia, gdy chcesz obejrzeć
-sam jego rytm.
-
-## Skale: gdzie dwór, a gdzie pokoje
-
-Dwór potrafi w tygodniu przejść 14 → 34 °C, a pokoje stoją wtedy w paśmie 22,8 → 26,7.
-Na wspólnej osi cały ruch w mieszkaniu spłaszcza się do kilku pikseli i cztery linie
-zlewają się w jedną. Rozwiązania są trzy i każdy z wykresów dostał inne — bo każdy
-odpowiada na inne pytanie.
-
-**Temperatura: dwa panele ze wspólną osią czasu.** Górny to same pokoje na własnej
-skali, dolny to pasek „mieszkanie kontra dwór”. Podwójna oś, którą ten wykres miał do
-21.08, jest w wizualizacji danych techniką odradzaną i nie jest to kwestia gustu:
-**punkt przecięcia dwóch linii na dwóch skalach nie znaczy nic**, bo zależy wyłącznie
-od tego, jak dobrano zakresy — można nimi „pokazać” dowolną korelację. Grafana ostrzega
-przed drugą osią w dokumentacji, Datadog ją odradza, Home Assistant w ogóle jej nie
-oferuje. Rozwiązaniem, po które sięgają narzędzia monitoringu, są osobne panele nad sobą.
-
-W pasku obie krzywe — dwór i **średnia mieszkania** — siedzą na jednej skali, więc
-odległość między nimi to dosłownie różnica w stopniach. Pole między nimi jest zabarwione:
-**błękit, gdy na dworze chłodniej** (jest po co otwierać), **czerwień, gdy cieplej**
-(zamykaj). Moment przecięcia to chwila, w której warto ruszyć okna. Podziałkę czasu
-niesie wyłącznie dolny panel: stykają się krawędziami i czytają jak jedna całość.
-Bez czujnika zewnętrznego pasek się chowa, a podpisy godzin wracają na górę.
-
-**Wilgotność względna i bezwzględna: jedna wspólna oś.** Bez drugiej osi i bez osobnego
-panelu — i to jest wynik pomiaru, nie oszczędności. Decyduje jedna liczba: **ile wysokości
-zajęłyby pokoje, gdyby dzieliły oś z dworem**.
-
-| wykres | zakres dworu | zakres pokoi | pokoje na wspólnej osi |
-|---|---|---|---|
-| temperatura | 14,0–33,8 °C | 22,8–26,7 °C | **20%** — nie do przyjęcia, stąd dwa panele |
-| wilgotność względna | 18–87% | 46–80% | **49%** — czytelne |
-| wilgotność bezwzględna | 6,1–16,2 g/m³ | 10,6–16,9 g/m³ | **58%** — czytelne |
-
-Wilgotność względna nie dostaje też paska zestawienia, i to z drugiego powodu:
-**porównywanie jej z dworem jest fizycznie mylące**, bo skacze od samej temperatury.
-Pasek obiecywałby odpowiedź na pytanie, na które ten wykres nie odpowiada — od tego jest
-wilgotność bezwzględna.
-
-Przy wilgotności bezwzględnej wspólna oś to nie tylko dopuszczalny kompromis, ale sens
-wykresu: przy wietrzeniu linia mieszkania zbliża się do linii dworu, a na dwóch skalach
-ta odległość przestałaby cokolwiek znaczyć.
-
-Po tych zmianach **na całej stronie nie ma ani jednej podwójnej osi**, a maszyneria, która
-ją rysowała, została z `draw()` usunięta, nie wyłączona. Wszędzie, gdzie dwór dzieli wykres
-z pokojami, jest kreskowaną linią; własnego pasma nie ma już gdzie rysować.
-
-Linie pokoi są **wygładzone średnią z trzech kolejnych odczytów**. Czujniki raportują
-z krokiem 0,1 °C i 1%, a odkąd pokoje mają wykres dla siebie, skala pokazuje niecałe cztery stopnie na
-całą wysokość — jedna dziesiąta urosła do kilkudziesięciu pikseli i krzywe zamieniły się
-w schodki, które są rozdzielczością sprzętu, a nie zjawiskiem w mieszkaniu. Zmierzone na
-tygodniu prawdziwych danych: średnia odsuwa linię najwyżej o **0,067 °C**, czyli mniej
-niż krok, o który czujnik i tak zaokrągla — wygładzona linia jest bliżej prawdy niż
-surowe schodki, bo kwantyzacja się uśrednia.
-
-Uśredniany jest **wyłącznie punkt, który ma sąsiadów po obu stronach**. Pierwszy, ostatni
-i każdy przy dłuższej przerwie w raportach zostaje surowy, bo średnia z dwóch odczytów
-zamiast trzech ma inne ograniczenie: przesuwa punkt o połowę kroku do sąsiada, czyli przy
-skoku 0,2 °C odsuwa linię o 0,1 — półtora raza dalej niż wnętrze serii. Na prawdziwych
-danych brzegiem jest ostatni odczyt, czyli „teraz", i akurat przy wietrzeniu potrafi
-lecieć 0,5 °C w kwadrans.
-
-### Przybliżanie osi czasu
-
-Dwa panele załatwiły dwór kontra pokoje, ale nie załatwiły telefonu. Przy „7 dniach"
-na szybie 390 px pole wykresu ma 356 pikseli szerokości, a **96% odczytów mieści się
-w paśmie 2,3 °C, gdy oś musi objąć 4,9 °C** — bo dwa nurki wietrzenia z 19 i 20.08
-sięgają 22,5 °C. Każdy z tych nurków ma na ekranie dwa piksele szerokości i we dwa
-zabierają dolną połowę panelu. Codzienna różnica między pokojami, czyli 0,3–0,5 °C,
-dostaje przez to jakieś dwadzieścia pikseli.
-
-Statyczna skala tego nie naprawia — sprawdzone na tych samych danych i **odrzucone**:
-
-| pomysł | zysk | dlaczego odpadł |
-|---|---|---|
-| wyższy panel (238 → 300 px) | 1,3× | puste pole rośnie razem z panelem |
-| oś ucięta do 24,0° | 1,6× | nurki wychodziły poza wykres |
-| oś łamana (ogon ściśnięty przy krawędzi) | 1,4× | dużo maszynerii jak na tyle |
-
-Weszło **przybliżanie gestem**, bo Chart.js liczy oś pionową wyłącznie z punktów
-mieszczących się w oknie czasu — więc zwężenie okna samo z siebie rozciąga skalę pionową,
-i to o rząd wielkości mocniej niż cokolwiek statycznego. Zmierzone na tych samych siedmiu
-dniach:
-
-| okno | rozpiętość pokoi | gęstość skali | zysk |
-|---|---|---|---|
-| 7 dni — widok domyślny | 4,4 °C | 63 px/°C | 1,0× |
-| doba z wietrzeniem (20.08) | 4,2 °C | 66 px/°C | 1,0× |
-| doba 21.08 | 2,0 °C | 143 px/°C | **2,3×** |
-| doba 17.08 | 1,1 °C | 258 px/°C | **4,1×** |
-| 6 godzin 17.08 | 1,0 °C | 290 px/°C | **4,6×** |
-
-Doba z wietrzeniem nie zyskuje nic i tak ma być: tam nurek jest w oknie i to on
-wyznacza skalę — a jest tym, na co się patrzy. Domyślny widok zostaje **dokładnie taki,
-jaki był**; przybliżenie jest czymś, po co się sięga, a nie czymś, co się dzieje samo.
-
-Podział gestów tak dobrany, żeby strona nie straciła niczego, co już umiała:
-
-| gest | co robi |
+| Widok | Co pokazuje |
 |---|---|
-| dwa palce | przybliża i oddala oś czasu |
-| jeden palec w poziomie | przesuwa okno w lewo i w prawo |
-| jeden palec w pionie | przewija stronę, tak jak dotąd |
-| dotknięcie | pokazuje odczyt w dymku |
-| kółko / przeciąganie / dwuklik | to samo myszą |
+| **Dom** (`#dom`) | jedno zdanie stanu (zamknij okno? / przewietrz / czujnik milczy / wszystko w normie), kafle pokoi, dwór, wykres doby wszystkich pokoi. Zbiórka spóźniona o ponad 3 godz. to jedna linia „Ostatnia zbiórka N godz. temu” |
+| pokój (`#lazienka`, `#sypialnia`, `#salon`, `#kuchnia`) | wartości teraz, reguły z `data/dom/stan.json` (przewietrz, okno, linia nocna „przed snem”), wykres doba / 7 dni / 30 dni, komfort dziś, rytm doby, czujnik |
+| dwór (`#zewnatrz`) | odczyty, prognoza i powietrze z Open-Meteo |
+| **Rośliny** (`#rosliny`, roślina `#fikus`, `#skrzydlokwiat`, `#azalia`) | karty z werdyktem, glebą wobec progu, prognozą podlewania i światłem; szczegół z wykresami gleby i światła z 30 dni |
+| **Historia** (`#historia`) | komfort dziś, zakresy 7 dni, ostatnie 30 dni (paski min–maks doby), czujniki i zbiórka |
+| **Powiadomienia** (`#powiadomienia`) | ten telefon (subskrypcja Web Push), przełączniki reguł i cisza nocna osobno dla Androida i iPhone'a, lista „Ostatnie”, klucz dostępu |
 
-Pion zostaje przeglądarce dzięki `touch-action: pan-y` na polu wykresu — poziom i
-wielodotyk dostaje wykres, pion obsługuje przeglądarka i przewijanie strony działa
-jak przedtem. Dymek przeniósł się z „każdego ruchu w poziomie" na „dotknięcie", bo
-poziom jest teraz zajęty przez przesuwanie; wtyczka `dotyk` ukrywa przed Chart.js
-wszystkie zdarzenia dotyku, a przy dotknięciu podaje mu jedno sztuczne `mousemove`.
+Między pokojami i między roślinami przechodzi się też palcem w bok. Nieznany adres
+prowadzi na Dom. Stare adresy (`#roslina=Fikus`, `rosliny.html#roslina=…`) prowadzą do
+nowych — tak trafiają tu dawne powiadomienia i zakładki.
 
-Przybliżenie jest **wspólne dla wszystkich czterech płócien** i trzyma się w czasie
-bezwzględnym, żeby panele stały równo co do piksela. Nie schodzi poniżej pół godziny
-ani nie wyjeżdża poza dane, a zmiana zakresu u góry je kasuje — inne dane to inne okno.
-Przycisk **⤢ cały zakres** pokazuje się dopiero wtedy, gdy jest z czego wracać.
+**Zasady, których pilnują testy:**
+- **Reguły liczy Python, strona tylko wyświetla.** „Przewietrz”, „zamknij okno?”, „przed
+  snem” i „czujnik milczy” przychodzą z `data/dom/stan.json`, werdykty i ocena światła
+  roślin z `data/rosliny/stan.json` — karta i powiadomienie nie mogą mówić co innego.
+  Strona sama liczy tylko wyświetlanie: wykresy, komfort, zakresy, 30 dni. Połówki
+  zaokrągla w górę, tak samo jak Python w treściach powiadomień.
+- **Seria godzinowa:** punkt godziny to średnia surowych odczytów z tej godziny, po
+  filtrze skoków i bez znanych artefaktów. Pusta godzina to dziura, a nie przeciągnięta
+  wartość.
+- **„Czujnik milczy”** na ekranie po 3 godz. ciszy liczonej do ostatniej zbiórki, nie do
+  „teraz” — spóźniony kolektor nie robi z czujników martwych. Powiadomienie dopiero po
+  6 godz.
+- **Na Domu, stronach pokoi i w Historii nie ma żadnych wartości z doniczek.** Wolno
+  tylko kropkę na zakładce Rośliny i licznik na ikonie.
+- Bez plików nieobowiązkowych (pogoda, `data/dom/`, rośliny, powiadomienia) aplikacja
+  działa, tylko bez tych części. Błąd toru roślin to linia „Kolektor zgłosił błąd przy
+  roślinach: …”, a stan roślin starszy od zbiórki o ponad 3 godz. — „stan sprzed N godz.”
+  zamiast werdyktu.
+- JS zachowawczy (ES2019, bez modułów), skrypty zewnętrzne tylko po https (strażnik
+  w `testy.yml`).
 
-Przy okazji doszło domknięcie osi pionowej o **wartości interpolowane na krawędziach
-okna**. Chart.js liczy zakres z samych punktów w oknie, więc linia wchodząca w kadr
-z boku potrafiła uciec poza pole — jej odcinek zaczyna się poza oknem i na krawędzi ma
-wartość, której w rachunku nie było. Dotyczy to również kotwicy sprzed początku zakresu,
-więc działa i bez przybliżania.
+**Odświeżanie:** przy powrocie do karty po co najmniej 2 minutach, co 10 minut przy
+widocznej karcie i po powrocie sieci. Widok (zakładka, pokój, zakres) zostaje, a błąd
+sieci albo serwera przy odświeżaniu niczego nie kasuje — zostaje ostatni dobry stan. Bez
+nowych danych przerysowują się same „N min temu” i doby, żeby karta otwarta godzinami nie
+stała w miejscu.
 
-### Krawędzie wykresu
+**Offline:** `sw.js` (v6) trzyma szkielet aplikacji, `pokoje.json` i ostatnie `data/`, więc
+bez zasięgu aplikacja otwiera się z ostatnimi odczytami. Podbicie wersji workera kasuje
+ten zapas raz.
 
-Czujniki raportują każdy w innej minucie godziny i te minuty dryfują, więc bez zabiegu
-każda linia zaczyna się i kończy tam, gdzie akurat wypadł jej raport. Zmierzone 20.08
-w widoku „dziś": starty rozjechane o **46 minut**, końce o **53** — przy oknie 8,5 godziny
-to po dziesiątej części szerokości wykresu z każdej strony, a linia urwana w powietrzu
-wygląda jak martwy czujnik, nie jak czujnik, który jeszcze się nie odezwał.
+**Licznik na ikonie:** liczba spraw wymagających uwagi — pokoje z oknem, przewietrz albo
+milczącym czujnikiem i rośliny do podlania. Tylko przy zgodzie na powiadomienia; na
+Androidzie zwykle go nie ma.
 
-Lewą krawędź wyrównuje **kotwica**: do rysowania dokładany jest jeden prawdziwy odczyt
-sprzed granicy zakresu, a odcinek do niego przycina oś ustawiona na najwcześniejszy
-odczyt z zakresu. Nic nie jest dorysowywane — linia po prostu wchodzi w kadr z lewej.
-Do tabeli zakresów kotwica nie wchodzi; pilnuje tego test.
+**Dawna strona** (do 11.10.2026) — rzut mieszkania, odtwarzanie historii, łuk doby,
+wykresy Chart.js z przybliżaniem gestem, rada „czy wietrzyć teraz”, kafel trendu, strefa
+komfortu, noce w sypialni, kalendarz całej historii — odeszła razem ze swoim opisem w tym
+pliku. Dlaczego była zbudowana tak, a nie inaczej, mówi `KONTEKST.md`; kod:
+`git show 6b5c01b:index.html`.
 
-Prawej krawędzi tak wyrównać się nie da, bo przyszłych odczytów nie ma. Tam ostatni
-odczyt każdego pokoju dostaje **kropkę** — koniec linii jest wtedy znakiem, a nie
-urwaniem, i zgadza się z tym, co kafel mówi słowami („ostatni raport 52 min temu”).
+### Granica „za wilgotno”
 
-Rusza wyłącznie rysowana linia. Kafle, tabela zakresów i rzut mieszkania
-liczą z surowych odczytów, a dymek na wykresie pokazuje ten odczyt, który
-naprawdę przyszedł z czujnika. Dwór zostaje surowy: z Open-Meteo przychodzi już gładki,
-a uśrednienie jego stromej krzywej odsuwało linię o 1,17 °C. Agregaty dobowe w widoku
-„całość" też nie są wygładzane — to już są średnie.
-
-Na własnej osi **dwór nie jest linią, tylko pasmem w tle**, w stalowym kolorze spoza
-palety pokoi. Brał wcześniej piąty odcień z tej palety, bo jest piątym urządzeniem na
-liście — i przez to wyglądał na piąty pokój, choć jest tłem, na którym tamte cztery się
-dzieją. Jako równorzędna kreska zapraszał też do odczytu „na dworze było tyle co
-w sypialni", a to nieprawda: obie linie leżą na innych miarkach. Z pasma widać dalej to,
-o co chodzi — że fala upału na dworze podnosi pokoje kilka godzin później — a nie widać
-porównania, którego robić nie wolno. Ten sam kolor niesie kafel i legenda, żeby wszędzie
-mówiły to samo: dwór to odniesienie, nie pomieszczenie.
-
-**Wilgotność bezwzględna zostaje na jednej osi i tak ma być.** Tam cały sens wykresu
-polega na tym, że przy wietrzeniu linia mieszkania zbliża się do linii dworu — na dwóch
-skalach ta odległość przestałaby cokolwiek znaczyć. Testy pilnują obu tych decyzji.
-
-### Dziury w rytmie doby
-
-Raporty przychodzą co ok. 59 minut i ta minuta dryfuje, więc co jakiś czas jedna godzina
-zegarowa zostaje bez odczytu, a następna dostaje dwa. W mapie robiła się wtedy czarna
-kratka w środku doby — a mapa istnieje po to, żeby pokazywać **powtarzalny rytm**, więc
-dziura rozbija dokładnie to, po co się ją ogląda.
-
-Taka kratka jest **odtwarzana liniowo z sąsiednich odczytów**: temperatura jest wielkością
-ciągłą, a pomiary mamy po obu stronach. To jedyny odtwarzany kawałek danych w projekcie,
-więc dostaje kreskowaną ramkę, dopisek w dymku i własną pozycję w legendzie — ma nie
-udawać pomiaru. Gdy przerwa przekracza `MISS_GAP` (2,5 godz.), czyli czujnik naprawdę
-milczał, pole **zostaje czarne**: nie ma z czego odtwarzać i nie wolno tego zamalowywać.
-Pilnuje tego osobny test.
-
-## Który fragment jaki okres pokazuje
-
-Przełącznik u góry nazywa się **Zakres wykresów** i tyle obejmuje — same wykresy.
-Każdy fragment strony, który patrzy na inny okres, mówi o tym wprost albo ma własny
-przełącznik; inaczej wybór „dziś" po cichu obcinałby połowę strony do kilku godzin.
-
-| Fragment | Okres | Skąd |
-|---|---|---|
-| Wykresy | **Zakres wykresów** u góry | to jego zadanie |
-| Tabela zakresów | **Zakres tabeli** nad tabelą | własny, bo skrajne wartości ogląda się dla innego okresu niż przebieg |
-| Kafle pokoi | teraz, zmiana z 24 h, trend z 4 h | stały |
-| Rzut (skala barw) | ostatni tydzień | stały, dopóki odtwarzanie jest schowane |
-| Rytm doby | ostatnie 30 dób | stały, liczba dób w nagłówku |
-| Łączność z bramką | 24 h | stały, napisany w podpisie tabeli |
-| Ostatnie zdarzenia | 24 h | stały |
-| Pogoda i wietrzenie | teraz plus doba prognozy | stały |
-
-## Co strona radzi i skąd to wie
-
-Poza wykresami dashboard odpowiada na dwa pytania.
-
-**Czy wietrzyć teraz** — z dwóch różnic naraz: temperatury i wilgotności bezwzględnej
-między mieszkaniem a dworem. Otwarte okno robi obie rzeczy, a która z nich się liczy,
-zależy od pory roku: zimą i w suchy dzień pracuje wilgotność, w letni wieczór wyłącznie
-temperatura. Werdykt nazywa ten skutek, który naprawdę wystąpi — „schłodzi", „osuszy",
-„osuszy, ale dogrzeje" — zamiast wypowiadać się o jednej osi i milczeć o drugiej.
-
-Chłód z dworu jest zaletą tylko w ciepłym mieszkaniu (`CIEPLO_W_DOMU`, 24 °C). Poniżej —
-jesienią i w sezonie grzewczym — to samo okno wychładza ściany, za które się płaci,
-więc werdykt brzmi „Przewietrz krótko i szeroko": okno na oścież przez 5–10 minut
-wymienia powietrze, zanim ściany zdążą wystygnąć, a uchylone na godziny wychładza
-i prawie nie osusza. Z tego samego powodu rada „sypialnię od południa otwieraj krótko,
-bo słońce" pojawia się tylko w ciepłym mieszkaniu — w chłodnym to słońce jest darmowym
-ciepłem.
-
-**O której dziś będzie najsuchsze powietrze** — z prognozy godzinowej Open-Meteo,
-różnica wilgotności policzona na dobę naprzód. Godziny cieplejsze od mieszkania
-odpadają: to okno ma osuszyć, nie dogrzać. Ramka mówi wprost, że chodzi o suchość,
-bo inaczej przeczyłaby kaflowi obok — w letni wieczór najlepiej otworzyć okno *teraz*,
-dla chłodu, a najsuchsze powietrze przychodzi nad ranem.
-
-Progi (`WIETRZ_ZYSK`, `WIETRZ_CIEPLO`, `SLONCE_MOCNE`) siedzą w `index.html` obok
-tych funkcji.
-
-### Strefa komfortu i noce w sypialni
-
-**Strefa komfortu** to wykres temperatura × wilgotność: punkt to godzina w jednym pokoju
-(w widoku „całość" — doba), a zielone pole to 20–24 °C i 40–60% (`STREFA`). Pod wykresem
-każdy pokój ma jedną liczbę — jaką część czasu spędził w polu — i dopisek, w którą stronę
-uciekał najczęściej. Zakres ten sam co wykresów. Punkt to średnia godzinowa, bo przy
-zmianie czujnik raportuje co dwie minuty i surowe odczyty przeważyłyby impulsy.
-
-**Noce w sypialni** — ostatnie 14 nocy, 23:00–7:00: średnia (kropka), rozpiętość od
-najchłodniejszej do najcieplejszej godziny (pasek) i średnia wilgotność, na tle
-**strefy optymalnej do snu**, 16–19 °C (`SEN`) — tyle zalecają NHS, brytyjska Sleep
-Charity (16–18) i amerykańska Sleep Foundation (15,6–19,4). To zalecenie dla snu,
-nie komfort dzienny w mieszkaniu. Noc z mniej niż sześcioma godzinami
-odczytów jest pomijana, noc, która jeszcze trwa — też. Obie sekcje liczą liczby bez
-Chart.js, więc przy awarii CDN znika tylko sam wykres komfortu.
-
-### Rzut w trybie „wilgotność a pleśń" i kalendarz historii
-
-Pod rzutem jest przełącznik **temperatura / wilgotność a pleśń**. W drugim trybie duża
-liczba w pokoju to wilgotność, pod nią próg pleśni przy obecnej pogodzie, a kolor
-mówi o zapasie do progu: zielony od 15 punktów w dół (`PLESN_ZAPAS`), czerwony na
-progu i ponad nim. Sama wilgotność tego nie mówi, bo próg zależy od temperatury
-pokoju i dworu.
-
-**Cała historia** to kalendarz jak na GitHubie: kratka na dobę, kolumna na tydzień
-od poniedziałku, z agregatów dobowych — więc sięga do początku zbierania. Domyślnie
-**wszystkie** pokoje i dwór jako bloki jeden pod drugim, w tych samych kolumnach
-tygodni, więc ta sama doba stoi w jednej pionowej linii; pokoje dzielą skalę, dwór ma
-własną. Do wyboru też mieszkanie (średnia pokoi) i każde miejsce osobno, temperatura
-albo wilgotność; przy wilgotności skala jest odwrócona, niebieski znaczy mokro.
-
-### Próg pleśni
-
-Alarm o wilgoci (kafel zdarzeń i zgłoszenie watchdoga) nie ma stałego progu. Pleśń
-nie rośnie w powietrzu pokoju, tylko na najzimniejszym kawałku ściany zewnętrznej —
-w narożniku, za szafą, przy nadprożu — a ten jest tym zimniejszy, im zimniej na
-dworze. Rachunek z PN-EN ISO 13788: temperatura powierzchni
-`θsi = θe + fRsi·(θi − θe)`, a kłopot zaczyna się, gdy wilgotność przy niej trwale
-przekracza 80%. Z tego wychodzi wilgotność powietrza w pokoju, od której robi się
-niebezpiecznie — dla pokoju o 20 °C:
+Kiedy w pokoju jest za wilgotno, nie mówi stały próg. Pleśń nie rośnie w powietrzu
+pokoju, tylko na najzimniejszym kawałku ściany zewnętrznej — w narożniku, za szafą, przy
+nadprożu — a ten jest tym zimniejszy, im zimniej na dworze. Rachunek z PN-EN ISO 13788:
+temperatura powierzchni `θsi = θe + fRsi·(θi − θe)`, a kłopot zaczyna się, gdy wilgotność
+przy niej trwale przekracza 80%. Z tego wychodzi wilgotność powietrza w pokoju, od której
+robi się niebezpiecznie — dla pokoju o 20 °C:
 
 | Na dworze | 15 °C | 11 °C | 5 °C | 0 °C | −5 °C | −10 °C |
 |---|---|---|---|---|---|---|
-| Próg w pokoju | 73% | 68% | 60% | 55% | 50% | 45% |
+| Granica w pokoju | 73% | 68% | 60% | 55% | 50% | 45% |
 
-Dawny stały próg 65% był więc trafny przypadkiem we wrześniu, a w styczniu milczałby
-przy 55%, gdy narożniki już pleśnieją. Alarm odzywa się, gdy pokój przez ponad ćwierć
-doby stoi powyżej progu ze swojej chwili; każdy odczyt porównywany jest z temperaturą
-pokoju i dworu z tej samej chwili. Na wykresie wilgotności względnej próg rysuje się
-kreskowaną linią dla średniej temperatury mieszkania — w miejscu dawnej linii dworu,
-która chodziła 30–100% i ściskała pokoje w pasek.
+Każdy odczyt porównywany jest z temperaturą pokoju i dworu z tej samej chwili. Z tej
+granicy korzystają trzy miejsca: alarm watchdoga (pokój przez ponad ćwierć doby nad nią),
+reguły „przewietrz” i „przed snem” w `dom.py` oraz linia granicy na wykresie wilgotności.
+W aplikacji i powiadomieniach mówi się „za wilgotno” i „granica”.
 
-`FRSI = 0,70` to liczba z normy, nie z pomiaru. Da się ją zmierzyć: jeden czujnik na
-dobę w najzimniejszym narożniku ściany zewnętrznej, drugi w środku pokoju, i odczyt
-z dworu — `fRsi = (θnarożnik − θdwór) / (θpokój − θdwór)`. Na razie tego nie robimy:
-czujniki zostają na swoich miejscach, więc obowiązuje wartość z normy.
+`FRSI = 0,70` to liczba z normy, nie z pomiaru. Da się ją zmierzyć (czujnik na dobę
+w najzimniejszym narożniku, drugi w środku pokoju, odczyt z dworu:
+`fRsi = (θnarożnik − θdwór) / (θpokój − θdwór)`), ale czujniki zostają na swoich miejscach.
 
-### Wykrywanie wietrzenia — usunięte
-
-Do 27.09.2026 strona rysowała pasma „wykrytego wietrzenia". Przy raportach co godzinę
-i czujnikach z krokiem 0,1 °C nie dało się go dostroić: latem wymagało trzech przeróbek,
-przez 44 doby znalazło 7 epizodów, a od 8.09 nie znalazło żadnego. Kod jest w historii
-gita (usunął go commit `06f4a52`; ostatnia wersja z detektorem to jego rodzic), opis tego, jak działało
-i dlaczego tak, w `KONTEKST.md`.
-
-Kafel pokoju dopisuje też, **dokąd temperatura zmierza**: regresja liniowa z ostatnich
-czterech godzin wyciągnięta naprzód. Gdy z przedłużenia wychodzi przekroczenie progu
-komfortu, pokazuje godzinę (`↗ 28° ok. 17:00`) zamiast samego tempa — to ta informacja,
-po którą się sięga. Poniżej `TREND_MIN` kafel milczy, bo nachylenia mniejszego niż
-0,25 °C/godz. nie da się przy godzinnych raportach odróżnić od szumu czujnika.
-Powyżej `TREND_MAX` (0,7 °C/godz.) też milczy: tak szybko pokój sam z siebie nie jedzie
-(ściany i słońce to najwyżej 0,5), to impuls — farelka, prysznic, otwarte okno —
-i przedłużony linią prostą obiecywałby „28° za godzinę" w łazience, która za godzinę
-wróci do 21 °C.
-
-### Znane artefakty
+### Znane artefakty i farelka
 
 `artefakty.json` w katalogu głównym to ręczna lista przedziałów, w których czujnik mierzył
 coś innego niż pokój: farelkę tuż pod nim, przenoszenie. Wiersze **zostają** w `data/*.csv`.
-Kolektor pomija je w agregatach dobowych i przekazuje listę stronie w manifeście, a strona
-chowa je razem z chwilowymi skokami — jednym przełącznikiem „Ukryj chwilowe skoki i znane
-artefakty", z dopiskiem „ukryto znany artefakt" przy wykresach. Diagnostyka łączności
-i kafle liczą się dalej ze wszystkiego, bo czujnik w tym czasie raportował jak należy.
-Po zmianie pliku wystarczy push — kolektor przeliczy agregaty przy najbliższym przebiegu.
+Kolektor pomija je w agregatach dobowych i przekazuje listę w manifeście, a aplikacja
+pomija je w serii godzinowej i w „Komfort dziś”. Po zmianie pliku wystarczy push —
+kolektor przeliczy agregaty przy najbliższym przebiegu.
 
-Ukryty artefakt nie zostawia dziury: na wykresie linia przechodzi przez niego kropkami
-(punkty pomocnicze powstają tylko przy rysowaniu, nie wchodzą do dymka ani statystyk),
-a w rytmie doby jego godziny są odtworzone z sąsiednich odczytów i tak podpisane.
-Prawdziwa, dłuższa cisza czujnika dalej zostaje przerwą i czarną kratką.
-
-### Odświeżanie
-
-Strona sama dociąga dane: przy powrocie do karty po co najmniej 2 minutach i co
-10 minut, gdy jest widoczna. Przerysowuje się tylko wtedy, gdy kolektor coś dopisał
-(zmienił się `updated` w manifeście); zakres, przybliżenie i przełączniki zostają.
-
-### Farelka w łazience
-
-Farelka to prawdziwe grzanie, nie usterka czujnika, więc strona ją pokazuje — o ile
-czujnik nie wisi tuż nad nią. 27.09 wisiał i mierzył strumień gorącego powietrza
-(26,9 °C), więc tamten poranek jest na liście znanych artefaktów, a czujnik został
-przestawiony poza nawiew. Filtr
-chwilowych skoków odsiewa wyłącznie nagłe wyskoki **ze spokojnego poziomu** (czujnik
-w dłoni); do 27.09 wycinał też środek grzania farelką i zostawiał na wykresie garb
-o złej godzinie. Skala barw rzutu bierze percentyle godzinowych średnich, więc pół
-godziny farelki jej nie rozciąga, a kafel trendu przy takim impulsie milczy.
+Farelka w łazience to prawdziwe grzanie, nie usterka czujnika, więc aplikacja ją pokazuje
+— o ile czujnik nie wisi tuż nad nią (27.09 wisiał; tamten poranek jest na liście,
+a czujnik przestawiony). Filtr chwilowych skoków odsiewa wyłącznie nagłe wyskoki **ze
+spokojnego poziomu** (czujnik w dłoni), a reguła „zamknij okno” porównuje spadek
+z poziomem sprzed niego, więc stygnięcie po farelce nie wygląda na otwarte okno (test na
+odczytach z 8.10).
 
 ---
 
@@ -566,36 +307,66 @@ pokojowe robią kilka wpisów na godzinę.
 
 ## Na ekranie telefonu
 
-Strona instaluje się jak aplikacja — własna ikona, pełny ekran, bez paska przeglądarki:
+Aplikacja instaluje się jak każda inna — własna ikona, pełny ekran, bez paska przeglądarki:
 
-- **Android (Chrome):** menu ⋮ → **Zainstaluj aplikację** (albo „Dodaj do ekranu głównego").
+- **Android (Chrome):** menu ⋮ → **Zainstaluj aplikację** (albo „Dodaj do ekranu głównego”).
 - **iPhone (Safari):** przycisk udostępniania (kwadrat ze strzałką) → **Do ekranu
-  początkowego** → „Dodaj". Musi to być Safari — inne przeglądarki na iPhonie tej opcji
-  nie mają albo dodają zwykłą zakładkę.
+  początkowego** → „Dodaj”. Musi to być Safari — inne przeglądarki na iPhonie tej opcji
+  nie mają albo dodają zwykłą zakładkę. Powiadomienia działają tylko w aplikacji otwartej
+  z tej ikony, a ma ona pamięć osobną od Safari.
 
-Na iPhonie pasek stanu jest przezroczysty, więc strona zostawia pod nim miejsce
+Na iPhonie pasek stanu jest przezroczysty, więc aplikacja zostawia pod nim miejsce
 (`viewport-fit=cover` i `env(safe-area-inset-*)`); bez tego nagłówek wchodził pod zegar.
-Widżety na ekran główny (Scriptable, KWGT) były gotowe 27.09 i zostały wycofane tego
-samego dnia — zainstalowana strona wystarcza.
+
+**Nie zmieniać:** klucza VAPID, ścieżki i zakresu `sw.js`, `start_url` i `scope`
+w manifeście, nazw `rosliny-subskrypcja`, bazy IDB `rosliny`/`odebrane` i cache
+`cel-powiadomienia`. Każda z tych zmian gubi subskrypcje na obu telefonach (iOS kasuje
+subskrypcję także przy ponownym dodaniu ikony).
+
+## Powiadomienia
+
+Reguły liczą `dom.py` i `rosliny.py` w każdym przebiegu kolektora. Decyzja „komu teraz,
+komu po końcu jego ciszy nocnej” zapada też w kolektorze (`telefony.py`) i ląduje we wpisie
+(`telefony`) w tym samym commicie co stan reguł — nadawca niczego nie zapamiętuje. Reguły
+z pomiarami: `ROSLINY.md`, „Etap 4” i „Reguły powiadomień”; podpięcie telefonu i klucz do
+ustawień: `ROSLINY-INSTRUKCJA.md`, kroki 9 i 10.
+
+**Krok wysyłki** („Wyślij powiadomienia o domu i roślinach” w `zbieraj.yml`) rusza tylko
+po udanym `zapisz.sh`:
+1. bierze `data/rosliny/powiadomienia.json` i `data/dom/powiadomienia.json` z opublikowanego
+   commita (`git show origin/main:…`); brakujący plik pomija;
+2. jq liczy w każdym wpisy tego przebiegu (`przebieg`), nie na sucho i z niepustym
+   `telefony`; przy zerze krok kończy się bez instalowania biblioteki;
+3. inaczej `python wyslij.py --plik <rośliny> --plik <dom> --przebieg …`.
+
+Tylko ten krok dostaje sekrety powiadomień, a nieudanej wysyłki nikt nie ponawia (co
+najwyżej raz). Nadawca wysyła każdemu telefonowi tylko wpisy z jego id, najwyżej 13 na
+przebieg. Wygasła subskrypcja, zły klucz albo zepsuty wpis zakłada zgłoszenie z etykietą
+`powiadomienia`; zamyka się samo w przebiegu, w którym każdy podpięty telefon coś
+dostał, bez błędów.
 
 ## Gdy coś nie działa
 
 | Objaw | Co z tym |
 |---|---|
-| Strona: „Nie ma jeszcze żadnych odczytów" | Kolektor nie zrobił jeszcze udanego przebiegu. Zakładka Actions |
-| Zamiast wykresów: „Nie udało się wczytać biblioteki wykresów" | Sieć blokuje `cdn.jsdelivr.net` albo CDN ma awarię. Kafle, tabele i rzut działają dalej; wykresy wrócą same |
-| „Zbieranie odczytów" na czerwono z „Push odrzucony" | Dwa przebiegi kolektora weszły sobie w drogę. `zapisz.sh` liczy wtedy odczyty jeszcze raz na drzewie zwycięzcy i próbuje trzy razy; czerwień znaczy, że nie udało się ani razu. Odczyty nie giną — kursor stoi, więc następny przebieg dociąga od tego samego miejsca |
-| Zgłoszenie „brak nowej pogody od… , Open-Meteo nie odpowiada" | Dwór milczy dłużej niż zwykle. Czujniki i wykresy mieszkania działają dalej; rada o wietrzeniu i łuk doby czekają na świeżą prognozę |
-| Na stronie zniknął dwór, choć czujniki działają | Przebieg nie dostał odpowiedzi z Open-Meteo. Historia leży dalej w CSV, a `keep_known` w `fetch.py` trzyma urządzenie w manifeście, dopóki ma odczyty — linia wróci przy najbliższym udanym przebiegu. Jeśli mimo to zniknęła, w logu przebiegu szukaj „Pogoda: pominięta" |
-| Pulpit: „Kolektor nie zapisał nic od…" | Problem po stronie Actions albo Tuya, nie czujników. Czujniki oceniane są do chwili ostatniej zbiórki, więc przy spóźnionym kolektorze nie świecą się na pomarańczowo |
-| Dane przychodzą co 3–5 godz. zamiast co godzinę, przebiegi zielone | GitHub opóźnia harmonogram (od końca sierpnia 2026 to norma). Odczyty nie giną — każdy przebieg dociąga od miejsca, w którym skończył poprzedni (do 7 dni wstecz) — ale strona jest nieświeża, a watchdog potrafi zgłosić fałszywe „Kolektor stoi". Lekarstwo: zewnętrzny zegar, patrz „Kolektor co godzinę" |
+| Aplikacja: „Nie ma jeszcze żadnych odczytów” | Kolektor nie zrobił jeszcze udanego przebiegu. Zakładka Actions |
+| Dom: „Ostatnia zbiórka N godz. temu” | Problem po stronie Actions albo Tuya, nie czujników. Czujniki oceniane są do chwili ostatniej zbiórki, więc przy spóźnionym kolektorze nie „milkną” |
+| Rośliny: „Kolektor zgłosił błąd przy roślinach: …” albo „stan sprzed N godz.” | Padł tor roślin (literówka w `rosliny.json`, odmowa Tuya, wyjątek w obliczeniach). Pokoje i reguły domu działają dalej; szczegóły w logu przebiegu i w zgłoszeniu z etykietą `rosliny` |
+| Powiadomienia: „Klucz nie działa albo wygasł” | Klucz do ustawień wygasł albo został usunięty. Nowy: `ROSLINY-INSTRUKCJA.md`, krok 10, i wkleić na obu telefonach. Powiadomienia idą dalej według ostatnich zapisanych ustawień |
+| Powiadomienia: „Subskrypcja się zmieniła” albo „Powiadomienia nie dochodzą do tego telefonu” | Ten telefon → Włącz powiadomienia → skopiuj subskrypcję → podmień sekret `PUSH_ANDROID` / `PUSH_IPHONE` (krok 9) |
+| Zgłoszenie z etykietą `powiadomienia` | Wysyłka się nie udała: wygasła subskrypcja (404/410), klucz VAPID nie pasuje do strony (403) albo planer zapisał zepsuty wpis. Treść zgłoszenia mówi, co i dla którego telefonu |
+| W zgłoszeniu „Czujniki wymagają uwagi”: „**Powiadomienia w domu** — błąd reguł” | Wyjątek w `dom.py`. Odczyty i rośliny zapisały się normalnie, nie ma tylko reguł domu; typ błędu i miejsce w logu przebiegu |
+| „Zbieranie odczytów” na czerwono z „Push odrzucony” | Dwa przebiegi kolektora weszły sobie w drogę. `zapisz.sh` liczy wtedy odczyty jeszcze raz na drzewie zwycięzcy i próbuje trzy razy; czerwień znaczy, że nie udało się ani razu. Odczyty nie giną — kursor stoi, więc następny przebieg dociąga od tego samego miejsca |
+| Zgłoszenie „brak nowej pogody od… , Open-Meteo nie odpowiada” | Dwór milczy dłużej niż zwykle. Czujniki i reguły domu działają dalej; „przed snem” czeka na świeżą prognozę |
+| W aplikacji zniknął dwór, choć czujniki działają | Przebieg nie dostał odpowiedzi z Open-Meteo. Historia leży dalej w CSV, a `keep_known` w `fetch.py` trzyma urządzenie w manifeście, dopóki ma odczyty — wróci przy najbliższym udanym przebiegu. Jeśli mimo to zniknął, w logu przebiegu szukaj „Pogoda: pominięta” |
+| Dane przychodzą co 3–5 godz. zamiast co godzinę, przebiegi zielone | GitHub opóźnia harmonogram (od końca sierpnia 2026 to norma). Odczyty nie giną — każdy przebieg dociąga od miejsca, w którym skończył poprzedni (do 7 dni wstecz) — ale aplikacja jest nieświeża, a watchdog potrafi zgłosić fałszywe „Kolektor stoi”. Lekarstwo: zewnętrzny zegar, patrz „Kolektor co godzinę” |
 | Błąd `28841002` w logu | Wygasł trial IoT Core. Wniosek o przedłużenie na iot.tuya.com, 1-2 dni robocze. Pierwszy trial wygasł **po miesiącu** (12.09.2026). Obecny jest przedłużony do 13.03.2027 (panel 8.10) — wniosek ok. 6.03.2027 |
 | Błąd `28841004` w logu | Najpewniej wyczerpany miesięczny pakiet triala (0,20 USD) — znaczenie kodu znane z wyszukiwarki, niepotwierdzone. Zużycie: iot.tuya.com → IoT Core → My Subscriptions. Pakiet odnawia się 1. dnia miesiąca; do tego czasu kolektor stoi, a odczyty starsze niż 7 dni przepadają |
 | Błąd `1004` | Access Secret przepisany z ucięciem znaku |
 | Błąd `1114` albo `2007` | Zły region w `TUYA_REGION` |
 | Pusta lista przy `--discover` | Konto Smart Life podpięte do innego data center |
-| Bateria: `niski` | Wymień ogniwo. Słabnąca bateria gubi raporty, zanim czujnik zniknie zupełnie |
-| Zgłoszenie „Czujniki wymagają uwagi" | Watchdog wyłapał słabą baterię, milczący czujnik albo wilgotność powyżej progu pleśni przez ponad ćwierć doby. Treść odświeża się co kilka godzin, zgłoszenie zamknie się samo |
+| Bateria: „słaba” | Wymień ogniwo. Słabnąca bateria gubi raporty, zanim czujnik zniknie zupełnie |
+| Zgłoszenie „Czujniki wymagają uwagi” | Watchdog wyłapał słabą baterię, milczący czujnik albo wilgotność powyżej granicy przez ponad ćwierć doby. Treść odświeża się co kilka godzin, zgłoszenie zamknie się samo |
 | Przebiegi w ogóle nie ruszają | GitHub wyłącza harmonogramy po 60 dniach bezczynności. Jedno ręczne uruchomienie je wskrzesza |
 
 ---
@@ -603,32 +374,37 @@ samego dnia — zainstalowana strona wystarcza.
 ## Testy
 
 ```bash
-python -m unittest discover -s tests -v        # kolektor, sama biblioteka standardowa
+python3 -m unittest discover -s tests             # kolektor, reguły, nadawca — sama biblioteka standardowa
 cd tests/frontend && npm ci && npx playwright test
 ```
 
+Stan na 11.10.2026: **430** testów Pythona (lokalnie 9 pominiętych: 6 bez biblioteki
+`pywebpush`, 3 czekają na pliki z pierwszej zbiórki po wdrożeniu) i **148** testów
+w przeglądarce (`strona.spec.js` — aplikacja, `rosliny.spec.js` — powiadomienia, service
+worker i przekierowanie `rosliny.html`).
+
 Dwie warstwy, bo są dwa różne rodzaje ryzyka.
 
-**Kolektor** ma testy jednostkowe czystych funkcji — rozpoznawanie pól Tuya, filtr
-wyskoków, przeliczanie stref w prognozie, progi diagnostyki — plus zestaw sprawdzający
-**prawdziwe `data/`**: czy pliki miesięczne są posortowane i bez duplikatów, czy każde
-urządzenie z odczytów jest w manifeście, czy włącznik ma wyłącznie zmiany stanu i czy
-`dzienne.csv` da się odtworzyć z surowych odczytów co do bajtu. Ta druga grupa nie
-zależy od żadnej zmiany w kodzie, więc chodzi też raz na dobę z harmonogramu.
+**Python** ma testy czystych funkcji — rozpoznawanie pól Tuya, filtr wyskoków, pobieranie
+przyrostowe na atrapie Tuya, reguły domu i roślin na prawdziwych epizodach (farelka 8.10,
+wietrzenie Salonu 6.10, zmiana czasu 25.10), cisza i kolejka każdego telefonu, nadawca na
+atrapie `pywebpush` — plus zestaw sprawdzający **prawdziwe `data/`**: czy pliki miesięczne
+są posortowane i bez duplikatów, czy każde urządzenie z odczytów jest w manifeście, czy
+`dzienne.csv` da się odtworzyć z surowych odczytów co do bajtu, czy pliki powiadomień
+i stany trzymają kształt. Ta druga grupa nie zależy od żadnej zmiany w kodzie, więc chodzi
+też raz na dobę z harmonogramu. Krok wysyłki z `zbieraj.yml` jest uruchamiany naprawdę
+(`bash`, `git`, `jq`) i porównywany z nadawcą.
 
-**Strona** jest testowana w prawdziwej przeglądarce, bo `index.html` to jeden plik bez
-budowania — nie ma czego importować w oderwaniu od DOM-u. Dane są podstawiane
-(`tests/frontend/dane.js`) i układane pod konkretne zjawisko: pokój, który się nagrzewa,
-czujnik, który zamilkł, parna prognoza bez okna na wietrzenie, nazwa urządzenia ze
-znacznikiem HTML. Każdy test wywraca się też na dowolnym błędzie w konsoli.
+**Aplikacja** jest testowana w prawdziwej przeglądarce, bo `index.html` to jeden plik bez
+budowania. Dane podstawia router po ścieżce (`tests/frontend/dane.js`; `data/rosliny/…` to
+inny plik niż `data/…`), ułożone pod konkretne zjawisko: martwy czujnik, spóźniona
+zbiórka, reguła domu w `data/dom/stan.json`, roślina do podlania. API GitHuba ma atrapę
+(`page.route`: 200, 404 → POST, 401, 403), gesty idą prawdziwymi zdarzeniami dotyku przez
+CDP. Każdy test wywraca się na dowolnym błędzie w konsoli.
 
-Fikstury muszą trzymać się skali prawdziwych danych, bo inaczej test przestaje
-cokolwiek sprawdzać. Wietrzenie w `dane.js` to pokój dążący do temperatury dworu,
-a nie zjazd wilgotności o 16 punktów, jak było wcześniej — tamto było dziewięć razy
-poza tym, co pokój w ogóle potrafi, więc przechodziło przy każdym progu. Okna epizodów
-fikstura **wybiera z własnych danych** (szuka godzin, w których na dworze jest
-odpowiednio chłodniej), a nie odlicza od „teraz": inaczej wynik zależałby od pory doby,
-o której testy poszły, i nocny przebieg z harmonogramu wywracałby się losowo.
+Fikstury muszą trzymać się skali prawdziwych danych, bo inaczej test przestaje cokolwiek
+sprawdzać, a znaczniki liczą się względem „teraz”, żeby wynik nie zależał od pory doby,
+o której testy poszły.
 
 ### Testy nie wpuszczą złego pusha
 
@@ -647,28 +423,26 @@ się nie wykonują, a on i tak commituje wyłącznie `data/`.
 Gdybyś kiedyś chciał twardej bramy po stronie serwera, trzeba włączyć ochronę gałęzi
 `main` z wymaganymi statusami *Kolektor (Python)* i *Strona (przeglądarka)*. Wymaga to
 jednak wyjątku dla `github-actions[bot]`, bo inaczej ochrona zatrzyma cogodzinny zapis
-odczytów — a wtedy dashboard przestanie się aktualizować.
+odczytów — a wtedy aplikacja przestanie się aktualizować.
 
-### Dwie rzeczy warte zapamiętania przy pisaniu kolejnych testów
+### Rzeczy warte zapamiętania przy pisaniu kolejnych testów
 
 - **Fikstura też potrafi kłamać.** Dwa razy przepuściła czerwone CI: raz dopisując
-  odczyt na istniejący znacznik (regresja liczyła się z dwóch wartości naraz), raz
-  rytmem dobowym tak żywym, że sam przebijał próg trendu i „spokojny pokój" przestawał
-  być spokojny o niektórych porach doby. Osobny zestaw `same dane testowe` pilnuje
-  teraz samej fikstury.
-- **Service worker musi być zablokowany** (`serviceWorkers: 'block'`). Inaczej
-  przechwytuje `fetch` strony i idzie prosto do sieci, omijając podstawione dane —
-  manifest przychodzi z fikstury, CSV prawdziwy z repozytorium i pokoje wyglądają na
-  martwe. Sam worker ma jeden własny test, który go włącza.
-- **Czekaj na stempel w nagłówku, nie na `#app`.** `boot()` odsłania stronę przed
-  `render()`, więc oglądanie samej widoczności łapie ją w połowie rysowania.
+  odczyt na istniejący znacznik, raz rytmem dobowym tak żywym, że „spokojny pokój”
+  przestawał być spokojny o niektórych porach doby. Osobny zestaw `dane testowe` pilnuje
+  samej fikstury.
+- **Service worker musi być zablokowany** (`serviceWorkers: 'block'` w konfiguracji).
+  Inaczej przechwytuje `fetch` strony i idzie prosto do sieci, omijając podstawione dane.
+  Testy samego workera włączają go jawnie.
+- **Czekaj na `data-dane` na `#app`** (`gotowe` albo `blad`), nie na widoczność — start
+  jest asynchroniczny, a pusty szkielet pojawia się przed danymi.
 
 ---
 
 ## Koszt
 
 Zero. Publiczne repozytorium ma darmowe minuty Actions i darmowe Pages.
-Open-Meteo nie wymaga klucza API (licencja CC BY 4.0 — stąd podpis w stopce). Jedyne ograniczenie to darmowy trial
+Open-Meteo nie wymaga klucza API (licencja CC BY 4.0 — podpis źródła stoi na dole strony dworu, `#zewnatrz`). Jedyne ograniczenie to darmowy trial
 IoT Core u Tuya, który trzeba przedłużać wnioskiem na iot.tuya.com — pierwszy
 wygasł po miesiącu, a zatwierdzenie trwa 1–2 dni robocze. Zewnętrzny zegar
-(cron-job.org) też jest darmowy.
+(cron-job.org) i Web Push (serwery push Google i Apple) też są darmowe.

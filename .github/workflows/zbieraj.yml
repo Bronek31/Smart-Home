@@ -76,11 +76,21 @@ jobs:
           OUTDOOR_NAME: 'Na zewnątrz'
           # Strefa, według której tną się doby w agregatach data/dzienne.csv
           TZ_LOCAL: 'Europe/Warsaw'
-          # Powiadomienia o roślinach (ROSLINY.md, etap 4). „na-sucho": reguły liczą się
-          # i lądują w data/rosliny/powiadomienia.json, ale nic nie idzie na telefon.
-          # „wlaczone": krok niżej wysyła. Włączone 11.10 na prośbę właściciela, przed
-          # końcem planowanego tygodnia na sucho (oba telefony potwierdziły dostarczenie).
+          # Powiadomienia o domu i roślinach (ROSLINY.md, etap 4) — GLOBALNY wyłącznik dla
+          # obu planerów. „na-sucho": reguły liczą się i lądują w data/rosliny/ i data/dom/
+          # powiadomienia.json, ale nic nie idzie na telefon. „wlaczone": krok niżej
+          # wysyła. Włączone 11.10 na prośbę właściciela, przed końcem planowanego tygodnia
+          # na sucho (oba telefony potwierdziły dostarczenie).
           POWIADOMIENIA: 'wlaczone'
+          # Ustawienia każdego telefonu (które reguły, cisza nocna) — zmienne repozytorium,
+          # które zapisuje aplikacja (zakładka „Powiadomienia"); brak albo zły JSON =
+          # ustawienia domyślne (telefony.py). Kolektor wpisuje w każdy wpis `telefony`,
+          # więc krok wysyłki ich nie potrzebuje. Wyłącznie przez env: — wyrażenie ze
+          # zmienną wpisane wprost w run: stałoby się kodem powłoki, a treść ustawia każdy,
+          # kto ma klucz z telefonu. Zmienne, inaczej niż sekrety, nie są maskowane:
+          # Actions pokazuje env kroku w jego nagłówku w logu, więc nic tajnego tutaj.
+          POWIADOMIENIA_ANDROID: ${{ vars.POWIADOMIENIA_ANDROID }}
+          POWIADOMIENIA_IPHONE: ${{ vars.POWIADOMIENIA_IPHONE }}
           # Znacznik przebiegu w każdym wpisie powiadomień: wysyłka bierze tylko wpisy
           # z tym znacznikiem z opublikowanego commita, więc ponowienie, przegrany wyścig
           # ani „Re-run" w Actions nie wyślą niczego drugi raz.
@@ -94,11 +104,17 @@ jobs:
         # dała się przetestować — patrz tests/test_zapisz.py.
         run: sh zapisz.sh
 
-      # Po udanym zapisie: wysyłka tylko tego, co ten przebieg opublikował na main.
-      # Jedyny krok z sekretami powiadomień. Bez sekretów kończy się na zielono
-      # z linią „brak subskrypcji" — dzięki temu zakładka działa, zanim telefony
-      # zostaną podpięte.
-      - name: Wyślij powiadomienia o roślinach
+      # Po udanym zapisie: wysyłka tylko tego, co ten przebieg opublikował na main —
+      # z obu plików powiadomień, roślin i domu. Jedyny krok z sekretami powiadomień.
+      # Bez sekretów kończy się na zielono z linią „brak subskrypcji" — dzięki temu
+      # zakładka działa, zanim telefony zostaną podpięte.
+      #
+      # jq tylko oszczędza pip install w przebiegach bez powiadomień, więc jest luźniejszy
+      # niż nadawca, nigdy ostrzejszy: wpis, który wyslij.py by wysłał, jq zawsze liczy
+      # (tests/test_wyslij.py, TestKrokWysylki). Wpis z `telefony: []` (reguła wyłączona
+      # albo cisza nocna na obu telefonach) nie liczy się. Plik, którego jq nie przeczyta,
+      # i tak idzie do nadawcy — on zgłosi błąd i wyśle wpisy z drugiego pliku.
+      - name: Wyślij powiadomienia o domu i roślinach
         env:
           VAPID_KLUCZ_PRYWATNY: ${{ secrets.VAPID_KLUCZ_PRYWATNY }}
           PUSH_ANDROID: ${{ secrets.PUSH_ANDROID }}
@@ -107,14 +123,22 @@ jobs:
           PRZEBIEG: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           git fetch -q origin main
-          if ! git show origin/main:data/rosliny/powiadomienia.json > "$RUNNER_TEMP/powiadomienia.json" 2>/dev/null; then
-            echo "Na main nie ma jeszcze data/rosliny/powiadomienia.json — nic do wysłania."
-            exit 0
-          fi
-          ILE=$(jq --arg p "$PRZEBIEG" '[.historia[]? | select(.przebieg == $p and (.na_sucho | not))] | length' "$RUNNER_TEMP/powiadomienia.json")
+          ILE=0
+          PLIKI=()
+          for TOR in rosliny dom; do
+            CEL="$RUNNER_TEMP/$TOR/powiadomienia.json"
+            mkdir -p "$RUNNER_TEMP/$TOR"
+            if ! git show "origin/main:data/$TOR/powiadomienia.json" > "$CEL" 2>/dev/null; then
+              echo "Na main nie ma data/$TOR/powiadomienia.json — pomijam."
+              continue
+            fi
+            N=$(jq --arg p "$PRZEBIEG" '[.historia[]? | select(.przebieg == $p and (.na_sucho | not) and (((.telefony // ["android","iphone"]) | length) > 0))] | length' "$CEL") || N=1
+            ILE=$((ILE + N))
+            PLIKI+=(--plik "$CEL")
+          done
           if [ "$ILE" = "0" ]; then
             echo "Ten przebieg nie ma powiadomień do wysłania."
             exit 0
           fi
           pip install -q -r requirements-powiadomienia.txt
-          python wyslij.py --plik "$RUNNER_TEMP/powiadomienia.json" --przebieg "$PRZEBIEG"
+          python wyslij.py "${PLIKI[@]}" --przebieg "$PRZEBIEG"

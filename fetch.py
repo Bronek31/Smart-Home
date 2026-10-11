@@ -28,6 +28,7 @@ import os
 import signal
 import sys
 import time
+import traceback
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -58,6 +59,13 @@ STAN_ROSLIN = KATALOG_ROSLIN / "stan.json"
 # Decyzje o powiadomieniach (etap 4). Publiczne jak całe data/ — bez adresów subskrypcji;
 # wysyła je osobny krok zbieraj.yml (wyslij.py) z opublikowanego commita.
 POWIADOMIENIA_ROSLIN = KATALOG_ROSLIN / "powiadomienia.json"
+# Reguły domu (dom.py): stan pokoi, który strona tylko wyświetla, i decyzje o powiadomieniach
+# w tym samym formacie co rośliny. Plan pokoi (slug, odmiany do zdań) leży obok fetch.py,
+# jak rosliny.json — to ręczna konfiguracja, nie odczyt.
+POKOJE_PLIK = Path(__file__).resolve().parent / "pokoje.json"
+KATALOG_DOMU = DATA_DIR / "dom"
+STAN_DOMU = KATALOG_DOMU / "stan.json"
+POWIADOMIENIA_DOMU = KATALOG_DOMU / "powiadomienia.json"
 DAILY = DATA_DIR / "dzienne.csv"
 FIELDS = ["ts", "device_id", "code", "value"]
 DAILY_FIELDS = ["date", "device_id", "code", "min", "avg", "max", "n"]
@@ -97,6 +105,10 @@ POCZATEK_ROSLIN_MS = 24 * 3600 * 1000
 # commitem pokoi (timeout-minutes w zbieraj.yml), a `except Exception` na wolność nie
 # pomaga.
 LIMIT_ROSLIN_S = 300
+# Reguły domu liczą się z plików już na dysku, bez sieci: stan_domu() na 336 godzinach
+# prawdziwych danych (27.09–11.10) to średnio 4–5 ms, najwyżej 23 ms (dwa pomiary).
+# Limit chroni zapis odczytów przed pętlą bez końca, a nie przed wolnym API.
+LIMIT_DOMU_S = 60
 OUTDOOR_ID = "zewnatrz"
 OUTDOOR_URL = "https://api.open-meteo.com/v1/forecast"
 AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -1341,7 +1353,8 @@ def z_limitem_czasu(sekundy: float, funkcja, *argumenty):
         signal.signal(signal.SIGALRM, poprzednia)
 
 
-def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = frozenset()) -> None:
+def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = frozenset(),
+                   ustawienia: dict | None = None) -> None:
     """Tor roślin: logi czujników z rosliny.json → data/rosliny/RRRR-MM.csv → stan.json.
 
     Rusza po zapisaniu manifestu pokoi, a main() woła go z limitem czasu i w try/except —
@@ -1349,7 +1362,8 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = 
     Tuya dla doniczki) nie może zatrzymać zapisu pokoi, bo zapisz.sh ma `set -e`.
     Błąd ląduje w stan.json (`blad` i `alerty` dla watchdoga) i w logu. Kursory i skale
     roślin też siedzą w stan.json, nie w index.json. `pokoje` to identyfikatory pokoi —
-    taki w polu „czujnik" to pomyłka przy przepisywaniu, nie roślina.
+    taki w polu „czujnik" to pomyłka przy przepisywaniu, nie roślina. `ustawienia` —
+    ustawienia telefonów sparsowane raz w main() (wspólne z regułami domu).
     """
     import rosliny
 
@@ -1445,7 +1459,7 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = 
     # Powiadomienia liczone z tych samych stanów, zanim stan.json się zapisze — błąd reguł
     # ma trafić do `blad` i do watchdoga, a nie zniknąć w logu.
     try:
-        zaplanuj_powiadomienia_roslin(stany, end_ms, strefa)
+        zaplanuj_powiadomienia_roslin(stany, end_ms, strefa, ustawienia)
     except Exception as err:
         bledy.append(f"powiadomienia: {type(err).__name__}: {err}")
         print(f"Rośliny: błąd reguł powiadomień — {type(err).__name__}: {err}", flush=True)
@@ -1460,13 +1474,15 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = 
     print(f"Rośliny: dopisano {dopisane} odczytów, przerzedzono {przerzedzone}.", flush=True)
 
 
-def zaplanuj_powiadomienia_roslin(stany: list[dict], end_ms: int, strefa: ZoneInfo) -> None:
+def zaplanuj_powiadomienia_roslin(stany: list[dict], end_ms: int, strefa: ZoneInfo,
+                                  ustawienia: dict | None = None) -> None:
     """Reguły powiadomień (rosliny.zaplanuj_powiadomienia) → data/rosliny/powiadomienia.json.
 
     Tryb (`POWIADOMIENIA`: na-sucho | wlaczone) i znacznik przebiegu (`PRZEBIEG`) przychodzą
-    z zbieraj.yml. Ten sam przebieg liczony drugi raz po przegranym wyścigu (zapisz.sh)
-    dostaje ten sam znacznik, więc wysyłka i tak weźmie z main tylko jedną wersję.
-    Zapis tylko przy zmianie — bez tego plik zmieniałby się co godzinę i robił commit.
+    z zbieraj.yml, ustawienia telefonów z main() (None: domyślne obu). Ten sam przebieg
+    liczony drugi raz po przegranym wyścigu (zapisz.sh) dostaje ten sam znacznik, więc
+    wysyłka i tak weźmie z main tylko jedną wersję. Zapis tylko przy zmianie — bez tego
+    plik zmieniałby się co godzinę i robił commit.
     """
     import rosliny
 
@@ -1478,18 +1494,97 @@ def zaplanuj_powiadomienia_roslin(stany: list[dict], end_ms: int, strefa: ZoneIn
         poprzednie = None
     tryb = os.environ.get("POWIADOMIENIA", "na-sucho").strip() or "na-sucho"
     przebieg = os.environ.get("PRZEBIEG", "").strip() or "lokalny"
-    nowe = rosliny.zaplanuj_powiadomienia(stany, poprzednie, end_ms, strefa, tryb, przebieg)
+    nowe = rosliny.zaplanuj_powiadomienia(stany, poprzednie, end_ms, strefa, tryb, przebieg,
+                                          ustawienia=ustawienia)
+    zapisz_powiadomienia(POWIADOMIENIA_ROSLIN, nowe, poprzednie, przebieg)
+
+
+def zapisz_powiadomienia(plik: Path, nowe: dict, poprzednie: dict | None, przebieg: str) -> None:
+    """Zapis pliku powiadomień (roślin albo domu) tylko przy zmianie — bez tego plik
+    zmieniałby się co godzinę i robił commit. Przez .tmp, a NaN to błąd zapisu tutaj,
+    nie zepsuta strona. W logu tytuły i treści wpisów tego przebiegu, bez telefonów
+    i ustawień (repozytorium i log Actions są publiczne)."""
     if nowe == poprzednie:
         return
-    KATALOG_ROSLIN.mkdir(parents=True, exist_ok=True)
-    tymczasowy = POWIADOMIENIA_ROSLIN.with_suffix(".json.tmp")
+    plik.parent.mkdir(parents=True, exist_ok=True)
+    tymczasowy = plik.with_suffix(".json.tmp")
     tymczasowy.write_text(json.dumps(nowe, ensure_ascii=False, indent=1, allow_nan=False) + "\n",
                           encoding="utf-8")
-    os.replace(tymczasowy, POWIADOMIENIA_ROSLIN)
+    os.replace(tymczasowy, plik)
     nowe_wpisy = [w for w in nowe.get("historia", []) if w.get("przebieg") == przebieg]
     for w in nowe_wpisy:
-        print(f"Powiadomienie{' (na sucho)' if w.get('na_sucho') else ''}: {w.get('tytul')} — {w.get('tresc')}",
-              flush=True)
+        dopisek = " (na sucho)" if w.get("na_sucho") else " (odłożone)" if w.get("odlozone") else ""
+        print(f"Powiadomienie{dopisek}: {w.get('tytul')} — {w.get('tresc')}", flush=True)
+
+
+def _wczytaj_json(plik: Path) -> dict | None:
+    """Słownik z pliku albo None (brak pliku, zły JSON, nie słownik)."""
+    try:
+        dane = json.loads(plik.read_text(encoding="utf-8"))
+    except (OSError, ValueError, RecursionError):
+        return None
+    return dane if isinstance(dane, dict) else None
+
+
+def ustawienia_telefonow() -> dict | None:
+    """Ustawienia obu telefonów ze zmiennych POWIADOMIENIA_ANDROID / POWIADOMIENIA_IPHONE,
+    parsowane raz na przebieg i podawane obu planerom (rośliny, dom). Do logu idzie tylko,
+    czy telefon ma własne ustawienia — treść zmiennej nie, bo log Actions jest publiczny.
+    None (planery biorą wtedy domyślne), gdyby telefony.py się nie wczytał: to nie może
+    zatrzymać zapisu odczytów."""
+    try:
+        import telefony
+
+        ustawienia = telefony.ustawienia_z_env(os.environ)
+        wlasne = telefony.czy_wlasne(os.environ)
+    except Exception as err:
+        print(f"Ustawienia telefonów: pominięte — {type(err).__name__}; obu telefonom domyślne.", flush=True)
+        return None
+    nazwy = {"android": "Android", "iphone": "iPhone"}
+    print("Ustawienia telefonów — " + ", ".join(
+        f"{nazwy.get(t, t)}: {wlasne[t]}" + (" (działają domyślne)" if wlasne[t] == "nieczytelne" else "")
+        for t in telefony.TELEFONY) + ".", flush=True)
+    return ustawienia
+
+
+def zbierz_dom(urzadzenia: dict, pogoda: dict | None, nieodswiezone: list[str], chwila_ms: int,
+               ustawienia: dict | None) -> None:
+    """Reguły domu (dom.py) → data/dom/stan.json i data/dom/powiadomienia.json.
+
+    Liczone z tego, co już leży na dysku (odczyty z 8 dób bez znanych artefaktów, ale bez
+    filtra skoków — ten zjadłby krótkie wietrzenie), i z prognozy tego przebiegu — gdy
+    Open-Meteo dziś nie odpowiedziało, z pogoda.json z poprzedniego. Ani jednego zapytania
+    więcej. `chwila_ms` to chwila zbiórki, ta sama co `updated` w data/index.json.
+    Tor roślin nie ma tu nic do rzeczy: błąd Tuya doniczki nie zabiera powiadomień domu.
+    """
+    import dom
+
+    strefa = ZoneInfo(os.environ.get("TZ_LOCAL", "Europe/Warsaw"))
+    artefakty = wczytaj_artefakty()
+    wiersze = [r for r in recent_rows(chwila_ms - dom.OKNO_ODCZYTOW_MS)
+               if not w_artefakcie(artefakty, r["device_id"], r["ms"] / 1000)]
+    if pogoda is None:
+        pogoda = _wczytaj_json(WEATHER)
+    stan = dom.stan_domu(wiersze, urzadzenia, pogoda, chwila_ms, strefa, nieodswiezone)
+    KATALOG_DOMU.mkdir(parents=True, exist_ok=True)
+    tymczasowy = STAN_DOMU.with_suffix(".json.tmp")
+    tymczasowy.write_text(json.dumps(stan, ensure_ascii=False, indent=1, allow_nan=False) + "\n",
+                          encoding="utf-8")
+    os.replace(tymczasowy, STAN_DOMU)
+
+    # Zepsuty plik to błąd (alert), a nie czysta karta: od zera planer wysłałby jeszcze
+    # raz wszystko, co trwa. Zapis i tak idzie przez .tmp, więc to się nie powinno zdarzyć.
+    try:
+        poprzednie = json.loads(POWIADOMIENIA_DOMU.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        poprzednie = None
+    poprzednie = poprzednie if isinstance(poprzednie, dict) else None
+    tryb = os.environ.get("POWIADOMIENIA", "na-sucho").strip() or "na-sucho"
+    przebieg = os.environ.get("PRZEBIEG", "").strip() or "lokalny"
+    opisy = dom.opisy_pokoi(urzadzenia, _wczytaj_json(POKOJE_PLIK))
+    nowe = dom.zaplanuj_powiadomienia(stan, poprzednie, chwila_ms, strefa, tryb, przebieg,
+                                      ustawienia=ustawienia, opisy=opisy, nieodswiezone=nieodswiezone)
+    zapisz_powiadomienia(POWIADOMIENIA_DOMU, nowe, poprzednie, przebieg)
 
 
 def keep_known(devices: dict) -> dict:
@@ -1529,13 +1624,15 @@ def keep_known(devices: dict) -> dict:
     return {i: polaczone[i] for i in kolejnosc}
 
 
-def write_manifest(devices: dict, alerty: list[str] | None = None) -> None:
+def write_manifest(devices: dict, alerty: list[str] | None = None, updated_ms: int | None = None) -> None:
+    """`updated_ms` — chwila zbiórki, ta sama co `updated` w data/dom/stan.json (strona liczy
+    od niej, czy czujnik milczy). Bez niej: teraz."""
     devices = keep_known(devices)
     months = sorted(p.stem for p in DATA_DIR.glob("[0-9]*.csv"))
     MANIFEST.write_text(
         json.dumps(
             {
-                "updated": iso(int(time.time() * 1000)),
+                "updated": iso(updated_ms if updated_ms is not None else int(time.time() * 1000)),
                 "months": months,
                 "daily": DAILY.name if DAILY.exists() else None,
                 "weather": WEATHER.name if WEATHER.exists() else None,
@@ -1682,7 +1779,7 @@ def main() -> int:
         except (ValueError, OSError):
             pass
 
-    failed = []
+    failed, nieodswiezone = [], []
     for dev in all_devices:
         device_id = dev["id"]
         name = dev.get("name") or device_id
@@ -1732,6 +1829,7 @@ def main() -> int:
                     manifest_devices[device_id]["pobrane_do"] = iso(nowy)
         except (TuyaError, requests.RequestException) as err:
             failed.append(name)
+            nieodswiezone.append(device_id)
             print(f"{name}: pominięty — {err}", flush=True)
             continue
         widziany = max((int(e["event_time"]) for e in logs if e.get("event_time")), default=0)
@@ -1779,7 +1877,8 @@ def main() -> int:
         collected.extend(outdoor_rows)
         manifest_devices[OUTDOOR_ID] = outdoor_entry
 
-    fetch_weather()
+    # Migawka zostaje dla reguł domu („przed snem" bierze z niej najzimniejszą godzinę nocy).
+    pogoda = fetch_weather()
 
     added = merge(collected)
     zwiniete = collapse_power(manifest_devices)
@@ -1787,10 +1886,23 @@ def main() -> int:
         print(f"Włączniki: zwinięto {zwiniete} powtórzeń tego samego stanu.")
     days_written = write_daily(manifest_devices)
     alerty = diagnose(manifest_devices)
-    write_manifest(manifest_devices, alerty)
+    ustawienia = ustawienia_telefonow()
+    # Reguły domu przed manifestem (ich błąd ma trafić do `alerty`, a z nimi do watchdoga)
+    # i przed torem roślin (jego limit czasu nie może ich zjeść). Żaden błąd tutaj nie
+    # zatrzymuje zapisu odczytów — zapisz.sh ma `set -e`.
+    chwila_ms = int(time.time() * 1000)
+    try:
+        z_limitem_czasu(LIMIT_DOMU_S, zbierz_dom, manifest_devices, pogoda, nieodswiezone, chwila_ms, ustawienia)
+    except (Exception, PrzekroczonyCzas) as err:
+        # sama nazwa typu i miejsce — treść wyjątku mogłaby nieść dane z ustawień telefonów
+        ramka = traceback.extract_tb(err.__traceback__)[-1:] if err.__traceback__ else []
+        miejsce = f" ({Path(ramka[0].filename).name}:{ramka[0].lineno})" if ramka else ""
+        print(f"Dom: błąd reguł powiadomień — {type(err).__name__}{miejsce}", flush=True)
+        alerty.append(f"**Powiadomienia w domu** — błąd reguł ({type(err).__name__}), szczegóły w logu przebiegu.")
+    write_manifest(manifest_devices, alerty, chwila_ms)
     try:
         z_limitem_czasu(LIMIT_ROSLIN_S, zbierz_rosliny, client, start_ms, end_ms,
-                        set(wanted) | set(manifest_devices))
+                        set(wanted) | set(manifest_devices), ustawienia)
     except (Exception, PrzekroczonyCzas) as err:  # tor roślin nie może zatrzymać zapisu pokoi (zapisz.sh ma set -e)
         print(f"Rośliny: błąd toru — {type(err).__name__}: {err}", flush=True)
         try:
