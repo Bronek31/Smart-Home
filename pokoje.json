@@ -1,0 +1,10 @@
+{
+  "opis": "Pokoje mieszkania po identyfikatorze czujnika Tuya — nazwa z aplikacji Tuya jest tylko zapasem, więc jej zmiana nie psuje adresów (#lazienka) ani zdań. Czyta to strona (index.html) i kolektor (dom.py, treść powiadomień). slug: adres w aplikacji, ASCII, unikalny także wobec zakładek (dom, rosliny, historia, powiadomienia) i roślin. dop/bier/miejsc: dopełniacz, biernik i miejscownik — wchodzą wprost do zdań („przewietrz łazienkę”), a polskiej odmiany nie da się zgadnąć z mianownika. okno: strona świata okna (pld/pln) — Sypialnia patrzy na południe, Salon i Kuchnia na północ, Łazienka okna nie ma. wywiew: pion wentylacyjny w tym pomieszczeniu (Łazienka, Kuchnia). Identyfikatory podejrzysz przez `python fetch.py --discover`.",
+  "pokoje": {
+    "bfd6f4f87fea9d866dvpve": {"slug": "lazienka", "nazwa": "Łazienka", "dop": "łazienki", "bier": "łazienkę", "miejsc": "łazience", "wywiew": true},
+    "bf7e2a70935af7de78mjqt": {"slug": "sypialnia", "nazwa": "Sypialnia", "dop": "sypialni", "bier": "sypialnię", "miejsc": "sypialni", "okno": "pld"},
+    "bf43cf664d6644420axva3": {"slug": "salon", "nazwa": "Salon", "dop": "salonu", "bier": "salon", "miejsc": "salonie", "okno": "pln"},
+    "bf5741c97c96fa85b1d7do": {"slug": "kuchnia", "nazwa": "Kuchnia", "dop": "kuchni", "bier": "kuchnię", "miejsc": "kuchni", "okno": "pln", "wywiew": true},
+    "zewnatrz": {"slug": "zewnatrz", "nazwa": "Na zewnątrz"}
+  }
+}
