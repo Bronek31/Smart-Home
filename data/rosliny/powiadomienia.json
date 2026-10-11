@@ -54,5 +54,13 @@
    "noc": []
   }
  },
- "podsumowanie_ostatnie": "2026-10-11"
+ "podsumowanie_ostatnie": "2026-10-11",
+ "telefony": {
+  "android": {
+   "odlozone": []
+  },
+  "iphone": {
+   "odlozone": []
+  }
+ }
 }

@@ -1,0 +1,37 @@
+{
+ "tryb": "wlaczone",
+ "wlaczone_od": "2026-10-11T20:33:12Z",
+ "historia": [],
+ "stan_regul": {
+  "bfd6f4f87fea9d866dvpve": {
+   "przewietrz": null,
+   "okno": null,
+   "czujniki": {}
+  },
+  "bf7e2a70935af7de78mjqt": {
+   "przewietrz": null,
+   "okno": null,
+   "czujniki": {}
+  },
+  "bf5741c97c96fa85b1d7do": {
+   "przewietrz": null,
+   "okno": null,
+   "czujniki": {}
+  },
+  "bf43cf664d6644420axva3": {
+   "przewietrz": null,
+   "okno": null,
+   "czujniki": {}
+  }
+ },
+ "telefony": {
+  "android": {
+   "odlozone": [],
+   "przed_snem": null
+  },
+  "iphone": {
+   "odlozone": [],
+   "przed_snem": null
+  }
+ }
+}
