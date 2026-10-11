@@ -159,24 +159,76 @@ test.describe('Ten telefon: subskrypcja Web Push', () => {
     const zapamietana = JSON.parse(await page.evaluate(() => localStorage.getItem('rosliny-subskrypcja')));
     expect(zapamietana.endpoint).toBe(adres);
     expect(await nadmiarPoziomy(page)).toBeLessThanOrEqual(0);
-    // następne wejście: ta sama subskrypcja co w sekrecie → „włączone", bez ostrzeżeń
+    // powrót z GitHuba (sprawdzenie stanu po visibilitychange, przełącznik telefonu przerysowuje zakładkę): kroki do
+    // sekretu zostają pod neutralnym nagłówkiem, żeby dało się skopiować jeszcze raz — nie znika wszystko po „Kopiuj"
+    await page.evaluate(() => SH.odswiezTelefon());
+    await page.click('[data-tel="iphone"]');
+    await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'subskrypcja');
+    await expect(stanTelefonu(page)).toBeVisible();
+    await expect(stanTelefonu(page)).toContainText('Skopiowane — wklej do sekretu');
+    expect(await stanTelefonu(page).locator('.wiersz-ik.warn').count()).toBe(0);
+    expect(await page.locator('#pow-subskrypcja').inputValue()).toBe(tekst);
+    await page.locator('#pow-telefon button[data-push="kopiuj"]').click();
+    await expect(page.locator('#pow-telefon button[data-push="kopiuj"]')).toHaveText('Skopiowano');
+    // ponowne skopiowanie tej samej subskrypcji nie przesuwa chwili, od której liczy się „czy dochodzą"
+    expect(JSON.parse(await page.evaluate(() => localStorage.getItem('rosliny-subskrypcja')))).toEqual(zapamietana);
+    // następne wejście: ta sama subskrypcja co w sekrecie → „włączone": grupa „Ten telefon" znika (właściciel 11.10:
+    // kafelek „Włączone · Subskrypcja w sekrecie…" był bez sensu), bez ostrzeżeń i bez arkusza „Pokaż"
     await page.reload();
     await gotowa(page);
     await czekajNaTelefon(page);
     await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'wlaczone');
-    await expect(stanTelefonu(page)).toContainText('Subskrypcja w sekrecie PUSH_ANDROID');
+    await expect(page.locator('#ten-telefon')).toBeHidden();
     await expect(page.locator('#pow-dochodza')).toBeHidden();
-    // arkusz „Subskrypcja": ta sama subskrypcja do ponownego wklejenia
-    await page.getByRole('button', { name: 'Pokaż subskrypcję' }).click();
-    await expect(page.locator('#arkusz')).toBeVisible();
-    await expect(page.locator('#arkusz-t')).toHaveText('Subskrypcja tego telefonu');
-    expect(await page.locator('#pow-subskrypcja-ark').inputValue()).toBe(tekst);
-    await page.locator('#arkusz button[data-push="kopiuj"]').click();
-    await expect(page.locator('#arkusz button[data-push="kopiuj"]')).toHaveText('Skopiowano');
-    // ponowne skopiowanie tej samej subskrypcji nie przesuwa chwili, od której liczy się „czy dochodzą"
-    expect(JSON.parse(await page.evaluate(() => localStorage.getItem('rosliny-subskrypcja')))).toEqual(zapamietana);
-    await page.click('#arkusz-gotowe');
-    await expect(page.locator('#arkusz')).toBeHidden();
+    expect(await page.locator('#v-powiadomienia').innerText()).not.toMatch(/Subskrypcja w sekrecie|Włączone\n/);
+    await expect(page.getByRole('button', { name: /Pokaż/ })).toHaveCount(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('subskrypcja z wcześniejszej sesji, nieskopiowana: po „Kopiuj" i powrocie z GitHuba kroki zostają', async ({ page }) => {
+    // np. kod 2FA przy logowaniu do GitHuba nadpisał schowek — trzeba móc skopiować jeszcze raz (arkusza „Pokaż" już nie ma)
+    const adres = 'https://fcm.googleapis.com/fcm/send/z-poprzedniej-sesji';
+    const { bledy } = await otworzPowiadomienia(page, { atrapy: { ua: ANDROID, zgoda: 'granted', subskrypcja: adres } });
+    await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'subskrypcja');
+    await expect(stanTelefonu(page)).toContainText('Subskrypcji nie ma w sekrecie');
+    await page.locator('#pow-telefon button[data-push="kopiuj"]').click();
+    await page.evaluate(() => SH.odswiezTelefon());
+    await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'subskrypcja');
+    await expect(stanTelefonu(page)).toContainText('Skopiowane — wklej do sekretu');
+    await expect(page.locator('#pow-telefon button[data-push="kopiuj"]')).toBeVisible();
+    expect(JSON.parse(await page.locator('#pow-subskrypcja').inputValue()).endpoint).toBe(adres);
+    expect(bledy).toEqual([]);
+  });
+
+  test('kroki po „Kopiuj" znikają po pół godzinie — działające powiadomienia nie wiszą kafelkiem', async ({ page }) => {
+    await page.clock.install();
+    const adres = 'https://fcm.googleapis.com/fcm/send/abc123';
+    const { bledy } = await otworzPowiadomienia(page, { atrapy: { ua: ANDROID, zgoda: 'granted', subskrypcja: adres } });
+    await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'subskrypcja');
+    await page.locator('#pow-telefon button[data-push="kopiuj"]').click();
+    await page.clock.fastForward('29:00');
+    await page.evaluate(() => SH.odswiezTelefon());
+    await expect(stanTelefonu(page)).toContainText('Skopiowane — wklej do sekretu');
+    await page.clock.fastForward('02:00');
+    await page.evaluate(() => SH.odswiezTelefon());
+    await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'wlaczone');
+    await expect(page.locator('#ten-telefon')).toBeHidden();
+    expect(bledy).toEqual([]);
+  });
+
+  test('działające powiadomienia: zakładka zaczyna się od ustawień, bez grupy „Ten telefon" (także na iPhonie)', async ({ page }) => {
+    const adres = 'https://web.push.apple.com/QAbc';
+    const { bledy } = await otworzPowiadomienia(page, { atrapy: { ua: IPHONE, standalone: true, zgoda: 'granted', subskrypcja: adres,
+      zapamietana: { endpoint: adres, od: Date.now() - 3 * DOBA } } });
+    await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'wlaczone');
+    await page.evaluate(() => SH.odswiezTelefon());
+    await expect(page.locator('#ten-telefon')).toBeHidden();
+    const widoczne = await page.evaluate(() => [...document.getElementById('v-powiadomienia').children]
+      .filter((e) => !e.hidden).map((e) => e.id || e.tagName.toLowerCase()).slice(0, 2));
+    expect(widoczne).toEqual(['h1', 'polacz']);
+    // przerysowanie zakładki (przełącznik telefonu) nie wyciąga grupy na chwilę z ukrycia
+    const zaraz = await page.evaluate(() => { document.querySelector('[data-tel="android"]').click(); return document.getElementById('ten-telefon').hidden; });
+    expect(zaraz).toBe(true);
     expect(bledy).toEqual([]);
   });
 
@@ -187,6 +239,7 @@ test.describe('Ten telefon: subskrypcja Web Push', () => {
     // przełącznik Android | iPhone przerysowuje całą zakładkę synchronicznie
     const zaraz = await page.evaluate(() => { document.querySelector('[data-tel="iphone"]').click(); return document.getElementById('pow-telefon').dataset.stan; });
     expect(zaraz).toBe('wlaczone');
+    await expect(page.locator('#ten-telefon')).toBeHidden();
     await expect(page.locator('[data-tel="iphone"]')).toHaveAttribute('aria-pressed', 'true');
     expect(bledy).toEqual([]);
   });
@@ -288,16 +341,20 @@ test.describe('Ten telefon: subskrypcja Web Push', () => {
       atrapy: { ua: IPHONE, standalone: true, zgoda: 'granted', subskrypcja: adres, zapamietana: { endpoint: adres, od: Date.now() - 3 * DOBA } },
     });
     await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'wlaczone');
-    const ostrzezenie = page.locator('#pow-dochodza');
+    const ostrzezenie = page.locator('#ten-telefon #pow-dochodza');
     await expect(ostrzezenie).toBeVisible();
     await expect(ostrzezenie).toContainText('Powiadomienia nie dochodzą');
     await expect(ostrzezenie).toContainText('Przewietrz łazienkę');
     await expect(ostrzezenie).toContainText('PUSH_IPHONE');
+    // grupa wraca z samym ostrzeżeniem — bez kafelka „Włączone"
+    await expect(page.locator('#ten-telefon')).toBeVisible();
+    await expect(stanTelefonu(page)).toBeHidden();
     // odbiór zapisuje ten sam kod co w sw.js — aplikacja musi umieć go przeczytać
     await page.evaluate(([zrodlo]) => new Function('self', 'indexedDB', `${zrodlo}\nreturn zapiszOdebrane;`)(
       { addEventListener() {} }, indexedDB)('20261011T120112Z-przewietrz'), [SW]);
     await page.evaluate(() => SH.odswiezTelefon());
     await expect(ostrzezenie).toBeHidden();
+    await expect(page.locator('#ten-telefon')).toBeHidden();
     expect(bledy).toEqual([]);
   });
 
@@ -312,6 +369,7 @@ test.describe('Ten telefon: subskrypcja Web Push', () => {
     await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'wlaczone');
     await page.evaluate(() => SH.odswiezTelefon());
     await expect(page.locator('#pow-dochodza')).toBeHidden();
+    await expect(page.locator('#ten-telefon')).toBeHidden();
     expect(bledy).toEqual([]);
   });
 
@@ -329,6 +387,7 @@ test.describe('Ten telefon: subskrypcja Web Push', () => {
     expect(await page.evaluate(() => window.atrapa.zgodaWKliknieciu)).toEqual([true]);
     expect(JSON.parse(await page.locator('#pow-subskrypcja').inputValue()).endpoint).toBe('https://web.push.apple.com/zywa');
     await expect(page.locator('#pow-dochodza')).toBeHidden();
+    await expect(stanTelefonu(page)).toBeVisible();
     expect(bledy).toEqual([]);
   });
 
@@ -342,6 +401,7 @@ test.describe('Ten telefon: subskrypcja Web Push', () => {
     await page.evaluate(() => { navigator.serviceWorker.ready.then((r) => { r.pushManager.subscribe = async () => { throw new Error('AbortError: usługa push niedostępna'); }; }); });
     await page.getByRole('button', { name: 'Odnów subskrypcję' }).click();
     await expect(stanTelefonu(page)).toHaveAttribute('data-stan', 'blad');
+    await expect(stanTelefonu(page)).toBeVisible();
     await expect(stanTelefonu(page)).toContainText('usługa push niedostępna');
     await expect(page.locator('#pow-dochodza')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Odnów subskrypcję' })).toBeEnabled();

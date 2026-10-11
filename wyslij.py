@@ -467,8 +467,10 @@ def wyslij_jedno(biblioteka, telefon: Telefon, dane: str, tag: str, vapid, spij)
             kod = getattr(getattr(blad, "response", None), "status_code", None)
             if kod in (404, 410):
                 return Blad(telefon.nazwa, f"subskrypcja wygasła ({kod})",
-                            f"Na tym telefonie: zakładka „Powiadomienia” → „Ten telefon” — włącz "
-                            f"powiadomienia jeszcze raz, skopiuj pokazany JSON i podmień nim "
+                            f"Na tym telefonie: zakładka „Powiadomienia” → „Ten telefon” → „Włącz "
+                            f"powiadomienia” albo „Odnów subskrypcję” (grupa pojawia się sama, gdy "
+                            f"subskrypcja się zmieniła albo powiadomienia nie dochodzą — najpóźniej "
+                            f"godzinę po nieudanej wysyłce), skopiuj pokazany JSON i podmień nim "
                             f"sekret `{telefon.sekret}`.")
             if kod == 403:
                 return Blad(telefon.nazwa, "serwer push odrzucił podpis VAPID (403)",
