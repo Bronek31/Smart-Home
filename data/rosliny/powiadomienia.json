@@ -1,6 +1,6 @@
 {
- "tryb": "na-sucho",
- "wlaczone_od": null,
+ "tryb": "wlaczone",
+ "wlaczone_od": "2026-10-11T16:24:46Z",
  "historia": [
   {
    "id": "20261011T080115Z-podsumowanie",
@@ -17,6 +17,18 @@
    "tag": "podsumowanie",
    "url": "rosliny.html",
    "na_sucho": true
+  },
+  {
+   "id": "20261011T162446Z-wlaczone",
+   "ts": "2026-10-11T16:24:46Z",
+   "przebieg": "38155341006-1",
+   "regula": "wlaczone",
+   "rosliny": [],
+   "tytul": "Powiadomienia włączone",
+   "tresc": "Teraz nic nie wymaga uwagi.",
+   "tag": "wlaczone",
+   "url": "rosliny.html",
+   "na_sucho": false
   }
  ],
  "stan_regul": {
