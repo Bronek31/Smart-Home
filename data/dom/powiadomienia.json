@@ -1,7 +1,26 @@
 {
  "tryb": "wlaczone",
  "wlaczone_od": "2026-10-11T20:33:12Z",
- "historia": [],
+ "historia": [
+  {
+   "id": "20261012T140145Z-przewietrz",
+   "ts": "2026-10-12T14:01:45Z",
+   "przebieg": "38259839194-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Kuchnia"
+   ],
+   "tytul": "Przewietrz kuchnię",
+   "tresc": "Kuchnia: 68% od 2 godz., za wilgotno powyżej 67,5%.",
+   "tag": "przewietrz-kuchnia",
+   "url": "#kuchnia",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
+  }
+ ],
  "stan_regul": {
   "bfd6f4f87fea9d866dvpve": {
    "przewietrz": null,
@@ -14,7 +33,11 @@
    "czujniki": {}
   },
   "bf5741c97c96fa85b1d7do": {
-   "przewietrz": null,
+   "przewietrz": {
+    "od": "2026-10-12T14:01:45Z",
+    "wyslano": "2026-10-12T14:01:45Z",
+    "na_sucho": null
+   },
    "okno": null,
    "czujniki": {}
   },
