@@ -9,6 +9,8 @@ name: Powiadomienie testowe
 # - 10.10, iPhone podpięty — test na oba telefony.
 # - nowa aplikacja: stała VAPID przeniesiona z rosliny.html do index.html — test, że nadawca
 #   znajduje ją w nowym miejscu i że sekret nadal do niej pasuje (oba telefony).
+# - 12.10 rano: test po wdrożeniu nowej aplikacji (stała VAPID w index.html) — wczoraj pominięty
+#   przez ciszę nocną.
 
 on:
   workflow_dispatch:
