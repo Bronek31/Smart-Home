@@ -79,11 +79,7 @@
  "stan_regul": {
   "bfd6f4f87fea9d866dvpve": {
    "przewietrz": null,
-   "okno": {
-    "od": "2026-10-13T17:01:31Z",
-    "wyslano": "2026-10-13T17:01:31Z",
-    "na_sucho": null
-   },
+   "okno": null,
    "czujniki": {}
   },
   "bf7e2a70935af7de78mjqt": {
