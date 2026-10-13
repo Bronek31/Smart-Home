@@ -46,6 +46,24 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261013T060121Z-przestaw",
+   "ts": "2026-10-13T06:01:21Z",
+   "przebieg": "38354418423-1",
+   "regula": "przestaw",
+   "rosliny": [
+    "Fikus"
+   ],
+   "tytul": "Fikus: przestaw bliżej okna",
+   "tresc": "Ostatnie 3 doby: średnio 19% potrzebnego światła. Fikus gubi liście po każdej przeprowadzce — przestaw raz, w najjaśniejsze miejsce.",
+   "tag": "przestaw-fikus",
+   "url": "#fikus",
+   "na_sucho": false,
+   "telefony": [
+    "iphone"
+   ],
+   "odlozone": true
   }
  ],
  "stan_regul": {
@@ -82,14 +100,7 @@
    "odlozone": []
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "przestaw",
-     "obiekt": "Fikus",
-     "ts": "2026-10-12T22:01:19Z",
-     "kierunek": "jasniej"
-    }
-   ]
+   "odlozone": []
   }
  }
 }
