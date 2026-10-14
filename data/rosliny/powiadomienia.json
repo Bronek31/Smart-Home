@@ -81,6 +81,24 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261014T060118Z-przestaw",
+   "ts": "2026-10-14T06:01:18Z",
+   "przebieg": "38519786743-1",
+   "regula": "przestaw",
+   "rosliny": [
+    "Skrzydłokwiat"
+   ],
+   "tytul": "Skrzydłokwiat: przestaw bliżej okna",
+   "tresc": "Ostatnie 3 doby: średnio 32% potrzebnego światła.",
+   "tag": "przestaw-skrzydlokwiat",
+   "url": "#skrzydlokwiat",
+   "na_sucho": false,
+   "telefony": [
+    "iphone"
+   ],
+   "odlozone": true
   }
  ],
  "stan_regul": {
@@ -117,14 +135,7 @@
    "odlozone": []
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "przestaw",
-     "obiekt": "Skrzydłokwiat",
-     "ts": "2026-10-13T22:01:16Z",
-     "kierunek": "jasniej"
-    }
-   ]
+   "odlozone": []
   }
  }
 }
