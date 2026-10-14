@@ -613,9 +613,9 @@ date,device_id,code,min,avg,max,n
 2026-10-14,bf43cf664d6644420axva3,va_temperature,19.8,20.03,21,23
 2026-10-14,bf5741c97c96fa85b1d7do,va_humidity,57,59.22,65,23
 2026-10-14,bf5741c97c96fa85b1d7do,va_temperature,20,20.27,20.6,23
-2026-10-14,bf7e2a70935af7de78mjqt,va_humidity,55,56.41,58,22
-2026-10-14,bf7e2a70935af7de78mjqt,va_temperature,19.9,20.41,20.9,22
-2026-10-14,bfd6f4f87fea9d866dvpve,va_humidity,58,59.27,63,30
-2026-10-14,bfd6f4f87fea9d866dvpve,va_temperature,20.5,20.83,21.9,22
+2026-10-14,bf7e2a70935af7de78mjqt,va_humidity,55,56.43,58,23
+2026-10-14,bf7e2a70935af7de78mjqt,va_temperature,19.9,20.40,20.9,23
+2026-10-14,bfd6f4f87fea9d866dvpve,va_humidity,58,59.29,63,31
+2026-10-14,bfd6f4f87fea9d866dvpve,va_temperature,20.5,20.85,21.9,23
 2026-10-14,zewnatrz,va_humidity,65,74.96,86,23
 2026-10-14,zewnatrz,va_temperature,5.5,8.93,13.1,23
