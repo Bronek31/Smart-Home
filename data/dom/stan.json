@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-15T16:01:41Z",
+ "updated": "2026-10-15T17:01:30Z",
  "pokoje": {
   "bfd6f4f87fea9d866dvpve": {
    "przewietrz": null,
@@ -20,7 +20,7 @@
    "noc": {
     "noc": "2026-10-15",
     "t_min": 7.4,
-    "granica": 61.3,
+    "granica": 61.4,
     "zwykle": 57.1,
     "ostrz": false
    },
@@ -33,7 +33,7 @@
    "noc": {
     "noc": "2026-10-15",
     "t_min": 7.4,
-    "granica": 61.2,
+    "granica": 61.3,
     "zwykle": 61.6,
     "ostrz": true
    },
@@ -46,7 +46,7 @@
    "noc": {
     "noc": "2026-10-15",
     "t_min": 7.4,
-    "granica": 61.1,
+    "granica": 61.3,
     "zwykle": 57.6,
     "ostrz": false
    },
