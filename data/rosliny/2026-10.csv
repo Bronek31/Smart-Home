@@ -3044,3 +3044,10 @@ ts,device_id,code,value
 2026-10-16T21:09:27Z,bfa2be765aa6176805rhly,battery_state,high
 2026-10-16T21:09:27Z,bfa2be765aa6176805rhly,humidity,62
 2026-10-16T21:09:27Z,bfa2be765aa6176805rhly,temp_current,20
+2026-10-16T21:19:13Z,bfe5bdf2b91c53dfd1eaiy,illumiance,0
+2026-10-16T21:21:50Z,bf262a90fc72e1aef65arq,humidity,46
+2026-10-16T21:21:51Z,bf262a90fc72e1aef65arq,battery_state,high
+2026-10-16T21:39:53Z,bfe5bdf2b91c53dfd1eaiy,temp_current,20.7
+2026-10-16T22:00:32Z,bfe5bdf2b91c53dfd1eaiy,humidity,84
+2026-10-16T22:00:33Z,bfe5bdf2b91c53dfd1eaiy,battery_state,high
+2026-10-16T22:00:33Z,bfe5bdf2b91c53dfd1eaiy,env_humidity,59
