@@ -157,18 +157,7 @@
    "przed_snem": "2026-10-15"
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "przewietrz",
-     "obiekt": "bfd6f4f87fea9d866dvpve",
-     "ts": "2026-10-15T21:01:27Z"
-    },
-    {
-     "regula": "przewietrz",
-     "obiekt": "bf5741c97c96fa85b1d7do",
-     "ts": "2026-10-15T22:01:29Z"
-    }
-   ],
+   "odlozone": [],
    "przed_snem": "2026-10-15"
   }
  }
