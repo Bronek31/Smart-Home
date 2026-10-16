@@ -127,6 +127,25 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261016T170128Z-przed-snem",
+   "ts": "2026-10-16T17:01:28Z",
+   "przebieg": "38936430826-1",
+   "regula": "przed-snem",
+   "pokoje": [
+    "Łazienka",
+    "Kuchnia"
+   ],
+   "tytul": "Przewietrz przed snem: łazienka, kuchnia",
+   "tresc": "Łazienka: w nocy za wilgotno od ok. 61%, zwykle masz do 60%.\nKuchnia: w nocy za wilgotno od ok. 60%, zwykle masz do 61%.",
+   "tag": "przed-snem",
+   "url": "#dom",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
@@ -154,11 +173,11 @@
  "telefony": {
   "android": {
    "odlozone": [],
-   "przed_snem": "2026-10-15"
+   "przed_snem": "2026-10-16"
   },
   "iphone": {
    "odlozone": [],
-   "przed_snem": "2026-10-15"
+   "przed_snem": "2026-10-16"
   }
  }
 }
