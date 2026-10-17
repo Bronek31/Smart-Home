@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-17T17:01:19Z",
+  "updated": "2026-10-17T17:12:52Z",
   "current": {
     "time": "2026-10-17T19:00",
     "interval": 900,
@@ -27,8 +27,8 @@
     ],
     "temperature_2m_min": [
       5.8,
-      8.3,
-      7.9
+      8.2,
+      7.0
     ],
     "precipitation_probability_max": [
       0,
