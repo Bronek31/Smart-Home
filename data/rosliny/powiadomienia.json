@@ -99,6 +99,24 @@
     "iphone"
    ],
    "odlozone": true
+  },
+  {
+   "id": "20261017T080115Z-podlej",
+   "ts": "2026-10-17T08:01:15Z",
+   "przebieg": "39015782315-1",
+   "regula": "podlej",
+   "rosliny": [
+    "Azalia"
+   ],
+   "tytul": "Podlej: azalia",
+   "tresc": "Azalia: gleba 45% (podlewaj przy ok. 45%).",
+   "tag": "podlej-azalia",
+   "url": "#azalia",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
@@ -118,7 +136,9 @@
   },
   "Azalia": {
    "ponizej_od": "2026-10-17T06:01:15Z",
-   "wyslano": [],
+   "wyslano": [
+    "2026-10-17T08:01:15Z"
+   ],
    "na_sucho": [],
    "czujnik": {},
    "noc": []
