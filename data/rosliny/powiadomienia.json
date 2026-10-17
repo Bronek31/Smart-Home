@@ -135,10 +135,8 @@
    "noc": []
   },
   "Azalia": {
-   "ponizej_od": "2026-10-17T06:01:15Z",
-   "wyslano": [
-    "2026-10-17T08:01:15Z"
-   ],
+   "ponizej_od": null,
+   "wyslano": [],
    "na_sucho": [],
    "czujnik": {},
    "noc": []
