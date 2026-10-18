@@ -218,11 +218,32 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261018T200127Z-przewietrz",
+   "ts": "2026-10-18T20:01:27Z",
+   "przebieg": "39161373646-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Łazienka"
+   ],
+   "tytul": "Przewietrz łazienkę",
+   "tresc": "Łazienka: 70% od 3 godz., za wilgotno powyżej 65%.",
+   "tag": "przewietrz-lazienka",
+   "url": "#lazienka",
+   "na_sucho": false,
+   "telefony": [
+    "android"
+   ]
   }
  ],
  "stan_regul": {
   "bfd6f4f87fea9d866dvpve": {
-   "przewietrz": null,
+   "przewietrz": {
+    "od": "2026-10-18T20:01:27Z",
+    "wyslano": "2026-10-18T20:01:27Z",
+    "na_sucho": null
+   },
    "okno": null,
    "czujniki": {}
   },
@@ -257,6 +278,11 @@
      "regula": "przewietrz",
      "obiekt": "bf43cf664d6644420axva3",
      "ts": "2026-10-18T19:01:21Z"
+    },
+    {
+     "regula": "przewietrz",
+     "obiekt": "bfd6f4f87fea9d866dvpve",
+     "ts": "2026-10-18T20:01:27Z"
     }
    ],
    "przed_snem": "2026-10-18"
