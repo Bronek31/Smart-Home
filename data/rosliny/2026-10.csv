@@ -3773,3 +3773,6 @@ ts,device_id,code,value
 2026-10-18T22:55:06Z,bfe5bdf2b91c53dfd1eaiy,env_humidity,71
 2026-10-18T22:55:06Z,bfe5bdf2b91c53dfd1eaiy,humidity,76
 2026-10-18T22:55:07Z,bfe5bdf2b91c53dfd1eaiy,battery_state,high
+2026-10-18T23:08:22Z,bf262a90fc72e1aef65arq,humidity,56
+2026-10-18T23:08:34Z,bfa2be765aa6176805rhly,env_humidity,73
+2026-10-18T23:08:34Z,bfa2be765aa6176805rhly,illumiance,3
