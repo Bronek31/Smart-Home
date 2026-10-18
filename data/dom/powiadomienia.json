@@ -235,6 +235,23 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261018T220123Z-przewietrz",
+   "ts": "2026-10-18T22:01:23Z",
+   "przebieg": "39170365854-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Kuchnia"
+   ],
+   "tytul": "Przewietrz kuchnię",
+   "tresc": "Kuchnia: 64% od 3 godz., za wilgotno powyżej 63%.",
+   "tag": "przewietrz-kuchnia",
+   "url": "#kuchnia",
+   "na_sucho": false,
+   "telefony": [
+    "android"
+   ]
   }
  ],
  "stan_regul": {
@@ -253,7 +270,11 @@
    "czujniki": {}
   },
   "bf5741c97c96fa85b1d7do": {
-   "przewietrz": null,
+   "przewietrz": {
+    "od": "2026-10-18T22:01:23Z",
+    "wyslano": "2026-10-18T22:01:23Z",
+    "na_sucho": null
+   },
    "okno": null,
    "czujniki": {}
   },
@@ -283,6 +304,11 @@
      "regula": "przewietrz",
      "obiekt": "bfd6f4f87fea9d866dvpve",
      "ts": "2026-10-18T20:01:27Z"
+    },
+    {
+     "regula": "przewietrz",
+     "obiekt": "bf5741c97c96fa85b1d7do",
+     "ts": "2026-10-18T22:01:23Z"
     }
    ],
    "przed_snem": "2026-10-18"
