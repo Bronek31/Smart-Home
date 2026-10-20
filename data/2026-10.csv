@@ -7040,3 +7040,9 @@ ts,device_id,code,value
 2026-10-19T23:54:00Z,bfd6f4f87fea9d866dvpve,va_temperature,21
 2026-10-20T00:00:00Z,zewnatrz,va_humidity,90
 2026-10-20T00:00:00Z,zewnatrz,va_temperature,7.6
+2026-10-20T00:03:31Z,bf5741c97c96fa85b1d7do,battery_state,middle
+2026-10-20T00:03:31Z,bf5741c97c96fa85b1d7do,va_humidity,65
+2026-10-20T00:03:31Z,bf5741c97c96fa85b1d7do,va_temperature,21.4
+2026-10-20T00:19:43Z,bf43cf664d6644420axva3,va_humidity,61
+2026-10-20T00:19:43Z,bf43cf664d6644420axva3,va_temperature,21.5
+2026-10-20T00:19:44Z,bf43cf664d6644420axva3,battery_state,middle

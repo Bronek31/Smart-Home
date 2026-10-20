@@ -4129,3 +4129,6 @@ ts,device_id,code,value
 2026-10-19T23:43:14Z,bfe5bdf2b91c53dfd1eaiy,humidity,79
 2026-10-19T23:43:14Z,bfe5bdf2b91c53dfd1eaiy,temp_current,20.3
 2026-10-19T23:58:40Z,bfa2be765aa6176805rhly,humidity,55
+2026-10-20T00:11:57Z,bf262a90fc72e1aef65arq,illumiance,70
+2026-10-20T00:18:01Z,bfa2be765aa6176805rhly,env_humidity,69
+2026-10-20T00:18:01Z,bfa2be765aa6176805rhly,illumiance,48
