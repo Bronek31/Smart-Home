@@ -41,6 +41,25 @@ do Actions.
 
 ---
 
+## 21.10 — pokoje bez okna, czytelność wykresów
+
+- **Pokój bez okna** (w `pokoje.json` bez `okno`, dziś Łazienka) nie dostaje „Zamknij okno?”
+  ani żadnego „przewietrz” na telefon. 13.10 po gorącej wodzie przyszło „Zamknij okno
+  w łazience?” (22,8 → 21,1 °C w 25 min), a „przewietrz” i „przed snem” dla łazienki szły
+  prawie codziennie bez niczego do zrobienia — drzwi stoją otwarte cały czas, a wilgoć
+  i tak się trzyma (pewnie słaby wywiew; właściciel ma sprawdzić kartką). Na ekranie Dom
+  łazienka dalej pokazuje „przewietrz” i linię nocną: `stan.json` liczy wszystko, filtr
+  jest tylko w planerze. Decyzja właściciela.
+- **„Przed snem” sprawdzone wcześniej niż 11.11:** 12–21.10, 18 ostrzeżeń pokój-noc, w 11
+  noc faktycznie przeszła nad granicę (co najmniej godzina). Reguła zostaje bez zmian.
+- **Strona:** daty gleby bez nakładania (wspólna reguła podpisów osi X w `wykres()`),
+  30 dni z podpisami przy krawędziach pola komfortu, w rytmie doby ramka „brak odczytu”
+  dla pustej godziny w środku serii (20.10 ok. 23–2 milczały wszystkie czujniki — to
+  czujniki/Wi-Fi, nie kolektor), rada „za ciepło/za zimno” przy roślinie poza zakresem
+  przez 3 doby (azalia w kuchni 19–22 °C, lubi do 18).
+
+---
+
 ## 11.10 — jedna aplikacja, reguły domu, ustawienia każdego telefonu
 
 Właściciel zatwierdził projekt nowej aplikacji (cztery rundy podglądu na prawdziwych

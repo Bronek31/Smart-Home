@@ -423,27 +423,46 @@ def nowe(wynik: dict, teraz: int) -> list[dict]:
 class TestPlanerPrzewietrz(unittest.TestCase):
     def test_raz_na_epizod_i_plik_bez_zmian(self):
         t1 = lok(2026, 10, 12, 10, 1)
-        w1 = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, None, t1)
+        w1 = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, None, t1)
         self.assertEqual(len(nowe(w1, t1)), 1)
         e = nowe(w1, t1)[0]
         self.assertEqual((e["regula"], e["pokoje"], e["tytul"], e["tag"], e["url"], e["telefony"], e["na_sucho"]),
-                         ("przewietrz", ["Łazienka"], "Przewietrz łazienkę", "przewietrz-lazienka", "#lazienka",
+                         ("przewietrz", ["Salon"], "Przewietrz salon", "przewietrz-salon", "#salon",
                           ["android", "iphone"], False))
-        self.assertEqual(e["tresc"], "Łazienka: 71% od 2 godz., za wilgotno powyżej 63%.")
+        self.assertEqual(e["tresc"], "Salon: 71% od 2 godz., za wilgotno powyżej 63%.")
         t2 = t1 + GODZ
-        w2 = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, w1, t2)
+        w2 = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, w1, t2)
         self.assertEqual(nowe(w2, t2), [])
         self.assertEqual(json.dumps(w2, ensure_ascii=False, indent=1), json.dumps(w1, ensure_ascii=False, indent=1),
                          "bez zmian w stanie plik ma być identyczny — inaczej commit co godzinę")
 
+    def test_pokoj_bez_okna_bez_powiadomienia(self):
+        """Łazienka nie ma okna, a drzwi stoją otwarte: „Przewietrz łazienkę” przychodziło kilka
+        razy w tygodniu bez niczego do zrobienia — właściciel 21.10: wyłączyć. Na ekranie zostaje
+        (stan.json), na telefon nie idzie ani teraz, ani z kolejki po ciszy; pokój z oknem tak."""
+        t = lok(2026, 10, 12, 10, 1)
+        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, None, t)
+        self.assertEqual(nowe(w, t), [])
+        self.assertIsNone(w["stan_regul"][LAZIENKA]["przewietrz"])
+        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ), KUCHNIA: pokoj(przewietrz=PRZEWIETRZ)}, None, t)
+        (e,) = nowe(w, t)
+        self.assertEqual(e["pokoje"], ["Kuchnia"])
+        # pozycja łazienki w kolejce sprzed zmiany nie wychodzi rano
+        u = {"android": ust(), "iphone": ust(cisza=False)}
+        w = przebieg({}, None, lok(2026, 10, 12, 22, 1), ustawienia=u)
+        w["telefony"]["android"]["odlozone"] = [{"regula": "przewietrz", "obiekt": LAZIENKA, "ts": dom.iso(lok(2026, 10, 12, 22, 1))}]
+        rano = lok(2026, 10, 13, 8, 1)
+        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, w, rano, ustawienia=u)
+        self.assertEqual(nowe(w, rano), [])
+
     def test_kilka_pokoi_jeden_wpis(self):
         t = lok(2026, 10, 12, 10, 1)
-        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ), KUCHNIA: pokoj(przewietrz=dict(PRZEWIETRZ, wilg=63.0))},
+        w = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ), KUCHNIA: pokoj(przewietrz=dict(PRZEWIETRZ, wilg=63.0))},
                      None, t)
         (e,) = nowe(w, t)
-        self.assertEqual(e["tytul"], "Przewietrz: łazienka, kuchnia")
+        self.assertEqual(e["tytul"], "Przewietrz: kuchnia, salon")
         self.assertEqual(e["url"], "#dom")
-        self.assertEqual(e["tag"], "przewietrz-lazienka-kuchnia")
+        self.assertEqual(e["tag"], "przewietrz-kuchnia-salon")
         # 63% i granica 63,2 po zaokrągleniu byłyby „63%, za wilgotno powyżej 63%"
         self.assertIn("Kuchnia: 63% od 2 godz., za wilgotno powyżej 63,2%.", e["tresc"])
 
@@ -453,11 +472,11 @@ class TestPlanerPrzewietrz(unittest.TestCase):
         parzystej) — przegląd, B2/C1. Przy wilgotności 63 i granicy 62,5 po zaokrągleniu
         obie są 63, więc granica idzie z miejscem po przecinku."""
         t = lok(2026, 10, 12, 10, 1)
-        w = przebieg({LAZIENKA: pokoj(przewietrz=dict(PRZEWIETRZ, granica=62.5)),
+        w = przebieg({SALON: pokoj(przewietrz=dict(PRZEWIETRZ, granica=62.5)),
                       KUCHNIA: pokoj(przewietrz=dict(PRZEWIETRZ, wilg=63.0, granica=62.5))}, None, t)
         (e,) = nowe(w, t)
-        self.assertEqual(e["tresc"].splitlines(), ["Łazienka: 71% od 2 godz., za wilgotno powyżej 63%.",
-                                                   "Kuchnia: 63% od 2 godz., za wilgotno powyżej 62,5%."])
+        self.assertEqual(e["tresc"].splitlines(), ["Kuchnia: 63% od 2 godz., za wilgotno powyżej 62,5%.",
+                                                   "Salon: 71% od 2 godz., za wilgotno powyżej 63%."])
         for x in range(0, 100):
             self.assertEqual(dom._pl(x + 0.5, 0), str(x + 1), "Math.round na stronie")
         self.assertEqual(dom._pl(2.25, 1), "2,3")
@@ -465,33 +484,33 @@ class TestPlanerPrzewietrz(unittest.TestCase):
     def test_koniec_epizodu_i_najwyzej_dwa_na_dobe(self):
         teraz, poprz, wyslane = lok(2026, 10, 12, 9, 1), None, []
         for _ in range(3):                   # trzy epizody w jeden dzień
-            poprz = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, poprz, teraz)
+            poprz = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, poprz, teraz)
             wyslane += nowe(poprz, teraz)
             teraz += GODZ
             poprz = przebieg({}, poprz, teraz)
-            self.assertIsNone(poprz["stan_regul"][LAZIENKA]["przewietrz"])
+            self.assertIsNone(poprz["stan_regul"][SALON]["przewietrz"])
             teraz += GODZ
         self.assertEqual(len(wyslane), 2, "trzeci epizod tej doby nie wychodzi")
         nastepny = lok(2026, 10, 13, 9, 1)
-        poprz = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, poprz, nastepny)
+        poprz = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, poprz, nastepny)
         self.assertEqual(len(nowe(poprz, nastepny)), 1)
 
     def test_nieodswiezony_pokoj_nie_konczy_epizodu(self):
         t1 = lok(2026, 10, 12, 10, 1)
-        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, None, t1)
-        w = przebieg({}, w, t1 + GODZ, nieodswiezone=[LAZIENKA])
-        self.assertIsNotNone(w["stan_regul"][LAZIENKA]["przewietrz"])
-        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, w, t1 + 2 * GODZ)
+        w = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, None, t1)
+        w = przebieg({}, w, t1 + GODZ, nieodswiezone=[SALON])
+        self.assertIsNotNone(w["stan_regul"][SALON]["przewietrz"])
+        w = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, w, t1 + 2 * GODZ)
         self.assertEqual(nowe(w, t1 + 2 * GODZ), [], "awaria Tuya nie może dać drugiego „przewietrz”")
 
     def test_wspolna_noc_nic_i_rano_wychodzi(self):
         noc_t = lok(2026, 10, 12, 23, 1)
-        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, None, noc_t)
+        w = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, None, noc_t)
         self.assertEqual(nowe(w, noc_t), [])
-        self.assertIsNone(w["stan_regul"][LAZIENKA]["przewietrz"]["wyslano"])
+        self.assertIsNone(w["stan_regul"][SALON]["przewietrz"]["wyslano"])
         self.assertEqual(w["telefony"]["android"]["odlozone"], [], "noc wszystkich to nie kolejka")
         rano = lok(2026, 10, 13, 8, 1)
-        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, w, rano)
+        w = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, w, rano)
         self.assertEqual([e["telefony"] for e in nowe(w, rano)], [["android", "iphone"]])
 
     def test_kolejka_per_telefon(self):
@@ -752,14 +771,14 @@ class TestPlanerCzujniki(unittest.TestCase):
 class TestPlanerTrybyIFormat(unittest.TestCase):
     def test_na_sucho_te_same_decyzje_potem_naprawde(self):
         t = lok(2026, 10, 12, 10, 1)
-        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, None, t, tryb="na-sucho")
+        w = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, None, t, tryb="na-sucho")
         (e,) = nowe(w, t)
         self.assertTrue(e["na_sucho"])
         self.assertEqual((w["tryb"], w["wlaczone_od"]), ("na-sucho", None))
-        self.assertEqual(w["stan_regul"][LAZIENKA]["przewietrz"]["na_sucho"], dom.iso(t))
-        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, w, t + GODZ, tryb="na-sucho")
+        self.assertEqual(w["stan_regul"][SALON]["przewietrz"]["na_sucho"], dom.iso(t))
+        w = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, w, t + GODZ, tryb="na-sucho")
         self.assertEqual(nowe(w, t + GODZ), [])
-        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, w, t + 2 * GODZ)
+        w = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, w, t + 2 * GODZ)
         (e,) = nowe(w, t + 2 * GODZ)
         self.assertFalse(e["na_sucho"], "po włączeniu trwający epizod idzie naprawdę")
         self.assertEqual((w["tryb"], w["wlaczone_od"]), ("wlaczone", dom.iso(t + 2 * GODZ)))
@@ -806,7 +825,7 @@ class TestPlanerTrybyIFormat(unittest.TestCase):
                                                                            "obiekt": [1]},
                                                          {"regula": "czujniki", "ts": dom.iso(t), "obiekt": KUCHNIA,
                                                           "powody": "bateria"}]}}}
-        w = przebieg({LAZIENKA: pokoj(przewietrz=PRZEWIETRZ)}, zepsute, t)
+        w = przebieg({SALON: pokoj(przewietrz=PRZEWIETRZ)}, zepsute, t)
         self.assertEqual(len(nowe(w, t)), 1)
         self.assertNotIn("inny", w["stan_regul"])
         self.assertEqual(w["telefony"]["android"]["odlozone"], [])

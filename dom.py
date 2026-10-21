@@ -590,7 +590,8 @@ def zaplanuj_powiadomienia(stan: dict, poprzednie: dict | None, teraz_ms: int, s
     jest ten sam: plik nie zmienia się co przebieg.
 
     Reguły (BRIEF5, pkt 3):
-    - **przewietrz** — epizod pokoju od pierwszego przebiegu z `przewietrz`; jedna wysyłka
+    - **przewietrz** — tylko pokoje z oknem (na ekranie wszystkie: stan.json);
+      epizod pokoju od pierwszego przebiegu z `przewietrz`; jedna wysyłka
       na epizod, nie we wspólnej nocy wszystkich telefonów; telefon w ciszy dostaje pozycję
       w kolejce. Koniec epizodu, gdy reguła zgaśnie w przebiegu, który pokój pobrał.
       Najwyżej 2 wpisy na pokój na lokalną dobę.
@@ -655,8 +656,11 @@ def zaplanuj_powiadomienia(stan: dict, poprzednie: dict | None, teraz_ms: int, s
         przed = stan_regul.get(dev) or {}
         pobrany = dev not in nieodswiezone
 
+        # Pokój bez okna nie dostaje „przewietrz” na telefon (właściciel, 21.10): w łazience nie ma
+        # czego otworzyć, a drzwi i tak stoją otwarte. Epizodu też nie ma — po dopisaniu okna
+        # w pokoje.json trwająca wilgoć pójdzie od razu, a nie zginie jako „już wysłana”.
         ep = _epizod(przed.get("przewietrz"))
-        if p.get("przewietrz"):
+        if p.get("przewietrz") and opisy[dev].get("okno", True):
             ep = ep or {"od": teraz_iso, "wyslano": None, "na_sucho": None}
             if not wyslane(ep) and not noc and dzis_przewietrz(opisy[dev]["nazwa"]) < MAKS_PRZEWIETRZ_NA_DOBE:
                 do_przewietrz.append(dev)
@@ -797,6 +801,8 @@ def zaplanuj_powiadomienia(stan: dict, poprzednie: dict | None, teraz_ms: int, s
             if not isinstance(d, str) or d not in pokoje_stan or not u.get(KLUCZ_USTAWIEN.get(regula, regula)):
                 continue
             if regula == "przewietrz":
+                if not opisy[d].get("okno", True):
+                    continue
                 # ten przebieg i tak wysyła temu telefonowi świeży wpis o tym pokoju
                 if pokoje_stan[d].get("przewietrz") and not (d in do_przewietrz and t in komu_przewietrz) \
                         and d not in przewietrz_t:
