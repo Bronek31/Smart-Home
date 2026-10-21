@@ -1565,7 +1565,9 @@ def zbierz_dom(urzadzenia: dict, pogoda: dict | None, nieodswiezone: list[str], 
                if not w_artefakcie(artefakty, r["device_id"], r["ms"] / 1000)]
     if pogoda is None:
         pogoda = _wczytaj_json(WEATHER)
-    stan = dom.stan_domu(wiersze, urzadzenia, pogoda, chwila_ms, strefa, nieodswiezone)
+    opisy = dom.opisy_pokoi(urzadzenia, _wczytaj_json(POKOJE_PLIK))
+    stan = dom.stan_domu(wiersze, urzadzenia, pogoda, chwila_ms, strefa, nieodswiezone,
+                         bez_okna=[d for d, o in opisy.items() if not o["okno"]])
     KATALOG_DOMU.mkdir(parents=True, exist_ok=True)
     tymczasowy = STAN_DOMU.with_suffix(".json.tmp")
     tymczasowy.write_text(json.dumps(stan, ensure_ascii=False, indent=1, allow_nan=False) + "\n",
@@ -1581,7 +1583,6 @@ def zbierz_dom(urzadzenia: dict, pogoda: dict | None, nieodswiezone: list[str], 
     poprzednie = poprzednie if isinstance(poprzednie, dict) else None
     tryb = os.environ.get("POWIADOMIENIA", "na-sucho").strip() or "na-sucho"
     przebieg = os.environ.get("PRZEBIEG", "").strip() or "lokalny"
-    opisy = dom.opisy_pokoi(urzadzenia, _wczytaj_json(POKOJE_PLIK))
     nowe = dom.zaplanuj_powiadomienia(stan, poprzednie, chwila_ms, strefa, tryb, przebieg,
                                       ustawienia=ustawienia, opisy=opisy, nieodswiezone=nieodswiezone)
     zapisz_powiadomienia(POWIADOMIENIA_DOMU, nowe, poprzednie, przebieg)

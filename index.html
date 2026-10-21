@@ -317,6 +317,8 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .r-et{font:500 12px var(--f-e);fill:var(--faint)}
 .r-wyb{fill:none;stroke:var(--text);stroke-width:2}
 .r-wyb-t{fill:none;stroke:var(--panel);stroke-width:5}
+.r-brak{fill:none;stroke:var(--faint);stroke-width:1.5;stroke-dasharray:3 2.5;opacity:.7}
+.r-brak-t{color:var(--faint)}
 .skala-leg{display:flex;align-items:center;gap:8px;margin-top:12px;font:500 12px/16px var(--f-e);color:var(--faint)}
 .skala-leg svg{flex:none}
 .trzy{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:16px}
@@ -450,8 +452,8 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .m30-os{font:500 12px var(--f-e);fill:var(--faint)}
 .m30-os.dzis{fill:var(--dim)}
 /* pole komfortu zajmuje tu dużą powierzchnię, więc jest delikatniejsze niż w wąskich torach */
-.m30-pole{fill:var(--ok-pole);fill-opacity:.55}
-.leg .l-pole.lekkie{opacity:.55}
+.m30-pole{fill:var(--ok-pole);fill-opacity:.35}
+.leg .l-pole.lekkie{opacity:.35}
 .m30-wyb{fill:var(--podswietl)}
 .m30-sr{fill:var(--text)}
 /* przy niskim pasku kreska średniej zasłoniłaby kolor: tylko w wybranym dniu */
@@ -1943,7 +1945,10 @@ function xTicki(os, od, doo, dniT) {
     if (os === '7dni') {
       if (l.h === 0) out.push({ t, linia: true });
       if (l.h === 12) out.push({ t, et: DNI[l.wd] });
-    } else if (l.h % (os === 'gleba' && doo - od > 36 * GODZ ? 12 : 6) === 0) {
+    } else if (os === 'gleba' && doo - od > 36 * GODZ) {
+      // kilka dób: same daty o północy, bez „12:00” między nimi — rzadsze podpisy wybiera wykres() po szerokości
+      if (l.h === 0) out.push({ t, et: l.d + '.' + dwa(l.m), linia: true });
+    } else if (l.h % 6 === 0) {
       out.push({ t, et: os === 'gleba' && l.h === 0 ? l.d + '.' + dwa(l.m) : l.h + ':00', linia: l.h === 0 });
     }
   }
@@ -1987,11 +1992,19 @@ function wykres(host, o) {
     s += `<line class="w-siatka" x1="${x0}" x2="${x1}" y1="${y}" y2="${y}"/>`;
     s += `<text class="w-os" x="${W}" y="${y + 4}" text-anchor="end">${liczba(v, dzOs)}${o.jedn || ''}</text>`;
   }
+  // podpis, który wszedłby na poprzedni, wypada: przy 12 dobach gleby na telefonie daty co 2 dni zamiast zlepionych
+  // w jeden pasek; przy równych odstępach zostaje co któryś, więc rytm się nie rwie. Szerokość z liczby znaków
+  // (12 px, cyfry ok. 7 px) plus odstęp — krótkie „pn.” w tygodniu mieszczą się tak jak dotąd.
+  const szerEt = (t) => t.length * 7 + 10;
+  let ostEt = -Infinity, ostSz = 0;
   xTicki(o.os, o.od, o.do, o.dniT).forEach((k) => {
     const x = X(k.t);
     if (x < x0 - 1 || x > x1 + 1) return;
     if (k.linia) { const xx = Math.round(x) + 0.5; s += `<line class="w-pion" x1="${xx}" x2="${xx}" y1="${y0}" y2="${y1}"/>`; }
-    if (k.et && x > 14 && x < x1 - 14) s += `<text class="${k.kl || 'w-os'}" x="${f1(x)}" y="${H - 6}" text-anchor="middle">${k.et}</text>`;
+    if (k.et && x > 14 && x < x1 - 14 && x - ostEt >= (ostSz + szerEt(k.et)) / 2) {
+      s += `<text class="${k.kl || 'w-os'}" x="${f1(x)}" y="${H - 6}" text-anchor="middle">${k.et}</text>`;
+      ostEt = x; ostSz = szerEt(k.et);
+    }
   });
   if (o.pasmoSerii) {
     const P = o.pasmoSerii;
@@ -2427,9 +2440,14 @@ function rysujWykresStrony(host, slug) {
 function mapaRytmu(el, slug) {
   const p = pokojWg(slug), m = stan.wyk.miara, s = p.seria, T = czasySerii(s), dni = [], idx = {};
   const karta = el.closest('.karta'), out = $('.rytm-nagl', karta), leg = $('.skala-leg', karta);
+  // puste godziny na samym końcu serii to czujnik, który jeszcze nie zdążył zgłosić tej godziny, a nie luka
+  let ost = s[m].length - 1;
+  while (ost >= 0 && s[m][ost] == null) ost--;
   T.forEach((t, i) => {
+    if (i > ost) return;
     const l = lok(t);
-    if (!idx[l.klucz]) { idx[l.klucz] = { wd: l.wd, d: l.d, m: l.m, h: new Array(24).fill(null) }; dni.push(idx[l.klucz]); }
+    // undefined: godzina poza serią (przed pierwszą, jeszcze nie nadeszła); null: godzina w serii bez odczytu (D8)
+    if (!idx[l.klucz]) { idx[l.klucz] = { wd: l.wd, d: l.d, m: l.m, h: new Array(24).fill(undefined) }; dni.push(idx[l.klucz]); }
     idx[l.klucz].h[l.h] = s[m][i];
   });
   const rz = dni.slice(-7), wszystkie = [];
@@ -2451,10 +2469,12 @@ function mapaRytmu(el, slug) {
     const y = r * (ch + gap);
     svg += `<text class="r-et" x="0" y="${y + 14}">${DNI[d.wd]} ${d.d}.${dwa(d.m)}</text>`;
     d.h.forEach((v, c) => {
-      if (v == null) return;
+      if (v === undefined) return;
       const x = lab + c * (cw + gap);
       komorki.push({ r, c, x, y, v, d });
-      svg += `<rect x="${x.toFixed(1)}" y="${y}" width="${cw.toFixed(1)}" height="${ch}" rx="2" fill="${kol((v - mn) / (mx - mn))}"/>`;
+      // czujnik się nie odezwał: pusta ramka, a nie dziura w mapie — widać, że to luka w danych, nie błąd strony
+      svg += v === null ? `<rect class="r-brak" x="${(x + 0.75).toFixed(1)}" y="${y + 0.75}" width="${(cw - 1.5).toFixed(1)}" height="${ch - 1.5}" rx="2"/>` :
+        `<rect x="${x.toFixed(1)}" y="${y}" width="${cw.toFixed(1)}" height="${ch}" rx="2" fill="${kol((v - mn) / (mx - mn))}"/>`;
     });
   });
   [0, 6, 12, 18].forEach((g) => { svg += `<text class="r-et" x="${(lab + g * (cw + gap)).toFixed(1)}" y="${H - 2}">${g}:00</text>`; });
@@ -2463,11 +2483,13 @@ function mapaRytmu(el, slug) {
   leg.innerHTML = `<span>${ucMin ? '≤' : ''}${liczba(mn, dz)}${jedn}</span>${pasekSkali(kol, 120)}<span>${ucMax ? '≥' : ''}${liczba(mx, dz)}${jedn}</span>`;
   const sv = el.firstChild, wyb = $('.r-wyb-g', sv);
   let akt = komorki.length - 1;
+  while (akt > 0 && komorki[akt].v === null) akt--;
   const wybierz = (k) => {
     akt = Math.max(0, Math.min(komorki.length - 1, k));
     const c = komorki[akt];
     wyb.setAttribute('transform', `translate(${c.x.toFixed(1)} ${c.y})`);
-    out.innerHTML = `${DNI[c.d.wd]} ${c.d.d}.${dwa(c.d.m)}, ${c.c}:00 — <b>${L(c.v, dz)}${jedn}</b>`;
+    out.innerHTML = `${DNI[c.d.wd]} ${c.d.d}.${dwa(c.d.m)}, ${c.c}:00 — ` +
+      (c.v === null ? '<span class="r-brak-t">brak odczytu, czujnik się nie odezwał</span>' : `<b>${L(c.v, dz)}${jedn}</b>`);
   };
   wybierz(akt);
   const zPunktu = (e) => {
@@ -2629,6 +2651,16 @@ function wskaznik(o) {
   s += '</svg>';
   return `<div class="wsk${o.wyl ? ' wyl' : ''}">${s}<div class="wsk-et">${o.et}</div><div class="wsk-pod">${o.pod}</div></div>`;
 }
+/* Temperatura doniczki z ostatnich 72 godz. (seria godzinowa) poza zakresem gatunku w co najmniej 80% godzin,
+   cały czas po tej samej stronie: {cieplo, lo, hi} albo null. Krótszej serii nie oceniamy. */
+function trwaleTemp(r) {
+  const s = r.seria, n = s && s.krok_ms ? Math.round(72 * GODZ / s.krok_ms) : 0;
+  const tz = r.temp_zakres, v = n && s.temp ? s.temp.slice(-n).filter(jestLiczba) : [];
+  if (!tz || v.length < (2 / 3) * n) return null;
+  const nad = v.filter((x) => x > tz[1]).length, pod = v.filter((x) => x < tz[0]).length;
+  if (Math.max(nad, pod) < 0.8 * v.length) return null;
+  return { cieplo: nad > pod, lo: Math.min.apply(null, v), hi: Math.max.apply(null, v) };
+}
 /* „Co zrobić teraz”: tu prowadzi powiadomienie „Podlej” / „Przestaw” */
 function coZrobic(r, o) {
   if (o.poziom === 0) return { kl: 'info', ik: 'czujnik', akcja: 'Sprawdź czujnik.', tekst: `Ostatni odczyt ${temu(r.gleba_ms)}. Zobacz, czy sonda siedzi w ziemi i czy bramka ma zasięg.` };
@@ -2649,7 +2681,15 @@ function htmlRoslina(g) {
   if (cz2) h += `<section class="status ${cz2.kl}"><p class="status-g">${ik(cz2.ik)}Co zrobić teraz</p><p><b>${esc(cz2.akcja)}</b> ${esc(cz2.tekst)}</p></section>`;
   // prognoza podlewania jako wiersz informacyjny zaraz po glebie; gdy kolektor już mówi o podlewaniu,
   // wiersz powtarzałby to samo, więc go nie ma (ta sama reguła co na karcie)
-  const powody = o.powody.slice(), pp = prognozaPodlewania(r);
+  const powody = o.powody.slice(), pp = prognozaPodlewania(r), tt = trwaleTemp(r);
+  // temperatura poza zakresem gatunku przez prawie całe 3 doby to nie chwilowy skok — zamiast samego „trochę za
+  // ciepło” mówimy, ile było i co zrobić (bez powiadomienia: to rada na spokojnie, nie alarm)
+  if (tt) {
+    const i = powody.findIndex((p) => p.rodzaj === 'temp');
+    const tekst = `Od 3 dób ${liczba(tt.lo) === liczba(tt.hi) ? 'ok. ' + liczba(tt.lo) : liczba(tt.lo) + '–' + liczba(tt.hi)}${NB}°C, a lubi ${tt.cieplo ? 'do ' + r.temp_zakres[1] : 'od ' + r.temp_zakres[0]}${NB}°C. ` +
+      (tt.cieplo ? 'Postaw w chłodniejszym miejscu, choćby na noc: bliżej szyby, z dala od kaloryfera.' : 'Odsuń od zimnej szyby albo przenieś w cieplejsze miejsce.');
+    if (i >= 0) powody[i] = Object.assign({}, powody[i], { tekst });
+  }
   if (pp && !kazePodlac(o)) {
     const kg = powody.map((p) => p.rodzaj).lastIndexOf('gleba'), ki = powody.findIndex((p) => p.info);
     powody.splice(kg >= 0 ? kg + 1 : ki >= 0 ? ki : powody.length, 0, { rodzaj: 'gleba', info: true, tekst: `${pp.tekst} · schnie ok. ${liczba(pp.spadek, 0)}${NB}pkt na dobę` });
@@ -2845,11 +2885,17 @@ function rysuj30(host) {
   // Pasek ma co najmniej MIN_H px; niższy niż NISKI nie dostaje kreski średniej (zasłoniłaby kolor), chyba że jest wybrany.
   const KRYCIE = 0.75, NIEPELNA = 0.5, MIN_H = 6, NISKI = 8;
   const krycie = (i, wyb) => (wyb ? 1 : i === DZIS ? NIEPELNA : KRYCIE);
-  // tło wiersza: pole komfortu w części mieszczącej się w osi, dwie linie osi z podpisami z prawej
+  // tło wiersza: pole komfortu w części mieszczącej się w osi, dwie linie osi. Podpisy z prawej stoją przy krawędziach
+  // pola (20 i 24°), bo to one mówią, czy dzień był w komforcie; dawne podpisy osi (18 i 24°) zostawiały dolną
+  // krawędź pola bez liczby. Pole poza osią — podpisy wracają na linie osi.
   let tlo = pb > pa ? `<rect class="m30-pole" x="0" y="${f1(Y(pb))}" width="${f1(PW)}" height="${f1(Y(pa) - Y(pb))}"/>` : '';
   [lo, hi].forEach((v) => {
     const y = v === hi ? Math.round(Y(v)) + 0.5 : Math.round(Y(v)) - 0.5;
-    tlo += `<line class="w-siatka" x1="0" x2="${f1(PW)}" y1="${y}" y2="${y}"/><text class="m30-os" x="${W}" y="${f1(v === hi ? Y(v) + 11 : Y(v) - 3)}" text-anchor="end">${v}${j}</text>`;
+    tlo += `<line class="w-siatka" x1="0" x2="${f1(PW)}" y1="${y}" y2="${y}"/>`;
+  });
+  (pb > pa ? [pa, pb] : [lo, hi]).forEach((v) => {
+    const y = Math.max(YG + 5, Math.min(YD - 5, Y(v)));
+    tlo += `<text class="m30-os" x="${W}" y="${f1(y)}" dy=".35em" text-anchor="end">${liczba(v, 0)}${j}</text>`;
   });
   let h = `<div class="m30" tabindex="0" role="img" data-bez-gestu aria-label="${d.m === 'temp' ? 'Temperatura' : 'Wilgotność'} w ${d.pk.length === 1 ? '1 pokoju' : d.pk.length + ' pokojach'} przez 30 dni: najniżej, najwyżej i średnio w każdej dobie. Strzałki zmieniają dzień.">`;
   d.pk.forEach((p) => {

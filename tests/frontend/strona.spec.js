@@ -1218,3 +1218,58 @@ test.describe('pliki towarzyszące', () => {
     expect(await (await request.get('/sw.js')).text()).toContain('addEventListener');
   });
 });
+
+test.describe('czytelność wykresów (21.10)', () => {
+  test('rytm doby: godzina bez odczytu w środku serii to ramka „brak odczytu”, a nie dziura; koniec serii bez ramek', async ({ page }) => {
+    // Łazienka 20/21.10: wszystkie czujniki milczały ok. 3 godz., a mapa miała w tym miejscu po prostu nic
+    const { bledy } = await otworz(page, { luka: { pokoj: 'kuchnia', odGodz: 30, doGodz: 27 } }, { hash: '#kuchnia' });
+    const brak = page.locator('.strona:not(.sasiad) [data-rytm] rect.r-brak');
+    expect(await brak.count()).toBeGreaterThanOrEqual(2);
+    await brak.first().scrollIntoViewIfNeeded();
+    const b = await brak.first().boundingBox();
+    await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2);
+    await expect(page.locator('.strona:not(.sasiad) .rytm-nagl')).toContainText('brak odczytu');
+    // martwy czujnik od 9 godz.: to nie luka w środku, tylko koniec serii — „Czujnik milczy” mówi o tym osobno
+    await podmien(page, { martwy: 'kuchnia' }, '#kuchnia');
+    await expect(page.locator('.strona:not(.sasiad) [data-rytm] svg')).toBeVisible();
+    expect(await page.locator('.strona:not(.sasiad) [data-rytm] rect.r-brak').count()).toBe(0);
+    expect(bledy).toEqual([]);
+  });
+
+  test('gleba: podpisy osi czasu nie wchodzą na siebie przy 12 dobach na 360 px', async ({ page }) => {
+    // Azalia 21.10: 24 podpisy („10.10”, „12:00”…) zlepione w jeden pasek pod wykresem
+    await page.setViewportSize({ width: 360, height: 800 });
+    const { bledy } = await otworz(page, { zmianyRoslin: { Azalia: { od: iso(Date.now() - 12 * DOBA) } } }, { hash: '#azalia' });
+    const et = page.locator('.strona:not(.sasiad) [data-gleba] svg text.w-os');
+    await expect(et.first()).toBeVisible();
+    const pudla = [];
+    for (const e of await et.all()) {
+      const t = (await e.textContent()).trim();
+      if (/^\d+\.\d\d$/.test(t) || /:00$/.test(t)) pudla.push(await e.boundingBox());
+    }
+    expect(pudla.length).toBeGreaterThanOrEqual(3);
+    pudla.sort((a, b) => a.x - b.x);
+    for (let i = 1; i < pudla.length; i++) expect(pudla[i].x, `podpis ${i}`).toBeGreaterThanOrEqual(pudla[i - 1].x + pudla[i - 1].width);
+    expect(bledy).toEqual([]);
+  });
+
+  test('30 dni: podpisy z prawej przy krawędziach pola komfortu, nie przy osi', async ({ page }) => {
+    // salon chłodnieje w przeszłość o 0,3° na dobę: 9 dób temu ok. 18 °C, więc oś schodzi poniżej pola komfortu
+    const { bledy } = await otworz(page, { trend: { salon: 0.3 } }, { hash: '#historia' });
+    const et = await page.locator('.m30-w').first().locator('text.m30-os').allTextContents();
+    // dolny podpis to krawędź pola (20°), a nie dół osi — dawna wersja pisała tu „18°” i pole kończyło się bez liczby
+    expect(et).toHaveLength(2);
+    expect(et[0]).toBe('20°');
+    expect(bledy).toEqual([]);
+  });
+
+  test('roślina za ciepło przez 3 doby: ile było i co zrobić; w zakresie — bez rady', async ({ page }) => {
+    // Azalia w kuchni 18–21.10: stale 19–22 °C, a lubi do 18 — ekran mówił tylko „Trochę za ciepło”
+    const { bledy } = await otworz(page, { zmianyRoslin: { Azalia: { temp_zakres: [10, 18] } } }, { hash: '#azalia' });
+    await expect(page.locator('.strona:not(.sasiad) .powody')).toContainText('Od 3 dób ok. 20,5 °C, a lubi do 18 °C. Postaw w chłodniejszym miejscu');
+    await podmien(page, {}, '#azalia');
+    await expect(page.locator('.strona:not(.sasiad) .powody')).toBeVisible();
+    await expect(page.locator('.strona:not(.sasiad) .powody')).not.toContainText('Od 3 dób');
+    expect(bledy).toEqual([]);
+  });
+});

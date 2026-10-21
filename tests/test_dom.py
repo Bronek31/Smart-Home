@@ -228,6 +228,18 @@ class TestOkno(unittest.TestCase):
             o = dom.stan_domu(sierpien, URZADZENIA, None, teraz, WAW)["pokoje"][KUCHNIA]["okno"]
         self.assertEqual(o["od"], "2026-08-23T18:22:39Z")
 
+    def test_lazienka_bez_okna_13_10(self):
+        """Prawdziwe odczyty: Łazienka 13.10 po gorącej wodzie 24,2 → 21,1 °C w 25 min i o 17:01
+        przyszło „Zamknij okno w łazience?” — w pokoju, który okna nie ma. Fikstura kończy się
+        na 14:39 UTC, bo tyle miał wtedy kolektor (treść: „z 22,8 do 21,1°”). Pokój bez okna
+        w pokoje.json nie dostaje tej reguły; strażnik: bez `bez_okna` reguła trafia."""
+        wiersze = odczyty("odczyty-2026-10-13-lazienka.csv")
+        teraz = ms("2026-10-13T15:01:31Z")
+        self.assertIsNotNone(dom.stan_domu(wiersze, URZADZENIA, None, teraz, WAW)["pokoje"][LAZIENKA]["okno"])
+        bez = [d for d, o in OPISY.items() if not o["okno"]]
+        self.assertEqual(bez, [LAZIENKA])
+        self.assertIsNone(dom.stan_domu(wiersze, URZADZENIA, None, teraz, WAW, bez_okna=bez)["pokoje"][LAZIENKA]["okno"])
+
     def test_prog_1_5_bez_szumu_float(self):
         """16,4 − 14,9 liczone wprost na float to 1,4999999999999982 — spadek równo o próg
         musi przejść tak samo jak 21,3 − 19,8."""
@@ -367,10 +379,12 @@ class TestStanDomu(unittest.TestCase):
 
     def test_opisy_z_pokoje_json_a_bez_wpisu_z_nazwy(self):
         self.assertEqual(OPISY[LAZIENKA], {"nazwa": "Łazienka", "slug": "lazienka", "dop": "łazienki",
-                                           "bier": "łazienkę", "miejsc": "łazience"})
+                                           "bier": "łazienkę", "miejsc": "łazience", "okno": False})
+        self.assertTrue(OPISY[KUCHNIA]["okno"])
         opisy = dom.opisy_pokoi({"x1": {"name": "Pokój Ani", "codes": KODY}}, None)
+        # pokoju spoza pokoje.json nie znamy — reguły okna zostają
         self.assertEqual(opisy["x1"], {"nazwa": "Pokój Ani", "slug": "pokoj-ani", "dop": "pokój Ani",
-                                       "bier": "pokój Ani", "miejsc": "pokój Ani"})
+                                       "bier": "pokój Ani", "miejsc": "pokój Ani", "okno": True})
 
 
 # ---------- planer ----------
@@ -559,19 +573,32 @@ class TestPlanerPrzedSnem(unittest.TestCase):
     def test_raz_na_noc_przed_cisza(self):
         dzis = "2026-10-12"
         wieczor = lok(2026, 10, 12, 19, 1)
-        w = przebieg({LAZIENKA: pokoj(noc=noc(dzis)), KUCHNIA: pokoj(noc=noc(dzis, ostrz=False))}, None, wieczor)
+        w = przebieg({KUCHNIA: pokoj(noc=noc(dzis)), SALON: pokoj(noc=noc(dzis, ostrz=False))}, None, wieczor)
         (e,) = nowe(w, wieczor)
         self.assertEqual((e["regula"], e["tytul"], e["tag"], e["url"], e["telefony"]),
-                         ("przed-snem", "Przewietrz przed snem: łazienka", "przed-snem", "#lazienka",
+                         ("przed-snem", "Przewietrz przed snem: kuchnia", "przed-snem", "#kuchnia",
                           ["android", "iphone"]))
-        self.assertEqual(e["tresc"], "Łazienka: w nocy za wilgotno od ok. 60%, zwykle masz do 61%.")
+        self.assertEqual(e["tresc"], "Kuchnia: w nocy za wilgotno od ok. 60%, zwykle masz do 61%.")
         self.assertEqual(w["telefony"]["android"]["przed_snem"], dzis)
         pozniej = lok(2026, 10, 12, 20, 1)
-        w = przebieg({LAZIENKA: pokoj(noc=noc(dzis))}, w, pozniej)
+        w = przebieg({KUCHNIA: pokoj(noc=noc(dzis))}, w, pozniej)
         self.assertEqual(nowe(w, pozniej), [], "raz na noc")
         jutro = lok(2026, 10, 13, 19, 1)
-        w = przebieg({LAZIENKA: pokoj(noc=noc("2026-10-13"))}, w, jutro)
+        w = przebieg({KUCHNIA: pokoj(noc=noc("2026-10-13"))}, w, jutro)
         self.assertEqual(len(nowe(w, jutro)), 1)
+
+    def test_pokoj_bez_okna_tylko_na_ekranie(self):
+        """Łazienka nie ma okna, a drzwi i tak stoją otwarte: wieczorne „przewietrz łazienkę”
+        szło 9 wieczorów na 10 (12–21.10) bez niczego, co da się zrobić. Na telefon idą
+        tylko pokoje z oknem; łazienka zostaje w stan.json, więc ekran dalej ją pokazuje."""
+        dzis, t = "2026-10-12", lok(2026, 10, 12, 19, 1)
+        self.assertFalse(OPISY[LAZIENKA]["okno"])
+        w = przebieg({LAZIENKA: pokoj(noc=noc(dzis))}, None, t)
+        self.assertEqual(nowe(w, t), [])
+        self.assertIsNone(w["telefony"]["android"]["przed_snem"], "noc nie jest zużyta — kuchnia może jeszcze przyjść")
+        w = przebieg({LAZIENKA: pokoj(noc=noc(dzis)), KUCHNIA: pokoj(noc=noc(dzis))}, None, t)
+        (e,) = nowe(w, t)
+        self.assertEqual((e["tytul"], e["pokoje"]), ("Przewietrz przed snem: kuchnia", ["Kuchnia"]))
 
     def test_okno_kazdego_telefonu_i_nigdy_kolejka(self):
         """Android: cisza 21–8, okno 19–21. iPhone: cisza 23–7, okno 21–23. O 19:01 tylko
@@ -579,14 +606,14 @@ class TestPlanerPrzedSnem(unittest.TestCase):
         u = {"android": ust(), "iphone": ust(od=23, do=7)}
         dzis = "2026-10-12"
         t1 = lok(2026, 10, 12, 19, 1)
-        w = przebieg({LAZIENKA: pokoj(noc=noc(dzis))}, None, t1, ustawienia=u)
+        w = przebieg({KUCHNIA: pokoj(noc=noc(dzis))}, None, t1, ustawienia=u)
         self.assertEqual([e["telefony"] for e in nowe(w, t1)], [["android"]])
         t2 = lok(2026, 10, 12, 21, 1)
-        w = przebieg({LAZIENKA: pokoj(noc=noc(dzis))}, w, t2, ustawienia=u)
+        w = przebieg({KUCHNIA: pokoj(noc=noc(dzis))}, w, t2, ustawienia=u)
         self.assertEqual([e["telefony"] for e in nowe(w, t2)], [["iphone"]])
         self.assertEqual((w["telefony"]["android"]["odlozone"], w["telefony"]["iphone"]["odlozone"]), ([], []))
         t3 = lok(2026, 10, 12, 23, 30)
-        w = przebieg({LAZIENKA: pokoj(noc=noc(dzis))}, w, t3, ustawienia=u)
+        w = przebieg({KUCHNIA: pokoj(noc=noc(dzis))}, w, t3, ustawienia=u)
         self.assertEqual(nowe(w, t3), [])
 
     def test_polowki_w_gore_jak_na_karcie(self):
@@ -602,7 +629,7 @@ class TestPlanerPrzedSnem(unittest.TestCase):
         dzis, w, kto = "2026-10-12", None, {t: [] for t in T.TELEFONY}
         for h in range(od_h, do_h):
             teraz = lok(2026, 10, 12, h, 1)
-            w = przebieg({LAZIENKA: pokoj(noc=noc(dzis))}, w, teraz, ustawienia=ustawienia)
+            w = przebieg({KUCHNIA: pokoj(noc=noc(dzis))}, w, teraz, ustawienia=ustawienia)
             for e in nowe(w, teraz):
                 self.assertEqual(e["regula"], "przed-snem")
                 for t in e["telefony"]:
@@ -627,9 +654,9 @@ class TestPlanerPrzedSnem(unittest.TestCase):
 
     def test_inna_noc_albo_wylaczone_przewietrz(self):
         t = lok(2026, 10, 12, 19, 1)
-        self.assertEqual(nowe(przebieg({LAZIENKA: pokoj(noc=noc("2026-10-13"))}, None, t), t), [])
+        self.assertEqual(nowe(przebieg({KUCHNIA: pokoj(noc=noc("2026-10-13"))}, None, t), t), [])
         u = {"android": ust(przewietrz=False), "iphone": ust(przewietrz=False)}
-        self.assertEqual(nowe(przebieg({LAZIENKA: pokoj(noc=noc("2026-10-12"))}, None, t, ustawienia=u), t), [])
+        self.assertEqual(nowe(przebieg({KUCHNIA: pokoj(noc=noc("2026-10-12"))}, None, t, ustawienia=u), t), [])
 
 
 class TestPlanerOkno(unittest.TestCase):

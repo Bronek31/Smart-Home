@@ -90,6 +90,8 @@ function zbuduj(o = {}) {
     for (let t0 = Math.ceil(start / GODZ) * GODZ; t0 <= koniec; t0 += GODZ) {
       const t = t0 + PRZESUNIECIE[p.id];
       if (o.martwy === p.id && t > teraz - 9 * GODZ) continue;
+      // luka: czujnik pokoju milczy w środku serii (od odGodz do doGodz godzin temu), potem wraca
+      if (o.luka && o.luka.pokoj === p.id && t > teraz - o.luka.odGodz * GODZ && t <= teraz - o.luka.doGodz * GODZ) continue;
       const temp = p.baza + AMPLITUDA * Math.sin(((godzinaUtc(t) - 4) / 24) * 2 * Math.PI) + (o.trend && o.trend[p.id] ? o.trend[p.id] * (t - teraz) / DOBA : 0);
       const w = o.wilgotnosc && o.wilgotnosc[p.id] != null ? o.wilgotnosc[p.id] : p.wilg;
       const a = art.find((x) => x.czujnik === p.id && t >= x.od && t <= x.do && x.wartosc != null);

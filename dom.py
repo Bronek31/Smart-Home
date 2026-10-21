@@ -417,7 +417,7 @@ def _dwor(wiersze: list[dict], urzadzenia: dict) -> Szereg:
 
 
 def stan_domu(wiersze: list[dict], urzadzenia: dict, pogoda: dict | None, teraz_ms: int,
-              strefa: ZoneInfo, nieodswiezone=()) -> dict:
+              strefa: ZoneInfo, nieodswiezone=(), bez_okna=()) -> dict:
     """Zawartość data/dom/stan.json.
 
     `wiersze` — surowe odczyty z ostatnich 8 dób, `{"ms", "device_id", "code", "value"}`,
@@ -425,6 +425,8 @@ def stan_domu(wiersze: list[dict], urzadzenia: dict, pogoda: dict | None, teraz_
     manifest (rodzaje kodów, `external`, `appliance`, kursor `pobrane_do`). `pogoda` —
     migawka z fetch_weather albo None. `nieodswiezone` — identyfikatory, których ten
     przebieg nie pobrał (błąd Tuya): ich dane są nieświeże, więc „milczy" nie przysługuje.
+    `bez_okna` — pokoje bez okna (pokoje.json, `opisy_pokoi`): „zamknij okno" nie ma tam
+    sensu, a spadek po gorącym prysznicu wygląda jak wietrzenie (Łazienka 13.10, 22,8 → 21,1 °C).
     """
     wiersze = [w for w in wiersze if isinstance(w.get("ms"), int) and w["ms"] <= teraz_ms]
     dwor = _dwor(wiersze, urzadzenia)
@@ -447,7 +449,7 @@ def stan_domu(wiersze: list[dict], urzadzenia: dict, pogoda: dict | None, teraz_
         bateria = baterie[-1] if baterie and baterie[-1] in BATERIE else None
         pokoje[dev] = {
             "przewietrz": przewietrz(wilg, temp, dwor, teraz_ms),
-            "okno": okno(temp, wilg, dwor_teraz, teraz_ms) if sezon_grzewczy else None,
+            "okno": okno(temp, wilg, dwor_teraz, teraz_ms) if sezon_grzewczy and dev not in bez_okna else None,
             "noc": noc_pokoju(temp, wilg, t_min, teraz_ms, strefa),
             "milczy_od": (None if dev in nieodswiezone else
                           milczy_od(max(klimat) if klimat else None, _ms(wpis.get("pobrane_do")),
@@ -460,7 +462,8 @@ def stan_domu(wiersze: list[dict], urzadzenia: dict, pogoda: dict | None, teraz_
 def opisy_pokoi(urzadzenia: dict, konfig: dict | None) -> dict[str, dict]:
     """Nazwa i odmiany pokoju do zdań: z pokoje.json po identyfikatorze czujnika, a gdy
     go tam nie ma — z nazwy w manifeście (slug z nazwy, odmiany = nazwa). Zmiana nazwy
-    w aplikacji Tuya nie psuje wtedy adresów ani zdań (D13)."""
+    w aplikacji Tuya nie psuje wtedy adresów ani zdań (D13). `okno`: czy pokój ma okno —
+    pokój z pokoje.json bez strony świata nie ma; pokoju spoza pliku nie znamy, więc ma."""
     wpisy = (konfig or {}).get("pokoje") if isinstance(konfig, dict) else None
     wpisy = wpisy if isinstance(wpisy, dict) else {}
     out = {}
@@ -472,7 +475,8 @@ def opisy_pokoi(urzadzenia: dict, konfig: dict | None) -> dict[str, dict]:
                for p in ("dop", "bier", "miejsc")}
         slug = k.get("slug") if isinstance(k.get("slug"), str) and re.fullmatch(r"[a-z0-9-]+", k["slug"]) \
             else (_slug(nazwa) or "pokoj")
-        out[dev] = {"nazwa": nazwa, "slug": slug, **odm}
+        okno = isinstance(k.get("okno"), str) if k else True
+        out[dev] = {"nazwa": nazwa, "slug": slug, **odm, "okno": okno}
     return out
 
 
@@ -590,8 +594,8 @@ def zaplanuj_powiadomienia(stan: dict, poprzednie: dict | None, teraz_ms: int, s
       na epizod, nie we wspólnej nocy wszystkich telefonów; telefon w ciszy dostaje pozycję
       w kolejce. Koniec epizodu, gdy reguła zgaśnie w przebiegu, który pokój pobrał.
       Najwyżej 2 wpisy na pokój na lokalną dobę.
-    - **przed-snem** — w oknie przed ciszą danego telefonu, raz na noc, pokoje z `noc.ostrz`.
-      Nigdy do kolejki: rano byłoby bezużyteczne.
+    - **przed-snem** — w oknie przed ciszą danego telefonu, raz na noc, pokoje z `noc.ostrz`
+      i z oknem. Nigdy do kolejki: rano byłoby bezużyteczne.
     - **okno** — raz na epizod, tylko do telefonów poza ciszą; gdy wszyscy chętni są
       w ciszy, epizod czeka (rano, jeśli trwa, pójdzie). Nigdy do kolejki.
     - **czujniki** — milczy i słaba bateria (trzymana do „high"), raz na powód.
@@ -728,8 +732,11 @@ def zaplanuj_powiadomienia(stan: dict, poprzednie: dict | None, teraz_ms: int, s
 
     # przed snem: okno przed ciszą każdego telefonu, raz na noc, nigdy do kolejki
     noc_dzis = telefony.data_nocy(lokalnie)
+    # Tylko pokoje z oknem: w łazience nie ma czego otworzyć (drzwi i tak stoją otwarte), więc
+    # wieczorne ostrzeżenie było codziennym przypomnieniem bez rady — 9 wieczorów na 10
+    # (12–21.10). Łazienka zostaje na ekranie (stan.json), na telefon idzie tylko to, co da się zrobić.
     ostrz = [d for d, p in pokoje_stan.items() if isinstance(p, dict) and isinstance(p.get("noc"), dict)
-             and p["noc"].get("ostrz") and p["noc"].get("noc") == noc_dzis]
+             and p["noc"].get("ostrz") and p["noc"].get("noc") == noc_dzis and opisy[d].get("okno", True)]
     odbiorcy = [t for t in telefony.TELEFONY if ustawienia[t].get("przewietrz")
                 and telefony.przed_snem(ustawienia[t], lokalnie) and not telefony.w_ciszy(ustawienia[t], lokalnie)
                 and tel[t]["przed_snem"] != noc_dzis]
