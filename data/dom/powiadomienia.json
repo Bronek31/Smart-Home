@@ -384,11 +384,7 @@
  ],
  "stan_regul": {
   "bfd6f4f87fea9d866dvpve": {
-   "przewietrz": {
-    "od": "2026-10-21T03:01:30Z",
-    "wyslano": "2026-10-21T03:01:30Z",
-    "na_sucho": null
-   },
+   "przewietrz": null,
    "okno": null,
    "czujniki": {}
   },
