@@ -207,17 +207,11 @@
    "noc": []
   },
   "Azalia": {
-   "ponizej_od": "2026-10-20T19:01:15Z",
-   "wyslano": [
-    "2026-10-20T23:54:26Z",
-    "2026-10-21T12:01:20Z"
-   ],
+   "ponizej_od": null,
+   "wyslano": [],
    "na_sucho": [],
    "czujnik": {},
-   "noc": [],
-   "podlej_dla": {
-    "iphone": "2026-10-21T06:01:20Z"
-   }
+   "noc": []
   }
  },
  "podsumowanie_ostatnie": "2026-10-18",

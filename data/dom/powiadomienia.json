@@ -380,6 +380,24 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261021T170130Z-przed-snem",
+   "ts": "2026-10-21T17:01:30Z",
+   "przebieg": "39639996751-1",
+   "regula": "przed-snem",
+   "pokoje": [
+    "Łazienka"
+   ],
+   "tytul": "Przewietrz przed snem: łazienka",
+   "tresc": "Łazienka: w nocy za wilgotno od ok. 68%, zwykle masz do 67%.",
+   "tag": "przed-snem",
+   "url": "#lazienka",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
@@ -407,11 +425,11 @@
  "telefony": {
   "android": {
    "odlozone": [],
-   "przed_snem": "2026-10-20"
+   "przed_snem": "2026-10-21"
   },
   "iphone": {
    "odlozone": [],
-   "przed_snem": "2026-10-20"
+   "przed_snem": "2026-10-21"
   }
  }
 }
