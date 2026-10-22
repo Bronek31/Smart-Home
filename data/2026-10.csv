@@ -8048,3 +8048,9 @@ ts,device_id,code,value
 2026-10-22T21:56:38Z,bfd6f4f87fea9d866dvpve,va_temperature,22.2
 2026-10-22T22:00:00Z,zewnatrz,va_humidity,85
 2026-10-22T22:00:00Z,zewnatrz,va_temperature,7.5
+2026-10-22T22:09:32Z,bf43cf664d6644420axva3,battery_state,middle
+2026-10-22T22:09:32Z,bf43cf664d6644420axva3,va_humidity,62
+2026-10-22T22:09:32Z,bf43cf664d6644420axva3,va_temperature,22.6
+2026-10-22T22:09:55Z,bf7e2a70935af7de78mjqt,va_humidity,62
+2026-10-22T22:09:55Z,bf7e2a70935af7de78mjqt,va_temperature,22
+2026-10-22T22:09:56Z,bf7e2a70935af7de78mjqt,battery_state,middle
