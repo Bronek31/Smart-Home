@@ -4921,3 +4921,11 @@ ts,device_id,code,value
 2026-10-22T14:46:08Z,bfe5bdf2b91c53dfd1eaiy,battery_state,high
 2026-10-22T14:46:08Z,bfe5bdf2b91c53dfd1eaiy,env_humidity,69
 2026-10-22T14:46:08Z,bfe5bdf2b91c53dfd1eaiy,humidity,79
+2026-10-22T15:06:48Z,bfe5bdf2b91c53dfd1eaiy,illumiance,665
+2026-10-22T15:11:41Z,bf262a90fc72e1aef65arq,temp_current,20.9
+2026-10-22T15:11:42Z,bf262a90fc72e1aef65arq,battery_state,high
+2026-10-22T15:11:42Z,bf262a90fc72e1aef65arq,env_humidity,73
+2026-10-22T15:11:42Z,bf262a90fc72e1aef65arq,illumiance,577
+2026-10-22T15:12:13Z,bfa2be765aa6176805rhly,battery_state,high
+2026-10-22T15:12:13Z,bfa2be765aa6176805rhly,illumiance,251
+2026-10-22T15:12:13Z,bfa2be765aa6176805rhly,temp_current,21
