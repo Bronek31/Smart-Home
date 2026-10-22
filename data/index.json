@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-22T06:01:25Z",
+  "updated": "2026-10-22T06:35:13Z",
   "months": [
     "2026-08",
     "2026-09",
@@ -7,12 +7,7 @@
   ],
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
-  "alerty": [
-    "**Kuchnia** — ostatni raport 8.5 godz. temu, czujnik milczy.",
-    "**Salon** — ostatni raport 8.4 godz. temu, czujnik milczy.",
-    "**Sypialnia** — ostatni raport 8.7 godz. temu, czujnik milczy.",
-    "**Łazienka** — ostatni raport 8.7 godz. temu, czujnik milczy."
-  ],
+  "alerty": [],
   "artefakty": [
     {
       "czujnik": "bfd6f4f87fea9d866dvpve",
@@ -65,7 +60,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-22T06:01:16Z"
+      "pobrane_do": "2026-10-22T06:35:06Z"
     },
     "bf7e2a70935af7de78mjqt": {
       "name": "Sypialnia",
@@ -86,7 +81,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-22T06:01:16Z"
+      "pobrane_do": "2026-10-22T06:35:06Z"
     },
     "bf5741c97c96fa85b1d7do": {
       "name": "Kuchnia",
@@ -107,7 +102,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-22T06:01:16Z"
+      "pobrane_do": "2026-10-22T06:35:06Z"
     },
     "bf43cf664d6644420axva3": {
       "name": "Salon",
@@ -128,7 +123,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-22T06:01:16Z"
+      "pobrane_do": "2026-10-22T06:35:06Z"
     },
     "zewnatrz": {
       "name": "Na zewnątrz",

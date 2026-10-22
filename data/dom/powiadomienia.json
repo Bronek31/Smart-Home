@@ -424,46 +424,22 @@
   "bfd6f4f87fea9d866dvpve": {
    "przewietrz": null,
    "okno": null,
-   "czujniki": {
-    "cisza": {
-     "od": "2026-10-21T21:18:21Z",
-     "wyslano": "2026-10-22T04:01:23Z",
-     "na_sucho": null
-    }
-   }
+   "czujniki": {}
   },
   "bf7e2a70935af7de78mjqt": {
    "przewietrz": null,
    "okno": null,
-   "czujniki": {
-    "cisza": {
-     "od": "2026-10-21T21:19:44Z",
-     "wyslano": "2026-10-22T04:01:23Z",
-     "na_sucho": null
-    }
-   }
+   "czujniki": {}
   },
   "bf5741c97c96fa85b1d7do": {
    "przewietrz": null,
    "okno": null,
-   "czujniki": {
-    "cisza": {
-     "od": "2026-10-21T21:33:46Z",
-     "wyslano": "2026-10-22T04:01:23Z",
-     "na_sucho": null
-    }
-   }
+   "czujniki": {}
   },
   "bf43cf664d6644420axva3": {
    "przewietrz": null,
    "okno": null,
-   "czujniki": {
-    "cisza": {
-     "od": "2026-10-21T21:39:42Z",
-     "wyslano": "2026-10-22T04:01:23Z",
-     "na_sucho": null
-    }
-   }
+   "czujniki": {}
   }
  },
  "telefony": {
