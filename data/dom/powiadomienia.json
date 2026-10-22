@@ -472,6 +472,26 @@
     "android",
     "iphone"
    ]
+  },
+  {
+   "id": "20261022T170133Z-przed-snem",
+   "ts": "2026-10-22T17:01:33Z",
+   "przebieg": "39818975648-1",
+   "regula": "przed-snem",
+   "pokoje": [
+    "Sypialnia",
+    "Kuchnia",
+    "Salon"
+   ],
+   "tytul": "Przewietrz przed snem: sypialnia, kuchnia, salon",
+   "tresc": "Sypialnia: w nocy za wilgotno od ok. 59%, zwykle masz do 61%.\nKuchnia: w nocy za wilgotno od ok. 59%, zwykle masz do 64%.\nSalon: w nocy za wilgotno od ok. 59%, zwykle masz do 62%.",
+   "tag": "przed-snem",
+   "url": "#dom",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
@@ -507,11 +527,11 @@
  "telefony": {
   "android": {
    "odlozone": [],
-   "przed_snem": "2026-10-21"
+   "przed_snem": "2026-10-22"
   },
   "iphone": {
    "odlozone": [],
-   "przed_snem": "2026-10-21"
+   "przed_snem": "2026-10-22"
   }
  }
 }
