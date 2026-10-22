@@ -398,28 +398,72 @@
     "android",
     "iphone"
    ]
+  },
+  {
+   "id": "20261022T040123Z-czujniki",
+   "ts": "2026-10-22T04:01:23Z",
+   "przebieg": "39720006766-1",
+   "regula": "czujniki",
+   "pokoje": [
+    "Łazienka",
+    "Sypialnia",
+    "Kuchnia",
+    "Salon"
+   ],
+   "tytul": "Czujniki: łazienka, sypialnia, kuchnia, salon",
+   "tresc": "Łazienka: ostatni odczyt 21.10 o 23:18.\nSypialnia: ostatni odczyt 21.10 o 23:19.\nKuchnia: ostatni odczyt 21.10 o 23:33.\nSalon: ostatni odczyt 21.10 o 23:39.",
+   "tag": "czujniki-lazienka-sypialnia-kuch",
+   "url": "#dom",
+   "na_sucho": false,
+   "telefony": [
+    "android"
+   ]
   }
  ],
  "stan_regul": {
   "bfd6f4f87fea9d866dvpve": {
    "przewietrz": null,
    "okno": null,
-   "czujniki": {}
+   "czujniki": {
+    "cisza": {
+     "od": "2026-10-21T21:18:21Z",
+     "wyslano": "2026-10-22T04:01:23Z",
+     "na_sucho": null
+    }
+   }
   },
   "bf7e2a70935af7de78mjqt": {
    "przewietrz": null,
    "okno": null,
-   "czujniki": {}
+   "czujniki": {
+    "cisza": {
+     "od": "2026-10-21T21:19:44Z",
+     "wyslano": "2026-10-22T04:01:23Z",
+     "na_sucho": null
+    }
+   }
   },
   "bf5741c97c96fa85b1d7do": {
    "przewietrz": null,
    "okno": null,
-   "czujniki": {}
+   "czujniki": {
+    "cisza": {
+     "od": "2026-10-21T21:33:46Z",
+     "wyslano": "2026-10-22T04:01:23Z",
+     "na_sucho": null
+    }
+   }
   },
   "bf43cf664d6644420axva3": {
    "przewietrz": null,
    "okno": null,
-   "czujniki": {}
+   "czujniki": {
+    "cisza": {
+     "od": "2026-10-21T21:39:42Z",
+     "wyslano": "2026-10-22T04:01:23Z",
+     "na_sucho": null
+    }
+   }
   }
  },
  "telefony": {
