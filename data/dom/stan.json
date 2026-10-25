@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-25T06:01:23Z",
+ "updated": "2026-10-25T06:14:09Z",
  "pokoje": {
   "bfd6f4f87fea9d866dvpve": {
    "przewietrz": {
@@ -19,7 +19,11 @@
    "bateria": "middle"
   },
   "bf7e2a70935af7de78mjqt": {
-   "przewietrz": null,
+   "przewietrz": {
+    "od": "2026-10-25T04:20:31Z",
+    "wilg": 60.0,
+    "granica": 59.9
+   },
    "okno": null,
    "noc": {
     "noc": "2026-10-25",

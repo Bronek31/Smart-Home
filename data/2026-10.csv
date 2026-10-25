@@ -9024,3 +9024,6 @@ ts,device_id,code,value
 2026-10-25T05:47:50Z,bfd6f4f87fea9d866dvpve,va_temperature,21.1
 2026-10-25T06:00:00Z,zewnatrz,va_humidity,82
 2026-10-25T06:00:00Z,zewnatrz,va_temperature,6.1
+2026-10-25T06:12:00Z,bf43cf664d6644420axva3,battery_state,middle
+2026-10-25T06:12:00Z,bf43cf664d6644420axva3,va_humidity,59
+2026-10-25T06:12:00Z,bf43cf664d6644420axva3,va_temperature,21.2
