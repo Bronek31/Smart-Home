@@ -1,13 +1,13 @@
 {
-  "updated": "2026-10-25T11:01:23Z",
+  "updated": "2026-10-25T11:34:40Z",
   "current": {
-    "time": "2026-10-25T12:00",
+    "time": "2026-10-25T12:30",
     "interval": 900,
-    "temperature_2m": 11.2,
-    "relative_humidity_2m": 54,
-    "apparent_temperature": 6.8,
+    "temperature_2m": 11.6,
+    "relative_humidity_2m": 48,
+    "apparent_temperature": 6.6,
     "weather_code": 3,
-    "wind_speed_10m": 18.0
+    "wind_speed_10m": 20.9
   },
   "daily": {
     "time": [
@@ -32,8 +32,8 @@
     ],
     "precipitation_probability_max": [
       100,
-      69,
-      2
+      85,
+      0
     ],
     "precipitation_sum": [
       3.1,
@@ -207,7 +207,7 @@
     "time": "2026-10-25T12:00",
     "interval": 3600,
     "european_aqi": 27,
-    "pm2_5": 4.5,
-    "pm10": 7.3
+    "pm2_5": 4.3,
+    "pm10": 6.9
   }
 }
