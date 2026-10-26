@@ -1,7 +1,7 @@
 {
-  "updated": "2026-10-26T13:01:29Z",
+  "updated": "2026-10-26T13:15:26Z",
   "current": {
-    "time": "2026-10-26T14:00",
+    "time": "2026-10-26T14:15",
     "interval": 900,
     "temperature_2m": 11.5,
     "relative_humidity_2m": 63,
@@ -28,7 +28,7 @@
     "temperature_2m_min": [
       7.9,
       6.3,
-      4.8
+      4.5
     ],
     "precipitation_probability_max": [
       100,
