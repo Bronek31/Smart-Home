@@ -803,11 +803,7 @@
    "czujniki": {}
   },
   "bf43cf664d6644420axva3": {
-   "przewietrz": {
-    "od": "2026-10-26T19:21:33Z",
-    "wyslano": "2026-10-26T19:21:33Z",
-    "na_sucho": null
-   },
+   "przewietrz": null,
    "okno": null,
    "czujniki": {}
   }
