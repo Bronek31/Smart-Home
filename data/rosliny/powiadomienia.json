@@ -209,6 +209,24 @@
     "android",
     "iphone"
    ]
+  },
+  {
+   "id": "20261028T110119Z-podlej",
+   "ts": "2026-10-28T11:01:19Z",
+   "przebieg": "40676662908-1",
+   "regula": "podlej",
+   "rosliny": [
+    "Skrzydłokwiat"
+   ],
+   "tytul": "Podlej: skrzydłokwiat",
+   "tresc": "Skrzydłokwiat: gleba 34% (podlewaj przy ok. 34%).",
+   "tag": "podlej-skrzydlokwiat",
+   "url": "#skrzydlokwiat",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
@@ -221,7 +239,9 @@
   },
   "Skrzydłokwiat": {
    "ponizej_od": "2026-10-28T08:36:27Z",
-   "wyslano": [],
+   "wyslano": [
+    "2026-10-28T11:01:19Z"
+   ],
    "na_sucho": [],
    "czujnik": {},
    "noc": []
