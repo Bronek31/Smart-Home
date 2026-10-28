@@ -238,10 +238,8 @@
    "noc": []
   },
   "Skrzydłokwiat": {
-   "ponizej_od": "2026-10-28T08:36:27Z",
-   "wyslano": [
-    "2026-10-28T11:01:19Z"
-   ],
+   "ponizej_od": null,
+   "wyslano": [],
    "na_sucho": [],
    "czujnik": {},
    "noc": []
