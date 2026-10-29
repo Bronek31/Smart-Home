@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-29T17:01:31Z",
+  "updated": "2026-10-29T18:01:27Z",
   "months": [
     "2026-08",
     "2026-09",
@@ -7,7 +7,9 @@
   ],
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
-  "alerty": [],
+  "alerty": [
+    "**Łazienka** — wilgotność powyżej progu pleśni przez 27% doby (przy obecnej pogodzie to ok. 63%), przewietrz albo osusz."
+  ],
   "artefakty": [
     {
       "czujnik": "bfd6f4f87fea9d866dvpve",
@@ -60,7 +62,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-29T17:01:23Z"
+      "pobrane_do": "2026-10-29T18:01:19Z"
     },
     "bf7e2a70935af7de78mjqt": {
       "name": "Sypialnia",
@@ -81,7 +83,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-29T17:01:23Z"
+      "pobrane_do": "2026-10-29T18:01:19Z"
     },
     "bf5741c97c96fa85b1d7do": {
       "name": "Kuchnia",
@@ -102,7 +104,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-29T17:01:23Z"
+      "pobrane_do": "2026-10-29T18:01:19Z"
     },
     "bf43cf664d6644420axva3": {
       "name": "Salon",
@@ -123,7 +125,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-29T17:01:23Z"
+      "pobrane_do": "2026-10-29T18:01:19Z"
     },
     "zewnatrz": {
       "name": "Na zewnątrz",
