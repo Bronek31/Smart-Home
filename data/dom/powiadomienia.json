@@ -842,6 +842,25 @@
     "android",
     "iphone"
    ]
+  },
+  {
+   "id": "20261029T160130Z-przewietrz",
+   "ts": "2026-10-29T16:01:30Z",
+   "przebieg": "40907387399-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Kuchnia",
+    "Salon"
+   ],
+   "tytul": "Przewietrz: kuchnia, salon",
+   "tresc": "Kuchnia: 68% od 2 godz., za wilgotno powyżej 63%.\nSalon: 68% od 2 godz., za wilgotno powyżej 63%.",
+   "tag": "przewietrz-kuchnia-salon",
+   "url": "#dom",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
@@ -856,12 +875,20 @@
    "czujniki": {}
   },
   "bf5741c97c96fa85b1d7do": {
-   "przewietrz": null,
+   "przewietrz": {
+    "od": "2026-10-29T16:01:30Z",
+    "wyslano": "2026-10-29T16:01:30Z",
+    "na_sucho": null
+   },
    "okno": null,
    "czujniki": {}
   },
   "bf43cf664d6644420axva3": {
-   "przewietrz": null,
+   "przewietrz": {
+    "od": "2026-10-29T16:01:30Z",
+    "wyslano": "2026-10-29T16:01:30Z",
+    "na_sucho": null
+   },
    "okno": null,
    "czujniki": {}
   }
