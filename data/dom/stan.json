@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-29T07:08:45Z",
+ "updated": "2026-10-29T08:01:25Z",
  "pokoje": {
   "bfd6f4f87fea9d866dvpve": {
    "przewietrz": null,
@@ -7,7 +7,7 @@
    "noc": {
     "noc": "2026-10-29",
     "t_min": 6.8,
-    "granica": 62.2,
+    "granica": 62.3,
     "zwykle": 65.4,
     "ostrz": true
    },
@@ -46,7 +46,7 @@
    "noc": {
     "noc": "2026-10-29",
     "t_min": 6.8,
-    "granica": 61.5,
+    "granica": 61.2,
     "zwykle": 59.9,
     "ostrz": true
    },
