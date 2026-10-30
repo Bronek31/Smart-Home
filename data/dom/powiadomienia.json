@@ -907,11 +907,7 @@
    "czujniki": {}
   },
   "bf7e2a70935af7de78mjqt": {
-   "przewietrz": {
-    "od": "2026-10-30T02:01:20Z",
-    "wyslano": "2026-10-30T02:01:20Z",
-    "na_sucho": null
-   },
+   "przewietrz": null,
    "okno": null,
    "czujniki": {}
   },
@@ -925,11 +921,7 @@
    "czujniki": {}
   },
   "bf43cf664d6644420axva3": {
-   "przewietrz": {
-    "od": "2026-10-29T16:01:30Z",
-    "wyslano": "2026-10-29T16:01:30Z",
-    "na_sucho": null
-   },
+   "przewietrz": null,
    "okno": null,
    "czujniki": {}
   }
@@ -940,13 +932,7 @@
    "przed_snem": "2026-10-29"
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "przewietrz",
-     "obiekt": "bf7e2a70935af7de78mjqt",
-     "ts": "2026-10-30T02:01:20Z"
-    }
-   ],
+   "odlozone": [],
    "przed_snem": "2026-10-29"
   }
  }
