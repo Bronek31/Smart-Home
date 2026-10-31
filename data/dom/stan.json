@@ -1,11 +1,11 @@
 {
- "updated": "2026-10-31T17:01:18Z",
+ "updated": "2026-10-31T17:46:16Z",
  "pokoje": {
   "bfd6f4f87fea9d866dvpve": {
    "przewietrz": {
     "od": "2026-10-30T23:02:47Z",
-    "wilg": 69.0,
-    "granica": 62.9
+    "wilg": 68.0,
+    "granica": 62.8
    },
    "okno": null,
    "noc": {
@@ -35,7 +35,7 @@
    "przewietrz": {
     "od": "2026-10-31T13:31:28Z",
     "wilg": 64.0,
-    "granica": 62.6
+    "granica": 62.5
    },
    "okno": null,
    "noc": {
