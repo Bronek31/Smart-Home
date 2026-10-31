@@ -11394,3 +11394,11 @@ ts,device_id,code,value
 2026-10-31T12:32:13Z,bf5741c97c96fa85b1d7do,battery_state,middle
 2026-10-31T12:32:13Z,bf5741c97c96fa85b1d7do,va_humidity,64
 2026-10-31T12:32:13Z,bf5741c97c96fa85b1d7do,va_temperature,21.1
+2026-10-31T12:43:06Z,bf7e2a70935af7de78mjqt,battery_state,middle
+2026-10-31T12:43:06Z,bf7e2a70935af7de78mjqt,va_humidity,62
+2026-10-31T12:43:06Z,bf7e2a70935af7de78mjqt,va_temperature,21.1
+2026-10-31T12:49:03Z,bf43cf664d6644420axva3,battery_state,middle
+2026-10-31T12:49:03Z,bf43cf664d6644420axva3,va_humidity,67
+2026-10-31T12:49:03Z,bf43cf664d6644420axva3,va_temperature,20.8
+2026-10-31T13:00:00Z,zewnatrz,va_humidity,76
+2026-10-31T13:00:00Z,zewnatrz,va_temperature,9.3
