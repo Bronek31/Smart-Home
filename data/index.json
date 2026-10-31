@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-31T21:38:00Z",
+  "updated": "2026-10-31T22:01:14Z",
   "months": [
     "2026-08",
     "2026-09",
@@ -65,7 +65,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-31T21:37:52Z"
+      "pobrane_do": "2026-10-31T22:01:06Z"
     },
     "bf7e2a70935af7de78mjqt": {
       "name": "Sypialnia",
@@ -86,7 +86,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-31T21:37:52Z"
+      "pobrane_do": "2026-10-31T22:01:06Z"
     },
     "bf5741c97c96fa85b1d7do": {
       "name": "Kuchnia",
@@ -107,7 +107,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-31T21:37:52Z"
+      "pobrane_do": "2026-10-31T22:01:06Z"
     },
     "bf43cf664d6644420axva3": {
       "name": "Salon",
@@ -128,7 +128,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-31T21:37:52Z"
+      "pobrane_do": "2026-10-31T22:01:06Z"
     },
     "zewnatrz": {
       "name": "Na zewnątrz",
