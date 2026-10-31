@@ -8067,3 +8067,12 @@ ts,device_id,code,value
 2026-10-31T21:48:34Z,bfa2be765aa6176805rhly,humidity,54
 2026-10-31T21:48:34Z,bfa2be765aa6176805rhly,temp_current,19.7
 2026-10-31T21:48:35Z,bfa2be765aa6176805rhly,battery_state,high
+2026-10-31T22:02:51Z,bfe5bdf2b91c53dfd1eaiy,humidity,65
+2026-10-31T22:02:51Z,bfe5bdf2b91c53dfd1eaiy,temp_current,20.1
+2026-10-31T22:02:52Z,bfe5bdf2b91c53dfd1eaiy,battery_state,high
+2026-10-31T22:02:52Z,bfe5bdf2b91c53dfd1eaiy,illumiance,44
+2026-10-31T22:05:10Z,bf262a90fc72e1aef65arq,temp_current,19.6
+2026-10-31T22:44:12Z,bfe5bdf2b91c53dfd1eaiy,env_humidity,60
+2026-10-31T22:45:49Z,bf262a90fc72e1aef65arq,env_humidity,64
+2026-10-31T22:45:49Z,bf262a90fc72e1aef65arq,humidity,63
+2026-10-31T22:45:50Z,bf262a90fc72e1aef65arq,battery_state,high
