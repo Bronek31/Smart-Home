@@ -971,6 +971,24 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261031T070117Z-przewietrz",
+   "ts": "2026-10-31T07:01:17Z",
+   "przebieg": "41178891875-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Sypialnia"
+   ],
+   "tytul": "Przewietrz sypialnię",
+   "tresc": "Sypialnia: 63% od 7 godz., za wilgotno powyżej 62,7%.",
+   "tag": "przewietrz-sypialnia",
+   "url": "#sypialnia",
+   "na_sucho": false,
+   "telefony": [
+    "iphone"
+   ],
+   "odlozone": true
   }
  ],
  "stan_regul": {
@@ -989,11 +1007,7 @@
    "czujniki": {}
   },
   "bf5741c97c96fa85b1d7do": {
-   "przewietrz": {
-    "od": "2026-10-30T15:01:26Z",
-    "wyslano": "2026-10-30T15:01:26Z",
-    "na_sucho": null
-   },
+   "przewietrz": null,
    "okno": null,
    "czujniki": {}
   },
@@ -1009,13 +1023,7 @@
    "przed_snem": "2026-10-30"
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "przewietrz",
-     "obiekt": "bf7e2a70935af7de78mjqt",
-     "ts": "2026-10-31T02:01:17Z"
-    }
-   ],
+   "odlozone": [],
    "przed_snem": "2026-10-30"
   }
  }
