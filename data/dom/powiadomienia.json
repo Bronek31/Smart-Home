@@ -989,6 +989,24 @@
     "iphone"
    ],
    "odlozone": true
+  },
+  {
+   "id": "20261031T140114Z-przewietrz",
+   "ts": "2026-10-31T14:01:14Z",
+   "przebieg": "41208152797-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Salon"
+   ],
+   "tytul": "Przewietrz salon",
+   "tresc": "Salon: 67% od 2 godz., za wilgotno powyżej 64%.",
+   "tag": "przewietrz-salon",
+   "url": "#salon",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
@@ -1008,7 +1026,11 @@
    "czujniki": {}
   },
   "bf43cf664d6644420axva3": {
-   "przewietrz": null,
+   "przewietrz": {
+    "od": "2026-10-31T14:01:14Z",
+    "wyslano": "2026-10-31T14:01:14Z",
+    "na_sucho": null
+   },
    "okno": null,
    "czujniki": {}
   }
