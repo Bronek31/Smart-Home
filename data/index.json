@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-31T09:01:18Z",
+  "updated": "2026-10-31T10:01:21Z",
   "months": [
     "2026-08",
     "2026-09",
@@ -8,10 +8,10 @@
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
   "alerty": [
-    "**Kuchnia** — wilgotność powyżej progu pleśni przez 83% doby (przy obecnej pogodzie to ok. 64%), przewietrz albo osusz.",
+    "**Kuchnia** — wilgotność powyżej progu pleśni przez 87% doby (przy obecnej pogodzie to ok. 64%), przewietrz albo osusz.",
     "**Salon** — wilgotność powyżej progu pleśni przez 27% doby (przy obecnej pogodzie to ok. 64%), przewietrz albo osusz.",
-    "**Sypialnia** — wilgotność powyżej progu pleśni przez 43% doby (przy obecnej pogodzie to ok. 63%), przewietrz albo osusz.",
-    "**Łazienka** — wilgotność powyżej progu pleśni przez 100% doby (przy obecnej pogodzie to ok. 65%), przewietrz albo osusz."
+    "**Sypialnia** — wilgotność powyżej progu pleśni przez 48% doby (przy obecnej pogodzie to ok. 63%), przewietrz albo osusz.",
+    "**Łazienka** — wilgotność powyżej progu pleśni przez 100% doby (przy obecnej pogodzie to ok. 63%), przewietrz albo osusz."
   ],
   "artefakty": [
     {
@@ -65,7 +65,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-31T09:01:10Z"
+      "pobrane_do": "2026-10-31T10:01:12Z"
     },
     "bf7e2a70935af7de78mjqt": {
       "name": "Sypialnia",
@@ -86,7 +86,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-31T09:01:10Z"
+      "pobrane_do": "2026-10-31T10:01:12Z"
     },
     "bf5741c97c96fa85b1d7do": {
       "name": "Kuchnia",
@@ -107,7 +107,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-31T09:01:10Z"
+      "pobrane_do": "2026-10-31T10:01:12Z"
     },
     "bf43cf664d6644420axva3": {
       "name": "Salon",
@@ -128,7 +128,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-10-31T09:01:10Z"
+      "pobrane_do": "2026-10-31T10:01:12Z"
     },
     "zewnatrz": {
       "name": "Na zewnątrz",
