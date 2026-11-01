@@ -223,3 +223,7 @@ ts,device_id,code,value
 2026-11-01T14:35:18Z,bfe5bdf2b91c53dfd1eaiy,illumiance,297
 2026-11-01T14:41:10Z,bf262a90fc72e1aef65arq,illumiance,292
 2026-11-01T14:55:59Z,bfe5bdf2b91c53dfd1eaiy,illumiance,163
+2026-11-01T15:01:29Z,bf262a90fc72e1aef65arq,humidity,59
+2026-11-01T15:01:29Z,bf262a90fc72e1aef65arq,illumiance,120
+2026-11-01T15:01:29Z,bf262a90fc72e1aef65arq,temp_current,19.9
+2026-11-01T15:01:30Z,bf262a90fc72e1aef65arq,battery_state,high
