@@ -1,17 +1,17 @@
 {
- "updated": "2026-10-31T23:01:15Z",
+ "updated": "2026-11-01T00:01:24Z",
  "pokoje": {
   "bfd6f4f87fea9d866dvpve": {
    "przewietrz": {
     "od": "2026-10-30T23:02:47Z",
-    "wilg": 66.0,
-    "granica": 62.4
+    "wilg": 65.0,
+    "granica": 62.3
    },
    "okno": null,
    "noc": {
     "noc": "2026-10-31",
-    "t_min": 6.4,
-    "granica": 61.6,
+    "t_min": 6.5,
+    "granica": 61.8,
     "zwykle": 67.3,
     "ostrz": true
    },
@@ -23,8 +23,8 @@
    "okno": null,
    "noc": {
     "noc": "2026-10-31",
-    "t_min": 6.4,
-    "granica": 61.3,
+    "t_min": 6.5,
+    "granica": 61.4,
     "zwykle": 61.0,
     "ostrz": true
    },
@@ -36,8 +36,8 @@
    "okno": null,
    "noc": {
     "noc": "2026-10-31",
-    "t_min": 6.4,
-    "granica": 61.3,
+    "t_min": 6.5,
+    "granica": 61.4,
     "zwykle": 63.4,
     "ostrz": true
    },
@@ -49,8 +49,8 @@
    "okno": null,
    "noc": {
     "noc": "2026-10-31",
-    "t_min": 6.4,
-    "granica": 61.3,
+    "t_min": 6.5,
+    "granica": 61.4,
     "zwykle": 60.9,
     "ostrz": true
    },
