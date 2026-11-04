@@ -1204,18 +1204,7 @@
    "przed_snem": "2026-11-03"
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "przewietrz",
-     "obiekt": "bf5741c97c96fa85b1d7do",
-     "ts": "2026-11-03T23:01:36Z"
-    },
-    {
-     "regula": "przewietrz",
-     "obiekt": "bf7e2a70935af7de78mjqt",
-     "ts": "2026-11-04T01:01:20Z"
-    }
-   ],
+   "odlozone": [],
    "przed_snem": "2026-11-03"
   }
  }
