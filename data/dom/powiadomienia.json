@@ -1265,6 +1265,25 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261106T070128Z-przewietrz",
+   "ts": "2026-11-06T07:01:28Z",
+   "przebieg": "42178083612-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Kuchnia",
+    "Sypialnia"
+   ],
+   "tytul": "Przewietrz: kuchnia, sypialnia",
+   "tresc": "Kuchnia: 60% od 3 godz., za wilgotno powyżej 56%.\nSypialnia: 57% od 4 godz., za wilgotno powyżej 56%.",
+   "tag": "przewietrz-kuchnia-sypialnia",
+   "url": "#dom",
+   "na_sucho": false,
+   "telefony": [
+    "iphone"
+   ],
+   "odlozone": true
   }
  ],
  "stan_regul": {
@@ -1303,18 +1322,7 @@
    "przed_snem": "2026-11-05"
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "przewietrz",
-     "obiekt": "bf5741c97c96fa85b1d7do",
-     "ts": "2026-11-06T02:01:19Z"
-    },
-    {
-     "regula": "przewietrz",
-     "obiekt": "bf7e2a70935af7de78mjqt",
-     "ts": "2026-11-06T05:01:20Z"
-    }
-   ],
+   "odlozone": [],
    "przed_snem": "2026-11-05"
   }
  }
