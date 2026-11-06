@@ -1322,6 +1322,23 @@
     "android",
     "iphone"
    ]
+  },
+  {
+   "id": "20261106T210120Z-przewietrz",
+   "ts": "2026-11-06T21:01:20Z",
+   "przebieg": "42293176544-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Salon"
+   ],
+   "tytul": "Przewietrz salon",
+   "tresc": "Salon: 63% od 3 godz., za wilgotno powyżej 56%.",
+   "tag": "przewietrz-salon",
+   "url": "#salon",
+   "na_sucho": false,
+   "telefony": [
+    "android"
+   ]
   }
  ],
  "stan_regul": {
@@ -1349,7 +1366,11 @@
    "czujniki": {}
   },
   "bf43cf664d6644420axva3": {
-   "przewietrz": null,
+   "przewietrz": {
+    "od": "2026-11-06T21:01:20Z",
+    "wyslano": "2026-11-06T21:01:20Z",
+    "na_sucho": null
+   },
    "okno": null,
    "czujniki": {}
   }
@@ -1360,7 +1381,13 @@
    "przed_snem": "2026-11-06"
   },
   "iphone": {
-   "odlozone": [],
+   "odlozone": [
+    {
+     "regula": "przewietrz",
+     "obiekt": "bf43cf664d6644420axva3",
+     "ts": "2026-11-06T21:01:20Z"
+    }
+   ],
    "przed_snem": "2026-11-06"
   }
  }
