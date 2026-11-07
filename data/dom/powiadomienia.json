@@ -1394,6 +1394,44 @@
     "android",
     "iphone"
    ]
+  },
+  {
+   "id": "20261107T180123Z-przewietrz",
+   "ts": "2026-11-07T18:01:23Z",
+   "przebieg": "42399133801-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Kuchnia"
+   ],
+   "tytul": "Przewietrz kuchnię",
+   "tresc": "Kuchnia: 64% od 2 godz., za wilgotno powyżej 57%.",
+   "tag": "przewietrz-kuchnia",
+   "url": "#kuchnia",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
+  },
+  {
+   "id": "20261107T180123Z-przed-snem",
+   "ts": "2026-11-07T18:01:23Z",
+   "przebieg": "42399133801-1",
+   "regula": "przed-snem",
+   "pokoje": [
+    "Sypialnia",
+    "Kuchnia",
+    "Salon"
+   ],
+   "tytul": "Przewietrz przed snem: sypialnia, kuchnia, salon",
+   "tresc": "Sypialnia: w nocy za wilgotno od ok. 53%, zwykle masz do 60%.\nKuchnia: w nocy za wilgotno od ok. 53%, zwykle masz do 61%.\nSalon: w nocy za wilgotno od ok. 53%, zwykle masz do 58%.",
+   "tag": "przed-snem",
+   "url": "#dom",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
@@ -1408,7 +1446,11 @@
    "czujniki": {}
   },
   "bf5741c97c96fa85b1d7do": {
-   "przewietrz": null,
+   "przewietrz": {
+    "od": "2026-11-07T18:01:23Z",
+    "wyslano": "2026-11-07T18:01:23Z",
+    "na_sucho": null
+   },
    "okno": null,
    "czujniki": {}
   },
@@ -1425,11 +1467,11 @@
  "telefony": {
   "android": {
    "odlozone": [],
-   "przed_snem": "2026-11-06"
+   "przed_snem": "2026-11-07"
   },
   "iphone": {
    "odlozone": [],
-   "przed_snem": "2026-11-06"
+   "przed_snem": "2026-11-07"
   }
  }
 }
