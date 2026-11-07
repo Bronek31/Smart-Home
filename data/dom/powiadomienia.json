@@ -1357,6 +1357,25 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261107T070121Z-przewietrz",
+   "ts": "2026-11-07T07:01:21Z",
+   "przebieg": "42349464746-1",
+   "regula": "przewietrz",
+   "pokoje": [
+    "Salon",
+    "Kuchnia"
+   ],
+   "tytul": "Przewietrz: salon, kuchnia",
+   "tresc": "Salon: 55% od 10 godz., za wilgotno powyżej 54%.\nKuchnia: 59% od 17 godz., za wilgotno powyżej 54%.",
+   "tag": "przewietrz-salon-kuchnia",
+   "url": "#dom",
+   "na_sucho": false,
+   "telefony": [
+    "iphone"
+   ],
+   "odlozone": true
   }
  ],
  "stan_regul": {
@@ -1399,18 +1418,7 @@
    "przed_snem": "2026-11-06"
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "przewietrz",
-     "obiekt": "bf43cf664d6644420axva3",
-     "ts": "2026-11-06T21:01:20Z"
-    },
-    {
-     "regula": "przewietrz",
-     "obiekt": "bf5741c97c96fa85b1d7do",
-     "ts": "2026-11-06T23:01:20Z"
-    }
-   ],
+   "odlozone": [],
    "przed_snem": "2026-11-06"
   }
  }
