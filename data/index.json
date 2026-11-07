@@ -1,5 +1,5 @@
 {
-  "updated": "2026-11-07T07:01:21Z",
+  "updated": "2026-11-07T08:01:18Z",
   "months": [
     "2026-08",
     "2026-09",
@@ -9,10 +9,10 @@
   "daily": "dzienne.csv",
   "weather": "pogoda.json",
   "alerty": [
-    "**Kuchnia** — wilgotność powyżej progu pleśni przez 88% doby (przy obecnej pogodzie to ok. 54%), przewietrz albo osusz.",
-    "**Salon** — wilgotność powyżej progu pleśni przez 64% doby (przy obecnej pogodzie to ok. 54%), przewietrz albo osusz.",
-    "**Sypialnia** — wilgotność powyżej progu pleśni przez 61% doby (przy obecnej pogodzie to ok. 53%), przewietrz albo osusz.",
-    "**Łazienka** — wilgotność powyżej progu pleśni przez 84% doby (przy obecnej pogodzie to ok. 55%), przewietrz albo osusz."
+    "**Kuchnia** — wilgotność powyżej progu pleśni przez 88% doby (przy obecnej pogodzie to ok. 55%), przewietrz albo osusz.",
+    "**Salon** — wilgotność powyżej progu pleśni przez 68% doby (przy obecnej pogodzie to ok. 54%), przewietrz albo osusz.",
+    "**Sypialnia** — wilgotność powyżej progu pleśni przez 65% doby (przy obecnej pogodzie to ok. 54%), przewietrz albo osusz.",
+    "**Łazienka** — wilgotność powyżej progu pleśni przez 88% doby (przy obecnej pogodzie to ok. 56%), przewietrz albo osusz."
   ],
   "artefakty": [
     {
@@ -66,7 +66,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-11-07T07:01:14Z"
+      "pobrane_do": "2026-11-07T08:01:11Z"
     },
     "bf7e2a70935af7de78mjqt": {
       "name": "Sypialnia",
@@ -87,7 +87,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-11-07T07:01:14Z"
+      "pobrane_do": "2026-11-07T08:01:11Z"
     },
     "bf5741c97c96fa85b1d7do": {
       "name": "Kuchnia",
@@ -108,7 +108,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-11-07T07:01:14Z"
+      "pobrane_do": "2026-11-07T08:01:11Z"
     },
     "bf43cf664d6644420axva3": {
       "name": "Salon",
@@ -129,7 +129,7 @@
           "scale": 0
         }
       },
-      "pobrane_do": "2026-11-07T07:01:14Z"
+      "pobrane_do": "2026-11-07T08:01:11Z"
     },
     "zewnatrz": {
       "name": "Na zewnątrz",
