@@ -66,6 +66,7 @@ osuszy”.
 
 ## Zrobione
 
+- **Nowy wygląd** (8.11) — jeden krój, spokojniejsze kafle, zwarta strona rośliny, czytelna Historia; `KONTEKST.md`, sekcja z 8.11 po południu.
 - **Zapas 5 pkt nad granicą wilgotności, podlania jako lista, obszar wykresu przy dziurze** (8.11) —
   szczegóły i pomiar w `KONTEKST.md`, sekcja z 8.11.
 - **Jedna aplikacja** (11.10) — `index.html` z zakładkami Dom · Rośliny · Historia ·

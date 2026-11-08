@@ -41,6 +41,31 @@ do Actions.
 
 ---
 
+## 8.11 (po południu) — nowy wygląd
+
+Przegląd wszystkich zakładek na zrzutach z telefonu, podgląd na prawdziwych danych (artefakt z wbudowanymi
+danymi i zatrzymanym zegarem), dwie rundy uwag właściciela, „wdrażaj”.
+
+- **Jeden krój** (Familjen Grotesk) zamiast trzech; liczby w kolumnach trzyma `font-variant-numeric:
+  tabular-nums`. Tokeny `--f-l` i `--f-e` zostały jako aliasy. Przecinek dziesiętny miał ujemne marginesy pod
+  pismo maszynowe — w proporcjonalnym wchodził na cyfry („19̦6”), zdjęte.
+- **Kafle pokoi neutralne**, kolor pokoju tylko jako kropka i linia. Wykres wszystkich pokoi **zostaje na
+  Domu** (decyzja właściciela; przez chwilę był w Historii).
+- **Strona pokoju:** ostatni punkt wykresu Doba / 7 dni to ostatni odczyt (kubełek godzinowy jest opisany
+  końcem godziny, więc 10:51 wpadało w „11:00” jako średnia — sypialnia: 25,7° u góry i 23,7° na wykresie);
+  „przewietrz przed snem” jako komunikat na górze; karta wilgotności krótka, wyjaśnienie pod „Skąd ta granica?”;
+  „Komfort dziś” tylko w Historii; pole komfortu w „7 dniach” kreską pod paskiem; rytm doby z paletą
+  niebieski → bursztyn (temperatura) i piasek → morski (wilgotność), gęstsze pola, skróty dni.
+- **Strona rośliny:** ilustracja obok stanu; kafle 2×2 zamiast półkolistych zegarów; światło jako 7 słupków
+  z kreską potrzeby; siatka gleby co tydzień; podlania bez osi.
+- **Historia:** „Ostatnie 30 dni” jednym wykresem średnich dób z polem komfortu i dymkiem (dawniej cztery
+  mini wykresy po 64 px — właściciel: nieczytelne); „Zakresy 7 dni” liczbami (najniżej · średnio · najwyżej)
+  i paskiem na osi samych pokoi, dwór same liczby; „Czujniki i zbiórka” zwinięte, otwarte przy kłopocie.
+- Pułapka z porządków: wycinanie „od funkcji do następnej funkcji” zabrało stałą `NAZWA_TEL` i nagłówek
+  sekcji Powiadomień — wyłapały to testy `rosliny.spec.js`. Wycinać do końca funkcji, nie do następnej.
+
+---
+
 ## 8.11 — zapas nad granicą wilgotności, podlania jako lista
 
 - **Granica „za wilgotno” = norma + 5 pkt** (`ZAPAS_GRANICY` w `fetch.py`, `dom.py`, `index.html`;
