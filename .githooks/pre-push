@@ -31,7 +31,8 @@ if [ -d tests/frontend/node_modules ]; then
   # co faktycznie leży na dysku. Na zwykłej maszynie zmienna jest pusta i nic
   # się tu nie dzieje.
   if [ -z "$PLAYWRIGHT_CHROMIUM_PATH" ] && [ -n "$PLAYWRIGHT_BROWSERS_PATH" ]; then
-    for kandydat in "$PLAYWRIGHT_BROWSERS_PATH"/chromium-*/chrome-linux/chrome; do
+    # chrome-linux64 w nowszych budowach Chromium (kontener w chmurze 8.11), chrome-linux w starszych
+    for kandydat in "$PLAYWRIGHT_BROWSERS_PATH"/chromium-*/chrome-linux*/chrome; do
       [ -x "$kandydat" ] && PLAYWRIGHT_CHROMIUM_PATH="$kandydat" && export PLAYWRIGHT_CHROMIUM_PATH
     done
   fi

@@ -58,8 +58,16 @@ do Actions.
   ciemny trójkąt pod glebą fikusa i azalii. Teraz każdy odcinek zamyka się do osi osobno.
 - **Fikus nadal „uczy się skali”:** jedyne podlanie (9.10) pominięte, bo woda stała w osłonce,
   a następnego od miesiąca nie było (gleba 100 → 43). Dopóki nie ma szczytu, kolektor nie przypomni
-  o podlaniu — strona mówi to teraz wprost na karcie fikusa. Skala przyjdzie 6 godz. po pierwszym
-  podlaniu, nauczony punkt podlewania po trzech; do tego czasu próg z literatury (zima R 0,35).
+  o podlaniu — strona mówi to teraz wprost na karcie rośliny w nauce. Fikus dostał w `rosliny.json`
+  **`szczyt_zapasowy` = 85** (mediana gleby 12–17.10, po wylaniu wody z osłonki): skala od razu, próg
+  36% (zima R 0,35), na 8.11 gleba 43%, czyli R 0,44 — „podlej” przyjdzie, gdy zejdzie do progu.
+  Szczyt nauczony z pierwszego uczącego podlania wygrywa z wpisanym; legenda wykresu mówi, kiedy
+  szczyt jest ręczny. Wpis można usunąć po kilku podlaniach — nic się nie zmieni, bo nauka już go
+  nie używa.
+- **Hook `pre-push`** szuka Chromium także w `chrome-linux64` (nowsze budowy, kontener w chmurze).
+- **Nie zrobione świadomie:** zapas wilgotności jako ustawienie w aplikacji i wyłączanie „przewietrz”
+  dla jednego pokoju. Ustawienia są per telefon, a granica musi być jedna dla karty i powiadomienia
+  (D1); po zapasie +5 kuchnia ma ok. 5 dób z alarmem w miesiącu zamiast 20 — wrócić, jeśli dalej za dużo.
 
 ---
 

@@ -119,6 +119,15 @@ class TestKonfiguracja(unittest.TestCase):
         k = self.wczytaj(self.poprawna(pomin_podlania=[{"kiedy": "2026-10-09T09:51:00+02:00", "dlaczego": "osłonka"}]))
         self.assertEqual(k[0]["pomin_podlania"], [ms("2026-10-09T07:51:00Z")])
 
+    def test_szczyt_zapasowy(self):
+        k = self.wczytaj(self.poprawna(szczyt_zapasowy={"wartosc": 85, "dlaczego": "osłonka"}))
+        self.assertEqual(k[0]["szczyt_zapasowy"], 85.0)
+        self.assertIsNone(self.wczytaj(self.poprawna())[0]["szczyt_zapasowy"])
+        # ledwie nad „sucho" (10) albo ponad 100 to nie skala; liczba bez obiektu też nie
+        for zle in ({"wartosc": 15}, {"wartosc": 101}, {"wartosc": True}, {"wartosc": "85"}, 85, {}):
+            with self.subTest(zle), self.assertRaisesRegex(ValueError, "szczyt_zapasowy"):
+                self.wczytaj(self.poprawna(szczyt_zapasowy=zle))
+
     def test_zly_json_i_dwa_razy_ten_sam_czujnik(self):
         with self.assertRaisesRegex(ValueError, "poprawny JSON"):
             rosliny.wczytaj_konfiguracje("{to nie json")
@@ -503,6 +512,29 @@ class TestWerdykt(unittest.TestCase):
         self.assertIsNone(s["szczyt"])
         self.assertEqual(s["werdykt"], "nauka")
         self.assertIn("pominięte", " ".join(s["uwagi"]))
+
+    def test_szczyt_zapasowy_zamiast_nauki_bez_skali(self):
+        """Fikus 8.11: jedyne podlanie pominięte, od miesiąca „nauka" i żadnego „podlej".
+        Szczyt wpisany ręcznie daje skalę od razu — ale tylko dopóki nauka jej nie ma."""
+        podlanie = self.TERAZ - 30 * GODZ
+        w = seria(self.TERAZ - 40 * GODZ, podlanie, 20 * 60_000, 17)
+        w += seria(podlanie, self.TERAZ - 2 * GODZ, 20 * 60_000, 100)
+        w += seria(self.TERAZ - 2 * GODZ, self.TERAZ, 20 * 60_000, 30)
+        k = konf(od="2026-10-10T00:00:00Z", pomin_podlania=[podlanie], szczyt_zapasowy=85.0)
+        s = self.werdykt(k, w)
+        self.assertEqual(s["szczyt"], 85.0)
+        self.assertTrue(s["szczyt_reczny"])
+        self.assertEqual(s["R"], 0.27)                     # (30 − 10) ÷ (85 − 10)
+        self.assertEqual(s["werdykt"], "podlej")           # zima: próg z literatury 0,35
+        self.assertEqual(s["prog_gleba"], 36)
+        bez = self.werdykt(konf(od="2026-10-10T00:00:00Z", pomin_podlania=[podlanie]), w)
+        self.assertEqual(bez["werdykt"], "nauka")
+        self.assertFalse(bez["szczyt_reczny"])
+
+    def test_nauczony_szczyt_wygrywa_z_zapasowym(self):
+        s = self.werdykt(konf(od="2026-10-08T00:00:00Z", szczyt_zapasowy=85.0), self.wiersze(20))
+        self.assertEqual(s["szczyt"], 50.0)
+        self.assertFalse(s["szczyt_reczny"])
 
     def test_szczyt_dopiero_6_godz_po_podlaniu(self):
         podlanie = self.TERAZ - 3 * GODZ

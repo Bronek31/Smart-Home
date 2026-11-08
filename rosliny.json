@@ -1,5 +1,5 @@
 {
-  "opis": "Czujniki w doniczkach — osobny tor kolektora (ROSLINY.md). czujnik: identyfikator z „Pokaż urządzenia w Tuya”. gatunek: fikus | skrzydlokwiat | azalia (progi w rosliny.py). pokoj: identyfikator czujnika pokojowego, przy którym stoi roślina (tylko do porównań, nic nie miesza). kody: pola chmury Tuya po przełączeniu produktu na DP Instruction — wpisane jawnie, bo classify() wzięłoby glebę i powietrze za to samo, a światło odrzuciło. sucho: mediana odczytu gleby z sondą w powietrzu z nocy 8/9.10 (czujniki obok siebie, 10 godz.) — zero skali R. od: chwila wbicia sondy do ziemi; wcześniejsze odczyty nie uczą progów. Po zmianie kodów kolektor sam odczyta ich skale.",
+  "opis": "Czujniki w doniczkach — osobny tor kolektora (ROSLINY.md). czujnik: identyfikator z „Pokaż urządzenia w Tuya”. gatunek: fikus | skrzydlokwiat | azalia (progi w rosliny.py). pokoj: identyfikator czujnika pokojowego, przy którym stoi roślina (tylko do porównań, nic nie miesza). kody: pola chmury Tuya po przełączeniu produktu na DP Instruction — wpisane jawnie, bo classify() wzięłoby glebę i powietrze za to samo, a światło odrzuciło. sucho: mediana odczytu gleby z sondą w powietrzu z nocy 8/9.10 (czujniki obok siebie, 10 godz.) — zero skali R. od: chwila wbicia sondy do ziemi; wcześniejsze odczyty nie uczą progów. szczyt_zapasowy (nieobowiązkowe): gleba zaraz po porządnym podlaniu wpisana ręcznie — tylko dopóki nauka nie ma własnego szczytu. Po zmianie kodów kolektor sam odczyta ich skale.",
   "rosliny": [
     {
       "czujnik": "bfe5bdf2b91c53dfd1eaiy",
@@ -9,6 +9,7 @@
       "sucho": 10,
       "od": "2026-10-09T08:35:00+02:00",
       "pomin_podlania": [{"kiedy": "2026-10-09T09:51:05+02:00", "dlaczego": "woda stała w osłonce, sonda 100 przez 5 godz.; wylana ok. 15:30"}],
+      "szczyt_zapasowy": {"wartosc": 85, "dlaczego": "mediana gleby 12–17.10, po wylaniu wody z osłonki; jedyne podlanie pominięte, a bez szczytu nie ma przypomnień (8.11). Działa do pierwszego uczącego podlania"},
       "kody": {"gleba": "humidity", "temp": "temp_current", "wilg": "env_humidity", "swiatlo": "illumiance", "bateria": "battery_state", "alarm": "water_warning"}
     },
     {

@@ -1306,6 +1306,10 @@ test.describe('czytelność wykresów (21.10)', () => {
     await expect(powody).toContainText('Od ostatniego podlania minęło 29');
     await podmien(page, {}, '#fikus');
     await expect(page.locator('.strona:not(.sasiad) .powody')).not.toContainText('potrzebuję jednego podlania');
+    await expect(page.locator('.strona:not(.sasiad) .leg').first()).not.toContainText('wpisany ręcznie');
+    // szczyt zapasowy z rosliny.json (fikus 8.11): skala jest, ale legenda mówi, skąd
+    await podmien(page, { zmianyRoslin: { Fikus: { szczyt_reczny: true } } }, '#fikus');
+    await expect(page.locator('.strona:not(.sasiad) .leg').first()).toContainText('szczyt wpisany ręcznie');
     expect(bledy).toEqual([]);
   });
 

@@ -2734,7 +2734,7 @@ function htmlRoslina(g) {
   // gleba (implementacja z propozycji 2: krople to ścieżka w <g transform>)
   const pod = r.podlania || [];
   const kroplaLeg = (pusta) => `<svg class="ik s" width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" focusable="false" style="fill:${pusta ? 'none' : 'currentColor'}">${IK.kropla}</svg>`;
-  const legG = (r.prog_gleba != null && r.szczyt != null ? `<span><i class="l-pasmo" style="--c:var(--ok)"></i>od progu ${r.prog_gleba}% do szczytu ${liczba(r.szczyt, 0)}%</span>` : '') +
+  const legG = (r.prog_gleba != null && r.szczyt != null ? `<span><i class="l-pasmo" style="--c:var(--ok)"></i>od progu ${r.prog_gleba}% do szczytu ${liczba(r.szczyt, 0)}%${r.szczyt_reczny ? ' (szczyt wpisany ręcznie, do pierwszego podlania)' : ''}</span>` : '') +
     (pod.some((q) => !q.pominiete) ? `<span>${kroplaLeg(false)}podlanie</span>` : '') +
     (pod.some((q) => q.pominiete) ? `<span>${kroplaLeg(true)}podlanie poza nauką skali</span>` : '');
   h += sekcja('Gleba', `<div class="karta"><div class="wyk-nagl" style="margin-top:0"><span class="wyk-w"></span><span class="wyk-k"></span></div><div class="wyk-host" data-gleba data-bez-gestu></div>${legG ? `<div class="leg">${legG}</div>` : ''}</div>`);
@@ -4471,7 +4471,7 @@ function zbudujDane(z, teraz) {
         pokoj: nazwaPokoju(s.pokoj), od_ms: od != null ? od : seria.start_ms, werdykt: s.werdykt, uwagi: Array.isArray(s.uwagi) ? s.uwagi : [],
         gleba: v('gleba'), gleba_ms: gl != null ? gl : (wszTs.length ? Math.max.apply(null, wszTs) : null), temp: v('temp'), wilg: v('wilg'), swiatlo_lx: v('swiatlo'),
         bateria: o.bateria && typeof o.bateria.v === 'string' ? o.bateria.v.toLowerCase() : null,
-        sucho: s.sucho, szczyt: jestLiczba(s.szczyt) ? s.szczyt : null, prog: s.prog, prog_gleba: jestLiczba(s.prog_gleba) ? s.prog_gleba : null, R: jestLiczba(s.R) ? s.R : null,
+        sucho: s.sucho, szczyt: jestLiczba(s.szczyt) ? s.szczyt : null, szczyt_reczny: s.szczyt_reczny === true, prog: s.prog, prog_gleba: jestLiczba(s.prog_gleba) ? s.prog_gleba : null, R: jestLiczba(s.R) ? s.R : null,
         swiatlo_dobowe: swiatlo, swiatlo_potrzeba_lxh: jestLiczba(s.swiatlo_potrzeba_lxh) ? s.swiatlo_potrzeba_lxh : null,
         swiatlo_pelne_doby: jestLiczba(s.swiatlo_pelne_doby) ? s.swiatlo_pelne_doby : 0,
         swiatlo_wczoraj_lxh: jestLiczba(s.swiatlo_wczoraj_lxh) ? s.swiatlo_wczoraj_lxh : null,

@@ -240,11 +240,22 @@ def wczytaj_konfiguracje(tekst: str) -> list[dict]:
                 isinstance(x, dict) and _ms_ze_strefa(x.get("kiedy")) is not None for x in pomin):
             raise ValueError(f"rosliny.json: {nazwa} — „pomin_podlania\" to lista "
                              f"{{\"kiedy\": data ISO z godziną i strefą, \"dlaczego\": opis}}")
+        # Szczyt wpisany ręcznie, gdy nauka nie ma z czego go wziąć (fikus 8.11: jedyne podlanie
+        # pominięte, a bez szczytu nie ma przypomnień). Działa tylko do pierwszego uczącego podlania.
+        zapasowy = r.get("szczyt_zapasowy")
+        surowa = zapasowy.get("wartosc") if isinstance(zapasowy, dict) else None
+        wartosc = (_liczba(surowa) if isinstance(surowa, (int, float)) and not isinstance(surowa, bool)
+                   else None)
+        if zapasowy is not None and (wartosc is None
+                                     or not (_liczba(sucho) or 0) + SKOK_PODLANIA <= wartosc <= 100):
+            raise ValueError(f"rosliny.json: {nazwa} — „szczyt_zapasowy\" to {{\"wartosc\": liczba "
+                             f"co najmniej {SKOK_PODLANIA:.0f} pkt nad „sucho\" i najwyżej 100, \"dlaczego\": opis}}")
         out.append({
             "czujnik": str(czujnik), "nazwa": str(nazwa), "gatunek": gatunek,
             "pokoj": pokoj, "kody": {k: str(v) for k, v in kody.items()},
             "sucho": _liczba(sucho), "od": od,
             "pomin_podlania": [_ms_ze_strefa(x["kiedy"]) for x in pomin],
+            "szczyt_zapasowy": wartosc,
         })
     return out
 
@@ -602,6 +613,10 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
 
     teraz_gleba = ostatnie.get("gleba", {}).get("v")
     szczyt = wynik_nauki["szczyt"]
+    # Nauczony szczyt zawsze wygrywa; zapasowy z rosliny.json tylko zamiast „nauki" bez skali.
+    szczyt_reczny = szczyt is None and konf.get("szczyt_zapasowy") is not None
+    if szczyt_reczny:
+        szczyt = konf["szczyt_zapasowy"]
     r = None
     if teraz_gleba is not None and szczyt is not None and sucho is not None:
         r = round((teraz_gleba - sucho) / (szczyt - sucho), 2)
@@ -689,7 +704,8 @@ def stan_rosliny(konf: dict, wiersze: list[dict], teraz_ms: int, strefa: ZoneInf
         "swiatlo_szczyt_lx_wczoraj": pelne[-1].get("szczyt_lx") if pelne else None,
         "swiatlo_ocena": ocena_swiatla(swiatlo, gat["swiatlo_lxh"], gat["swiatlo_za_duzo_lx"], od_wbicia,
                                        teraz_ms, strefa, werdykt),
-        "podlania": podl, "szczyt": szczyt, "punkt_podlewania": wynik_nauki["punkt_podlewania"],
+        "podlania": podl, "szczyt": szczyt, "szczyt_reczny": szczyt_reczny,
+        "punkt_podlewania": wynik_nauki["punkt_podlewania"],
         "R": r, "prog": prog, "werdykt": werdykt, "uwagi": uwagi, "do_zgloszenia": zglos,
         # Próg w jednostkach czujnika — ta sama liczba co duża wartość gleby na karcie
         # i dolna krawędź pasma na wykresie. Strona nie odwraca wzoru na R sama.
