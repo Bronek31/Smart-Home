@@ -93,9 +93,33 @@ class TestGranica(unittest.TestCase):
     def test_bez_danych_none_zamiast_zapasu_65(self):
         self.assertIsNone(dom.granica(None, 5.0))
         self.assertIsNone(dom.granica(20.0, None))
-        self.assertEqual(dom.granica(20.0, 25.0), 80.0)
+        self.assertEqual(dom.granica(20.0, 25.0), 80.0 + dom.ZAPAS_GRANICY)
+
+    def test_zapas_5_pkt_ponad_norme(self):
+        """8.11: granica „za wilgotno” to norma + 5 pkt — mieszkania nie da się osuszyć do
+        samej normy, a „przewietrz” szło prawie codziennie. Pokój 20 °C, 0° na dworze:
+        norma 54,7%, granica 59,7%."""
+        self.assertEqual(dom.ZAPAS_GRANICY, 5.0)
+        self.assertAlmostEqual(dom.granica(20.0, 0.0), 59.7, places=1)
+        with mock.patch.object(dom, "ZAPAS_GRANICY", 0.0):
+            self.assertAlmostEqual(dom.granica(20.0, 0.0), 54.7, places=1)
+
+    def test_zapas_wycisza_lekko_ponad_norma_a_nie_wyraznie(self):
+        """Sypialnia 7.11 wieczorem: 59% przy normie 56% — dawniej „Przewietrz”, teraz cisza.
+        Kuchnia 7.11 w nocy: 62% przy normie 54% — dalej „Przewietrz”."""
+        od = lok(2026, 11, 7, 17)
+        temp = staly(21.0, od - GODZ, od + 4 * GODZ)
+        dwor = staly(3.0, od - GODZ, od + 4 * GODZ)
+        norma = dom.granica(21.0, 3.0) - dom.ZAPAS_GRANICY
+        for nad_norma, alarm in ((3.0, False), (6.0, True)):
+            wilg = dom.Szereg([(od + k * GODZ, round(norma + nad_norma)) for k in range(4)])
+            wynik = dom.przewietrz(wilg, temp, dwor, od + 3 * GODZ + MIN)
+            self.assertEqual(wynik is not None, alarm, nad_norma)
 
 
+# Testy reguł na prawdziwych epizodach z września i października — zmierzonych wobec granicy
+# z samej normy, więc liczą bez zapasu z 8.11 (ten ma własne testy w TestGranica).
+@mock.patch.object(dom, "ZAPAS_GRANICY", 0.0)
 class TestPrzewietrz(unittest.TestCase):
     def test_kuchnia_28_09_rano_z_zapasem_przebiegu(self):
         """Prawdziwy epizod: kuchnia nad granicą od 6:07 (04:07:29 UTC), przebieg o 8:01:30
@@ -250,6 +274,7 @@ class TestOkno(unittest.TestCase):
         self.assertIsNotNone(dom.okno(temp, wilg, 5.0, t(55)))
 
 
+@mock.patch.object(dom, "ZAPAS_GRANICY", 0.0)     # prawdziwe noce zmierzone wobec samej normy
 class TestNoc(unittest.TestCase):
     TERAZ = ms("2026-10-11T16:01:25Z")       # ostatnia zbiórka przed fiksturą, 18:01 w Warszawie
 

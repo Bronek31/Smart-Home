@@ -522,11 +522,12 @@ test.describe('czujnik milczy i spóźniona zbiórka (D5)', () => {
 
 test.describe('obliczenia wyświetlania', () => {
   test('granica „za wilgotno" liczy się tak samo jak w kolektorze', async ({ page }) => {
-    // te same liczby co test_prog_plesni_z_normy w tests/test_fetch.py
+    // te same liczby co test_prog_plesni_z_normy w tests/test_fetch.py: norma plus zapas 5 pkt (8.11)
     const { bledy } = await otworz(page);
-    const w = await page.evaluate(() => [11, 5, 0, -5, -10].map((d) => SH.granica(20, d)).concat([SH.granica(24, 30), SH.granica(null, 0), SH.stale.HUM_ALERT]));
-    [67.6, 60.3, 54.7, 49.6, 44.9].forEach((v, i) => expect(w[i]).toBeCloseTo(v, 1));
-    expect(w[5]).toBe(80);
+    const w = await page.evaluate(() => [11, 5, 0, -5, -10].map((d) => SH.granica(20, d)).concat([SH.granica(24, 30), SH.granica(null, 0), SH.stale.HUM_ALERT, SH.stale.ZAPAS_GRANICY]));
+    [67.6, 60.3, 54.7, 49.6, 44.9].forEach((v, i) => expect(w[i]).toBeCloseTo(v + 5, 1));
+    expect(w[5]).toBe(85);
+    expect(w[8]).toBe(5);
     expect(w[6]).toBeNull();
     expect(w[7]).toBe(65);
     expect(bledy).toEqual([]);
@@ -1260,6 +1261,51 @@ test.describe('czytelność wykresów (21.10)', () => {
     // dolny podpis to krawędź pola (20°), a nie dół osi — dawna wersja pisała tu „18°” i pole kończyło się bez liczby
     expect(et).toHaveLength(2);
     expect(et[0]).toBe('20°');
+    expect(bledy).toEqual([]);
+  });
+
+  test('podlania: lista od najnowszego z odstępami zamiast napisów na osi, które wchodziły na siebie', async ({ page }) => {
+    // Azalia 8.11: 7 podlań w miesiącu, daty i „przed → szczyt” przy każdej kropli na osi zlewały się w jeden pasek
+    await page.setViewportSize({ width: 390, height: 800 });
+    const teraz = Date.now(), od = teraz - 30 * DOBA;
+    const podlania = [27, 22, 18, 13, 9, 6, 2].map((d, i) => ({ ts: iso(teraz - d * DOBA), przed: 46, szczyt: 72 + i, liczy: true }));
+    const { bledy } = await otworz(page, { zmianyRoslin: { Azalia: { od: iso(od), podlania } } }, { hash: '#azalia' });
+    const sek = page.locator('.strona:not(.sasiad) .sekcja', { has: page.locator('h2', { hasText: 'Podlania' }) });
+    await expect(sek.locator('.os-lista .wiersz')).toHaveCount(7);
+    await expect(sek.locator('.sekcja-pop')).toHaveText('średnio co 4,2 dnia');
+    // najnowsze na górze, z odstępem od poprzedniego; najstarsze bez odstępu
+    await expect(sek.locator('.os-lista .wiersz').first()).toContainText('po 4 dniach');
+    await expect(sek.locator('.os-lista .wiersz').first()).toContainText('46% → 78%');
+    await expect(sek.locator('.os-lista .wiersz').last()).toContainText('pierwsze od wbicia czujnika');
+    // na osi zostają same krople: żadnego tekstu przy kroplach
+    const [, mm, dd] = dataWaw(od).split('-');
+    expect(await sek.locator('[data-os] svg text').allTextContents()).toEqual([`${+dd}.${mm}`, 'dziś']);
+    await expect(sek.locator('[data-os] svg .os-kropla')).toHaveCount(7);
+    expect(bledy).toEqual([]);
+  });
+
+  test('gleba: obszar pod linią po dziurze w danych zamyka się osobno dla każdego odcinka (bez trójkąta)', async ({ page }) => {
+    // Fikus 8.11: 6 godz. bez odczytów 21.10, a obszar zamykał się od końca serii do jej początku — pod wykresem
+    // ciemny trójkąt od lewego dolnego rogu do początku drugiego odcinka
+    const teraz = Date.now(), s0 = Math.floor(teraz / GODZ) * GODZ - 30 * DOBA, n = 30 * 24 + 1;
+    const gleba = Array.from({ length: n }, (_, i) => (i > 300 && i < 308 ? null : 90 - i / 20));
+    const { bledy } = await otworz(page, { zmianyRoslin: { Fikus: { od: iso(s0), szereg: { od: iso(s0), krok_min: 60, gleba, temp: [], wilg: [], swiatlo: [] } } } }, { hash: '#fikus' });
+    const d = await page.locator('.strona:not(.sasiad) [data-gleba] svg path[fill-opacity=".08"]').getAttribute('d');
+    expect((d.match(/M/g) || []).length).toBe(2);
+    expect((d.match(/Z/g) || []).length).toBe(2);
+    expect(bledy).toEqual([]);
+  });
+
+  test('nauka bez skali: strona mówi, że do przypomnień potrzeba jednego podlania', async ({ page }) => {
+    // Fikus od 9.10 „Uczę się skali gleby” bez słowa, co z tym zrobić — pierwsze podlanie pominięte w nauce
+    const teraz = Date.now();
+    const { bledy } = await otworz(page, { zmianyRoslin: { Fikus: { od: iso(teraz - 30 * DOBA), werdykt: 'nauka', szczyt: null, R: null, prog_gleba: null,
+      podlania: [{ ts: iso(teraz - 30 * DOBA + GODZ), przed: 17, szczyt: 100, liczy: false, pominiete: true }] } } }, { hash: '#fikus' });
+    const powody = page.locator('.strona:not(.sasiad) .powody');
+    await expect(powody).toContainText('potrzebuję jednego podlania');
+    await expect(powody).toContainText('Od ostatniego podlania minęło 29');
+    await podmien(page, {}, '#fikus');
+    await expect(page.locator('.strona:not(.sasiad) .powody')).not.toContainText('potrzebuję jednego podlania');
     expect(bledy).toEqual([]);
   });
 

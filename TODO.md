@@ -66,6 +66,8 @@ osuszy”.
 
 ## Zrobione
 
+- **Zapas 5 pkt nad granicą wilgotności, podlania jako lista, obszar wykresu przy dziurze** (8.11) —
+  szczegóły i pomiar w `KONTEKST.md`, sekcja z 8.11.
 - **Jedna aplikacja** (11.10) — `index.html` z zakładkami Dom · Rośliny · Historia ·
   Powiadomienia zamiast dawnej strony mieszkania i osobnej `rosliny.html` (została jako
   przekierowanie starych adresów). Reguły domu w `dom.py` (przewietrz, przed snem, zamknij

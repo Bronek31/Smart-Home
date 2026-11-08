@@ -402,11 +402,16 @@ class TestDiagnose(WKatalogu):
         return [a for a in fetch.diagnose(self.manifest()) if "wilgotność" in a]
 
     def test_mroz_obniza_prog_plesni(self):
-        """60% przy 20 °C to w styczniu kłopot: przy 0 °C na dworze narożnik ściany ma
-        ok. 14 °C i wilgotność przy nim przekracza 80%. Stały próg 65% tego nie widział."""
-        alerty = self.wilgotna_doba(20, 60, 0)
+        """61% przy 20 °C to w styczniu kłopot: przy 0 °C na dworze narożnik ściany ma
+        ok. 14 °C i wilgotność przy nim przekracza 80% (norma 55%, z zapasem 60%). Stały
+        próg 65% tego nie widział."""
+        alerty = self.wilgotna_doba(20, 61, 0)
         self.assertEqual(len(alerty), 1)
-        self.assertIn("ok. 55%", alerty[0])
+        self.assertIn("ok. 60%", alerty[0])
+
+    def test_zapas_wycisza_lekko_ponad_norme(self):
+        """58% przy 20 °C i 0 °C na dworze: ponad normą (55%), ale w zapasie z 8.11."""
+        self.assertEqual(self.wilgotna_doba(20, 58, 0), [])
 
     def test_ciepla_jesien_podnosi_prog_plesni(self):
         """70% przy 20 °C i 15 °C na dworze: narożnik ma 18,5 °C, wilgotność przy nim
@@ -414,17 +419,20 @@ class TestDiagnose(WKatalogu):
         self.assertEqual(self.wilgotna_doba(20, 70, 15), [])
 
     def test_prog_plesni_z_normy(self):
-        # PN-EN ISO 13788, fRsi = 0,7, 80% przy powierzchni; pokój 20 °C
-        for dwor, oczekiwany in ((11, 67.6), (5, 60.3), (0, 54.7), (-5, 49.6), (-10, 44.9)):
-            self.assertAlmostEqual(fetch.prog_plesni(20, dwor), oczekiwany, places=1)
-        self.assertEqual(fetch.prog_plesni(24, 30), fetch.WILG_POWIERZCHNI)   # upał: ściana nie zimniejsza
+        # PN-EN ISO 13788, fRsi = 0,7, 80% przy powierzchni; pokój 20 °C; do tego zapas 5 pkt (8.11)
+        self.assertEqual(fetch.ZAPAS_GRANICY, 5.0)
+        for dwor, norma in ((11, 67.6), (5, 60.3), (0, 54.7), (-5, 49.6), (-10, 44.9)):
+            self.assertAlmostEqual(fetch.prog_plesni(20, dwor), norma + 5, places=1)
+            with mock.patch.object(fetch, "ZAPAS_GRANICY", 0.0):
+                self.assertAlmostEqual(fetch.prog_plesni(20, dwor), norma, places=1)
+        self.assertEqual(fetch.prog_plesni(24, 30), fetch.WILG_POWIERZCHNI + 5)   # upał: ściana nie zimniejsza
         self.assertEqual(fetch.prog_plesni(None, 0), fetch.HUM_ALERT)          # bez pokoju — dawny próg
         self.assertEqual(fetch.prog_plesni(20, None), fetch.HUM_ALERT)         # bez pogody — dawny próg
 
     def test_prog_plesni_zgadza_sie_ze_strona(self):
         strona = (REPO / "index.html").read_text(encoding="utf-8")
         for nazwa, wartosc in (("FRSI", fetch.FRSI), ("WILG_POWIERZCHNI", fetch.WILG_POWIERZCHNI),
-                               ("HUM_ALERT", fetch.HUM_ALERT)):
+                               ("ZAPAS_GRANICY", fetch.ZAPAS_GRANICY), ("HUM_ALERT", fetch.HUM_ALERT)):
             znal = re.search(rf"\b{nazwa}=([\d.]+)", strona)
             self.assertIsNotNone(znal, f"nie znalazłem {nazwa} w index.html")
             self.assertEqual(float(znal.group(1)), wartosc, nazwa)

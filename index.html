@@ -418,6 +418,10 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .os-w{font:400 13px var(--f-t);fill:var(--dim)}
 .os-kropla path{fill:var(--gleba);stroke:var(--gleba);stroke-width:2.1;stroke-linejoin:round}
 .os-kropla.pusta path{fill:none}
+.os-lista{margin-top:8px}
+.os-ik{color:var(--gleba)}
+.os-ik path{fill:currentColor}
+.os-ik.pusta path{fill:none}
 .dbaj li{display:flex;gap:12px;padding:12px 0;font:400 15px/20px var(--f-t)}
 .dbaj li+li{border-top:1px solid var(--edge)}
 .dbaj li::before{content:"";width:6px;height:6px;margin-top:7px;border-radius:50%;background:var(--faint);flex:none}
@@ -1741,14 +1745,14 @@ const POLE_POP = `${POLE.t[0]}–${POLE.t[1]}${NB}°C · ${POLE.h[0]}–${POLE.h
 
 /* granica „za wilgotno”: ten sam wzór co prog_plesni w fetch.py. Wilgoć osiada na najzimniejszym kawałku ściany
    zewnętrznej, a jego temperatura zależy od dworu: θsi = θe + fRsi·(θi − θe) (PN-EN ISO 13788); kłopot zaczyna się
-   przy 80% na tej powierzchni. HUM_ALERT, gdy brak temperatury pokoju albo dworu. tests/test_fetch.py czyta te trzy
-   stałe z tego pliku i porównuje je z kolektorem. */
-const FRSI=0.70,WILG_POWIERZCHNI=80,HUM_ALERT=65;
+   przy 80% na tej powierzchni. ZAPAS_GRANICY to punkty ponad normą (powód i pomiar w fetch.py). HUM_ALERT, gdy brak
+   temperatury pokoju albo dworu. tests/test_fetch.py czyta te stałe z tego pliku i porównuje je z kolektorem. */
+const FRSI=0.70,WILG_POWIERZCHNI=80,ZAPAS_GRANICY=5,HUM_ALERT=65;
 const psat = (t) => 610.94 * Math.exp(17.625 * t / (t + 243.04));
 function granica(tp, td) {
   if (tp == null || td == null || !isFinite(tp) || !isFinite(td)) return null;
-  if (td >= tp) return WILG_POWIERZCHNI;
-  return WILG_POWIERZCHNI * psat(td + FRSI * (tp - td)) / psat(tp);
+  if (td >= tp) return WILG_POWIERZCHNI + ZAPAS_GRANICY;
+  return WILG_POWIERZCHNI * psat(td + FRSI * (tp - td)) / psat(tp) + ZAPAS_GRANICY;
 }
 
 /* ---------- stan ---------- */
@@ -2029,17 +2033,22 @@ function wykres(host, o) {
     return d;
   };
   const ostatni = (se) => { for (let i = se.v.length - 1; i >= 0; i--) if (se.v[i] != null && wZakresie(se.t[i]) && se.t[i] <= ciecie) return i; return -1; };
-  const pierwszy = (se) => { for (let i = 0; i < se.v.length; i++) if (se.v[i] != null && wZakresie(se.t[i])) return i; return -1; };
   if (o.granica) {
     const d = sciezka({ t: o.granica.t, v: o.granica.v });
     if (d) {
       s += `<path class="w-granica" d="${d}"/>`;
     }
   }
+  // obszar pod linią: każdy odcinek między dziurami zamyka się do osi osobno. Dawniej cała ścieżka (z kilkoma „M”)
+  // dostawała jedno zamknięcie od końca serii do jej początku, więc po dziurze w danych (gleba fikusa 21.10, 6 godz.)
+  // pod wykresem rysował się ciemny trójkąt od lewego dolnego rogu do początku ostatniego odcinka.
   o.serie.forEach((se) => {
     if (!se.obszar) return;
-    const d = sciezka(se), a = pierwszy(se), b = ostatni(se);
-    if (d && a >= 0 && b >= 0) s += `<path d="${d}L${f1(X(se.t[b]))} ${y1}L${f1(X(se.t[a]))} ${y1}Z" fill="${se.kolor}" fill-opacity=".08"/>`;
+    const d = sciezka(se).split('M').filter(Boolean).map((odc) => {
+      const pk = odc.split('L'), xa = pk[0].split(' ')[0], xb = pk[pk.length - 1].split(' ')[0];
+      return `M${odc}L${xb} ${y1}L${xa} ${y1}Z`;
+    }).join('');
+    if (d) s += `<path d="${d}" fill="${se.kolor}" fill-opacity=".08"/>`;
   });
   o.serie.forEach((se) => { s += `<path class="w-linia${se.przer ? ' przer' : ''}" stroke="${se.kolor}" d="${sciezka(se)}"/>`; });
   if (o.cisza) s += `<text class="w-pe" x="${x1}" y="${y0 - 8}" text-anchor="end">brak odczytów od ${godz(o.cisza.od)}</text>`;
@@ -2356,7 +2365,7 @@ function htmlPokoj(slug) {
       `<div class="tor-et" aria-hidden="true"><span class="l" style="left:0">${lo}%</span><span class="gr" style="left:${pr(gr).toFixed(1)}%">${grT}%</span><span class="p" style="left:100%">${hi}%</span></div>` +
       (nw ? `<p class="opis">Najwyżej w 7 dni: ${nwKiedy ? `<b>${nwKiedy}</b> — ` : ''}${liczba(nw.v, 0)}%</p>` : '') +
       (nc ? `<p class="opis${nc.ostrz ? ' warn-t' : ''}" style="margin-top:4px" data-noc>${nocZdanie(nc)}</p>` : '') +
-      `<p class="opis" style="margin-top:4px">Granica zależy od pogody: im zimniej na dworze, tym niżej.</p></div>`);
+      `<p class="opis" style="margin-top:4px">Granica zależy od pogody: im zimniej na dworze, tym niżej. Liczona z zapasem ${ZAPAS_GRANICY}${NB}pkt ponad normę.</p></div>`);
   }
   // komfort dziś
   const kf = komfortDzis(p);
@@ -2694,6 +2703,13 @@ function htmlRoslina(g) {
     const kg = powody.map((p) => p.rodzaj).lastIndexOf('gleba'), ki = powody.findIndex((p) => p.info);
     powody.splice(kg >= 0 ? kg + 1 : ki >= 0 ? ki : powody.length, 0, { rodzaj: 'gleba', info: true, tekst: `${pp.tekst} · schnie ok. ${liczba(pp.spadek, 0)}${NB}pkt na dobę` });
   }
+  // nauka bez skali: kolektor nie przypomni o podlaniu, dopóki nie zobaczy jednego porządnego podlania — trzeba to
+  // powiedzieć wprost (fikus czekał tak od 9.10, bo pierwsze podlanie pominięto: woda stała w osłonce)
+  if (r.werdykt === 'nauka' && r.szczyt == null && r.od_ms != null) {
+    const ostP = (r.podlania || []).reduce((m, p) => Math.max(m, p.ms || 0), 0) || r.od_ms, dni = Math.floor((TERAZ - ostP) / 864e5);
+    powody.push({ rodzaj: 'gleba', info: true, tekst: `Do pierwszego przypomnienia potrzebuję jednego podlania: podlej jak zwykle, gdy wierzch ziemi przeschnie, a 6${NB}godz. później będę znać skalę.` +
+      (dni >= 14 ? ` Od ostatniego podlania minęło ${dni}${NB}dni.` : '') });
+  }
   h += `<ul class="powody${st}">${powody.map((p) =>`<li class="powod${p.info ? ' info' : ''}" style="--k:${p.info ? 'var(--faint)' : R.POZIOMY[p.poziom].kolor}"><span class="powod-ik">${ik(IK_POWOD[p.rodzaj] || 'lisc', 'm')}</span><p>${esc(p.tekst)}</p></li>`).join('')}</ul>`;
   // cztery wskaźniki
   const kolG = kolorGleby(r, o) === 'var(--gleba)' ? tok('--gleba') : kolorGleby(r, o);
@@ -2723,7 +2739,7 @@ function htmlRoslina(g) {
     (pod.some((q) => q.pominiete) ? `<span>${kroplaLeg(true)}podlanie poza nauką skali</span>` : '');
   h += sekcja('Gleba', `<div class="karta"><div class="wyk-nagl" style="margin-top:0"><span class="wyk-w"></span><span class="wyk-k"></span></div><div class="wyk-host" data-gleba data-bez-gestu></div>${legG ? `<div class="leg">${legG}</div>` : ''}</div>`);
   h += sekcja('Światło', `<div class="karta">${swiatloWiersze(r, kolS)}</div>`);
-  h += sekcja('Podlania', '<div class="karta os" data-os></div>');
+  h += sekcjaPodlan(r);
   h += sekcja('Jak dbać', `<ul class="dbaj">${(DBANIE[r.gatunek] || []).map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`);
   h += sekcja('Czujnik', `<div class="lista"><div class="wiersz"><span class="wiersz-ik">${ik('bateria', 'm')}</span><span class="wiersz-n">Bateria</span><span class="wiersz-w t">${BAT[r.bateria] || '–'}</span></div>` +
     `<div class="wiersz"><span class="wiersz-ik">${ik('zegar', 'm')}</span><span class="wiersz-n">Ostatni odczyt</span><span class="wiersz-w t">${godz(r.gleba_ms)}<small>${temu(r.gleba_ms)}</small></span></div>` +
@@ -2773,19 +2789,39 @@ function wykresGleby(host, r) {
   wykres(host, o);
   o.przy(null);
 }
+/* Podlania: oś z samymi kroplami (rytm), pod nią lista od najnowszego. Dawniej daty i „przed → szczyt” stały na osi
+   przy każdej kropli, a przy siedmiu podlaniach azalii w miesiącu napisy wchodziły jeden na drugi. */
+function poIlu(ms) {
+  const d = ms / 864e5;
+  if (d < 1.5) { const g = Math.max(1, Math.round(ms / GODZ)); return `po ${g}${NB}godz.`; }
+  const n = Math.round(d);
+  return `po ${n}${NB}${n === 1 ? 'dniu' : 'dniach'}`;
+}
+function sekcjaPodlan(r) {
+  const pod = (r.podlania || []).filter((p) => p.ms != null).slice().sort((a, b) => a.ms - b.ms);
+  if (!pod.length) return sekcja('Podlania', '<div class="karta"><p class="drobny">Od wbicia czujnika nie było jeszcze podlania</p></div>');
+  const sr = pod.length >= 2 ? (pod[pod.length - 1].ms - pod[0].ms) / (pod.length - 1) : null;
+  const pop = sr != null ? `średnio co ${liczba(sr / 864e5, sr < 10 * 864e5 ? 1 : 0)}${NB}dnia` : '';
+  const wiersze = pod.map((p, i) => {
+    const wart = p.pominiete ? 'poza nauką' : p.szczyt == null ? `${liczba(p.przed, 0)}% → …` : `${liczba(p.przed, 0)}% → ${liczba(p.szczyt, 0)}%`;
+    const pod2 = p.pominiete ? 'nie uczy skali' : p.szczyt == null ? 'szczyt 6 godz. po podlaniu' : p.liczy ? `+${liczba(p.szczyt - p.przed, 0)}${NB}pkt` : 'za mały skok, nie uczy skali';
+    return `<div class="wiersz"><span class="wiersz-ik os-ik${p.pominiete ? ' pusta' : ''}">${ik('kropla', 'm')}</span>` +
+      `<span class="wiersz-n">${esc(kiedy(p.ms))}<small>${i ? poIlu(p.ms - pod[i - 1].ms) : 'pierwsze od wbicia czujnika'}</small></span>` +
+      `<span class="wiersz-w t">${wart}<small>${pod2}</small></span></div>`;
+  }).reverse().join('');
+  return sekcja('Podlania', `<div class="karta os" data-os></div><div class="lista os-lista">${wiersze}</div>`, pop);
+}
 function osPodlan(el, r) {
-  const W = Math.max(240, Math.round(el.clientWidth) - 32), H = 84, pad = 8, yo = 54, od = r.od_ms, doo = TERAZ;
+  const W = Math.max(240, Math.round(el.clientWidth) - 32), H = 56, pad = 10, yo = 28, od = r.od_ms, doo = TERAZ;
   const X = (t) => pad + (t - od) / (doo - od) * (W - 2 * pad);
-  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Podlania od wbicia czujnika">`;
+  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Podlania od wbicia czujnika: ${(r.podlania || []).length}">`;
   s += `<line class="os-linia" x1="${pad}" x2="${W - pad}" y1="${yo}" y2="${yo}"/>`;
   s += `<line class="os-tick" x1="${pad}" x2="${pad}" y1="${yo - 6}" y2="${yo + 6}"/><line class="os-tick" x1="${W - pad}" x2="${W - pad}" y1="${yo - 6}" y2="${yo + 6}"/>`;
-  s += `<text class="os-et" x="${pad}" y="${yo + 24}">wbity ${dzien(od)}, ${godz(od)}</text><text class="os-et" x="${W - pad}" y="${yo + 24}" text-anchor="end">teraz ${godz(doo)}</text>`;
+  s += `<text class="os-et" x="${pad}" y="${H - 2}">${dzien(od)}</text><text class="os-et" x="${W - pad}" y="${H - 2}" text-anchor="end">dziś</text>`;
   (r.podlania || []).forEach((p) => {
-    const x = X(p.ms), pr = x < W * 0.6, tx = pr ? x + 16 : x - 16, an = pr ? 'start' : 'end';
-    s += `<g class="os-kropla${p.pominiete ? ' pusta' : ''}" transform="translate(${(x - 10).toFixed(1)} ${yo - 30}) scale(.8333)"><path d="${KROPLA_D}"/></g>`;
+    const x = X(p.ms);
     s += `<line class="os-tick" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${yo - 4}" y2="${yo + 4}"/>`;
-    s += `<text class="os-g" x="${tx.toFixed(1)}" y="${yo - 30}" text-anchor="${an}">${kiedy(p.ms)}</text>`;
-    s += `<text class="os-w" x="${tx.toFixed(1)}" y="${yo - 13}" text-anchor="${an}">${p.pominiete ? 'poza nauką skali' : liczba(p.przed, 0) + '% → ' + liczba(p.szczyt, 0) + '%'}</text>`;
+    s += `<g class="os-kropla${p.pominiete ? ' pusta' : ''}" transform="translate(${(x - 8).toFixed(1)} 0) scale(.6667)"><path d="${KROPLA_D}"/></g>`;
   });
   el.innerHTML = s + '</svg>';
 }
@@ -4702,7 +4738,7 @@ window.SH = {
   milczy: (s) => milczy(pokojWg(s)), noc: (s) => nocPokoju(pokojWg(s)),
   ustawOstatnieOdswiezenie(t) { ostatnieOdswiezenie = t; },
   platforma, nieDotarlo, odebraneId, odswiezTelefon, get stanTelefonu() { return TEL.stan; },
-  stale: { FRSI, WILG_POWIERZCHNI, HUM_ALERT, POKRYCIE_PELNEJ_DOBY, DOMYSLNE },
+  stale: { FRSI, WILG_POWIERZCHNI, ZAPAS_GRANICY, HUM_ALERT, POKRYCIE_PELNEJ_DOBY, DOMYSLNE },
 };
 })();
 </script>

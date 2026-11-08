@@ -40,9 +40,12 @@ OKNO_ODCZYTOW_MS = 8 * DOBA
 
 # Granica „za wilgotno" (PN-EN ISO 13788): wilgotność powietrza w pokoju, przy której
 # w najzimniejszym narożniku ściany zewnętrznej robi się 80%. Te same liczby co FRSI
-# i WILG_POWIERZCHNI w fetch.py i index.html — test porównuje wzory na siatce.
+# i WILG_POWIERZCHNI w fetch.py i index.html — test porównuje wzory na siatce. ZAPAS_GRANICY:
+# punkty ponad normą, bo mieszkania nie da się osuszyć do samej granicy (powód i pomiar
+# przy tej stałej w fetch.py).
 FRSI = 0.70
 WILG_POWIERZCHNI = 80.0
+ZAPAS_GRANICY = 5.0
 # Starszego odczytu nie wolno brać za „wtedy" — jak BLISKO_MS w fetch.py.
 BLISKO_MS = int(2.5 * GODZ)
 
@@ -189,14 +192,14 @@ def _psat(t: float) -> float:
 
 def granica(tp: float | None, td: float | None) -> float | None:
     """Wilgotność powietrza w pokoju (temperatura `tp`), przy której w najzimniejszym
-    narożniku ściany zewnętrznej (dwór `td`) robi się 80%. Wzór `prog_plesni` z fetch.py,
-    ale bez zapasu 65% — reguła bez danych milczy, zamiast zgadywać."""
+    narożniku ściany zewnętrznej (dwór `td`) robi się 80%, plus ZAPAS_GRANICY. Wzór
+    `prog_plesni` z fetch.py, ale bez zapasu 65% — reguła bez danych milczy, zamiast zgadywać."""
     if tp is None or td is None:
         return None
     if td >= tp:
-        return WILG_POWIERZCHNI      # ściana nie jest chłodniejsza od powietrza
+        return WILG_POWIERZCHNI + ZAPAS_GRANICY      # ściana nie jest chłodniejsza od powietrza
     t_sciany = td + FRSI * (tp - td)
-    return WILG_POWIERZCHNI * _psat(t_sciany) / _psat(tp)
+    return WILG_POWIERZCHNI * _psat(t_sciany) / _psat(tp) + ZAPAS_GRANICY
 
 
 class Szereg:

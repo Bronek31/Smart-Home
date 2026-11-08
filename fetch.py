@@ -1071,7 +1071,7 @@ def write_daily(devices: dict | None = None) -> int:
 
 
 # Progi diagnostyki. Te same, którymi kieruje się strona (HEARTBEAT, STALE_BAD, FRSI,
-# WILG_POWIERZCHNI i HUM_ALERT w index.html) — muszą się zgadzać, bo inaczej watchdog
+# WILG_POWIERZCHNI, ZAPAS_GRANICY i HUM_ALERT w index.html) — muszą się zgadzać, bo inaczej watchdog
 # zakładałby zgłoszenie o czymś, czego dashboard nie pokazuje, albo odwrotnie.
 HEARTBEAT_MS = 60 * 60 * 1000
 CISZA_ALARM = 6 * HEARTBEAT_MS
@@ -1093,6 +1093,15 @@ HUM_UDZIAL = 0.25          # ułamek doby powyżej progu, od którego warto się
 # w najzimniejszym narożniku ściany zewnętrznej, drugi w środku pokoju, i odczyt z dworu.
 FRSI = 0.70
 WILG_POWIERZCHNI = 80.0
+# Zapas nad granicą z normy, w punktach procentowych (8.11, prośba właściciela: wilgotności
+# „nie da się w tym mieszkaniu tak dobrze wyciągnąć”, a „przewietrz” przychodziło prawie
+# codziennie). Kryterium 80% z normy dotyczy średniej miesięcznej przy powierzchni, a reguły
+# porównują z nim każdy odczyt z osobna; fRsi = 0,70 to do tego wartość projektowa
+# najgorszego narożnika. Pomiar 9.10–8.11 („przewietrz” przeliczane co godzinę, pokoje
+# z oknem): bez zapasu 40 epizodów w 30 dobach (Kuchnia w 20 dobach, Salon 13, Sypialnia 9),
+# przy +3 — 24, przy +5 — 10 (Kuchnia 5, Salon 4, Sypialnia 1), przy +6 Salon i Sypialnia
+# milkną zupełnie. Ta sama liczba w dom.py i index.html (testy porównują).
+ZAPAS_GRANICY = 5.0
 HUM_ALERT = 65.0           # zapas, gdy nie ma temperatury pokoju albo dworu — dawny stały próg
 BLISKO_MS = int(2.5 * HEARTBEAT_MS)   # starszego odczytu nie wolno już brać za „wtedy"
 
@@ -1104,13 +1113,13 @@ def _psat(t: float) -> float:
 
 def prog_plesni(t_pokoj: float | None, t_dwor: float | None) -> float:
     """Wilgotność powietrza w pokoju, przy której w najzimniejszym narożniku ściany
-    zewnętrznej robi się WILG_POWIERZCHNI procent."""
+    zewnętrznej robi się WILG_POWIERZCHNI procent — plus ZAPAS_GRANICY."""
     if t_pokoj is None or t_dwor is None:
         return HUM_ALERT
     if t_dwor >= t_pokoj:
-        return WILG_POWIERZCHNI      # ściana nie jest chłodniejsza od powietrza
+        return WILG_POWIERZCHNI + ZAPAS_GRANICY      # ściana nie jest chłodniejsza od powietrza
     t_sciany = t_dwor + FRSI * (t_pokoj - t_dwor)
-    return WILG_POWIERZCHNI * _psat(t_sciany) / _psat(t_pokoj)
+    return WILG_POWIERZCHNI * _psat(t_sciany) / _psat(t_pokoj) + ZAPAS_GRANICY
 
 
 def _najblizsza(czasy: list[int], wartosci: list[float], t: int) -> float | None:

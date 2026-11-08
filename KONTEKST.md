@@ -41,6 +41,28 @@ do Actions.
 
 ---
 
+## 8.11 — zapas nad granicą wilgotności, podlania jako lista
+
+- **Granica „za wilgotno” = norma + 5 pkt** (`ZAPAS_GRANICY` w `fetch.py`, `dom.py`, `index.html`;
+  testy pilnują zgodności). Właściciel: „przewietrz” przychodziło prawie codziennie, a wilgotności
+  w tym mieszkaniu nie da się tak nisko wyciągnąć. Kryterium 80% z PN-EN ISO 13788 dotyczy średniej
+  miesięcznej przy powierzchni, a reguły porównują z nim każdy odczyt. Pomiar 9.10–8.11 („przewietrz”
+  co godzinę, pokoje z oknem): bez zapasu 40 epizodów w 30 dobach, +3 → 24, **+5 → 10** (Kuchnia 5 dób,
+  Salon 4, Sypialnia 1), +6 → Salon i Sypialnia milkną zupełnie. Zapas działa też na „przed snem”
+  i na alert watchdoga. Testy na prawdziwych epizodach z września–października (TestPrzewietrz, TestNoc)
+  liczą bez zapasu — tak je zmierzono; zapas ma własne testy. Zmienić: jedna liczba w trzech plikach.
+- **Podlania na stronie rośliny:** oś z samymi kroplami plus lista od najnowszego (data, odstęp od
+  poprzedniego, przed → szczyt, w nagłówku „średnio co N dnia”). Dawniej napisy przy każdej kropli
+  — przy 7 podlaniach azalii w miesiącu zlewały się w jeden pasek.
+- **Obszar pod linią wykresu przy dziurze w danych** zamykał się od końca serii do jej początku —
+  ciemny trójkąt pod glebą fikusa i azalii. Teraz każdy odcinek zamyka się do osi osobno.
+- **Fikus nadal „uczy się skali”:** jedyne podlanie (9.10) pominięte, bo woda stała w osłonce,
+  a następnego od miesiąca nie było (gleba 100 → 43). Dopóki nie ma szczytu, kolektor nie przypomni
+  o podlaniu — strona mówi to teraz wprost na karcie fikusa. Skala przyjdzie 6 godz. po pierwszym
+  podlaniu, nauczony punkt podlewania po trzech; do tego czasu próg z literatury (zima R 0,35).
+
+---
+
 ## 21.10 — pokoje bez okna, czytelność wykresów
 
 - **Pokój bez okna** (w `pokoje.json` bez `okno`, dziś Łazienka) nie dostaje „Zamknij okno?”
