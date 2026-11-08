@@ -471,13 +471,16 @@ test.describe('reguły domu z data/dom/stan.json (D1)', () => {
     const noc = h >= 22 || h < 7 ? dataWaw(teraz - 12 * GODZ) : dataWaw(teraz);
     const wpis = { noc, t_min: 4, granica: 60.4, zwykle: 60.9, ostrz: true };
     const { bledy } = await otworz(page, { dom: { lazienka: { noc: wpis }, kuchnia: { noc: { ...wpis, noc: dataWaw(teraz - 3 * DOBA) } } } }, { hash: '#lazienka' });
-    const linia = page.locator('.strona:not(.sasiad) [data-noc]');
+    // 8.11: ostrzeżenie nocne to komunikat na górze strony; w karcie wilgotności zostaje tylko spokojna wersja
+    const linia = page.locator('.strona:not(.sasiad) [data-noc-status]');
+    await expect(linia).toContainText(h < 7 ? 'Wilgotna noc' : 'Przewietrz przed snem');
     await expect(linia).toContainText(h < 7 ? 'Tej nocy' : 'Dziś w');
     await expect(linia).toContainText('za wilgotno od ok.');
-    await expect(linia).toHaveClass(/warn-t/);
+    expect(await page.locator('.strona:not(.sasiad) [data-noc]').count()).toBe(0);
     await page.goto('/index.html#kuchnia');
     await gotowa(page);
     expect(await page.locator('.strona:not(.sasiad) [data-noc]').count()).toBe(0);
+    expect(await page.locator('.strona:not(.sasiad) [data-noc-status]').count()).toBe(0);
     expect(bledy).toEqual([]);
   });
 
@@ -603,9 +606,9 @@ test.describe('obliczenia wyświetlania', () => {
       expect(wpis.proc, id).toBe(Math.round(100 * w / pkt.length));
     }
     if (k.find((x) => x.id === 'kuchnia')) expect(k.find((x) => x.id === 'kuchnia').glownie).toBe('wilgotno');
-    await page.goto('/index.html#kuchnia');
-    await gotowa(page);
-    if (k.find((x) => x.id === 'kuchnia')) await expect(page.locator('.strona:not(.sasiad)')).toContainText('wilgotność ponad 60%');
+    // 8.11: „Komfort dziś” tylko w Historii, obok pozostałych pokoi
+    await page.click('[data-tab="historia"]');
+    if (k.find((x) => x.id === 'kuchnia')) await expect(page.locator('#v-historia')).toContainText('wilgotność ponad 60%');
     expect(bledy).toEqual([]);
   });
 });
@@ -629,9 +632,11 @@ test.describe('rośliny', () => {
     await expect(s.locator('.powody')).toContainText('Za ciemno — przestaw bliżej okna');
     await expect(s.locator('.status')).toContainText('Przestaw bliżej okna.');
     await expect(s.locator('.status')).toContainText('Ostatnie 3 doby: średnio 22% potrzebnego światła. Fikus gubi liście po każdej przeprowadzce');
-    // podpis doby: ten sam próg pełnej doby co rosliny.py (0,8)
-    // (pierwszy wiersz to doba wbicia czujnika — „od 8:35", a nie pełna)
-    await expect(s.locator('.sw-n').nth(1)).toContainText('pełna doba');
+    // słupek doby: ten sam próg pełnej doby co rosliny.py (0,8) — pokrycie 0,85 to doba pełna
+    // (pierwszy słupek to doba wbicia czujnika, a nie pełna)
+    await expect(s.locator('.sl').nth(0)).toHaveAttribute('aria-label', /doba niepełna/);
+    await expect(s.locator('.sl').nth(1)).not.toHaveAttribute('aria-label', /niepełna/);
+    await expect(s.locator('.sl').nth(1).locator('.sl-tor i')).not.toHaveClass(/niep/);
     await page.click('[data-tab="rosliny"]');
     await expect(page.locator('#v-rosliny .podtytul')).toContainText('Fikus: za ciemno');
     await expect(page.locator('[data-tab="rosliny"] .z-kropka')).toHaveCount(1);
@@ -693,7 +698,7 @@ test.describe('rośliny', () => {
     await page.click('[data-idz="azalia"]');
     const s = page.locator('.strona:not(.sasiad)');
     await expect(s.locator('h1 + [data-blad-roslin]')).toContainText('Kolektor zgłosił błąd przy roślinach: Tuya: permission deny (1106)');
-    await expect(s.locator('.rd-poziom')).toHaveClass(/rd-stare/);
+    await expect(s.locator('.rd-gora')).toHaveClass(/rd-stare/);
     expect(bledy).toEqual([]);
   });
 
@@ -1277,10 +1282,8 @@ test.describe('czytelność wykresów (21.10)', () => {
     await expect(sek.locator('.os-lista .wiersz').first()).toContainText('po 4 dniach');
     await expect(sek.locator('.os-lista .wiersz').first()).toContainText('46% → 78%');
     await expect(sek.locator('.os-lista .wiersz').last()).toContainText('pierwsze od wbicia czujnika');
-    // na osi zostają same krople: żadnego tekstu przy kroplach
-    const [, mm, dd] = dataWaw(od).split('-');
-    expect(await sek.locator('[data-os] svg text').allTextContents()).toEqual([`${+dd}.${mm}`, 'dziś']);
-    await expect(sek.locator('[data-os] svg .os-kropla')).toHaveCount(7);
+    // 8.11: bez osi z kroplami — powtarzała znaczniki z wykresu gleby
+    expect(await sek.locator('[data-os]').count()).toBe(0);
     // dwa podlania 19 dni od siebie (skrzydłokwiat 8.11): „co 19 dni”, nie „co 19 dnia”
     await podmien(page, { zmianyRoslin: { Azalia: { od: iso(od), podlania: podlania.slice(0, 1).concat([{ ts: iso(teraz - 8 * DOBA), przed: 34, szczyt: 62, liczy: true }]) } } }, '#azalia');
     await expect(sek.locator('.sekcja-pop')).toHaveText('średnio co 19 dni');
