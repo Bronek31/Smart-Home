@@ -34,7 +34,10 @@
   /* podświetlenie wybranej kolumny: na panelu wychodzi kolor --panel-3, a na polu komfortu pole zostaje widoczne */
   --podswietl:rgba(228,235,241,.07);
   /* skala sekwencyjna rytmu doby */
-  --sk0:#544a7e;--sk1:#655a9f;--sk2:#776dc3;--sk3:#8b85e0;--sk4:#a2a3f4;--sk5:#bec3fe;--sk6:#d8e0ff;
+  /* rytm doby (8.11): temperatura od chłodnego niebieskiego do ciepłego bursztynu, wilgotność od piasku (sucho)
+     do morskiego (wilgotno) — dawniej jedna fioletowa skala dla obu, bez skojarzenia z tym, co pokazuje */
+  --skt0:#2f5b8c;--skt1:#3f7db0;--skt2:#6ea4c6;--skt3:#b6c2b5;--skt4:#e0b877;--skt5:#e9995a;--skt6:#dd7044;
+  --skh0:#b49a62;--skh1:#a9a575;--skh2:#86ad8f;--skh3:#5fa8a3;--skh4:#4593aa;--skh5:#3b79a7;--skh6:#3a5f9a;
   --f-t:"Familjen Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
   /* 8.11: jeden krój zamiast trzech (dawniej IBM Plex Mono dla liczb i Plex Sans Condensed dla osi). Liczby
      zostają w kolumnach dzięki cyfrom równej szerokości (font-variant-numeric na body); tokeny zostają, żeby
@@ -444,31 +447,31 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .k-tor>i{opacity:1;transform:none;background:var(--dim)}
 .zak-seg{margin-bottom:8px}
 /* Ostatnie 30 dni: cztery małe wykresy zakresów doby na wspólnych osiach */
-.m30-dzien{min-height:40px;margin-top:16px}
 .dzien-g{font:600 15px/20px var(--f-t)}
 .dzien-zew{margin-top:4px;font:400 13px/16px var(--f-t);color:var(--dim)}
 .dzien-zew b{font:400 13px/16px var(--f-l);color:var(--text)}
-.m30-host{position:relative;min-height:420px;margin-top:16px}
-.m30{touch-action:pan-y;touch-action:pan-y pinch-zoom;-webkit-user-select:none;user-select:none;cursor:pointer}
-.m30:focus{outline:none}
-.m30:focus-visible{outline:2px solid var(--focus);outline-offset:6px;border-radius:4px}
-.m30-w+.m30-w{margin-top:16px}
-.m30-g{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-height:20px;margin-bottom:4px}
-.m30-n{display:flex;align-items:center;gap:8px;min-width:0;font:400 13px/16px var(--f-t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.m30-v{font:400 15px/20px var(--f-l);white-space:nowrap}
-.m30-v small{margin-left:8px;font:400 13px/16px var(--f-l);color:var(--faint)}
-.m30-v .brak{font:400 13px/16px var(--f-t);color:var(--faint)}
-.m30-os{font:500 12px var(--f-e);fill:var(--faint)}
-.m30-os.dzis{fill:var(--dim)}
 /* pole komfortu zajmuje tu dużą powierzchnię, więc jest delikatniejsze niż w wąskich torach */
-.m30-pole{fill:var(--ok-pole);fill-opacity:.35}
 .leg .l-pole.lekkie{opacity:.35}
-.m30-wyb{fill:var(--podswietl)}
-.m30-sr{fill:var(--text)}
+.z7{margin-top:16px}
+.z7-g,.z7-w{display:grid;grid-template-columns:minmax(0,1fr) 50px 50px 50px;column-gap:8px;align-items:baseline}
+.z7-g span{font:400 12px/16px var(--f-t);color:var(--faint);text-align:right}
+.z7-w{padding:12px 0;border-top:1px solid var(--edge)}
+.z7-g+.z7-w{margin-top:8px}
+.z7-w>span,.z7-w>b{font:400 15px/20px var(--f-t);text-align:right;white-space:nowrap}
+.z7-w>b{font-weight:600}
+.z7-w>.z7-n{display:flex;align-items:center;gap:8px;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis}
+.z7-w.dw>span,.z7-w.dw>b{color:var(--dim)}
+.z7-tor{position:relative;grid-column:1/-1;height:8px;margin-top:10px;border-radius:var(--r-p);background:var(--panel-3)}
+.z7-pole{position:absolute;top:0;bottom:0;background:var(--ok-pole)}
+.z7-z{position:absolute;top:0;bottom:0;border-radius:var(--r-p);background:var(--c)}
+.z7-sr{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;border-radius:1px;background:var(--text)}
+.z7-os{position:relative;height:16px;margin-top:6px;font:400 12px/16px var(--f-t);color:var(--faint)}
+.z7-os span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.z7-os span.l{transform:none}
+.z7-os span.p{transform:translateX(-100%)}
+.m30-host{margin-top:12px}
 /* przy niskim pasku kreska średniej zasłoniłaby kolor: tylko w wybranym dniu */
-.m30-sr.k{visibility:hidden}
 .wyb>.m30-sr.k{visibility:visible}
-.m30-xos{margin-top:4px}
 
 /* Powiadomienia */
 .tel-op{margin-top:8px;min-height:16px;font:400 13px/16px var(--f-t);color:var(--faint)}
@@ -1628,11 +1631,13 @@ const mala = (s) => { const d = s.charAt(1); return d && d !== d.toUpperCase() ?
 /* ---------- kolory w SVG (z tokenów i z danych) ---------- */
 function rgbH(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function mix(a, b, t) { const A = rgbH(a), B = rgbH(b); return '#' + A.map((x, i) => Math.round(x + (B[i] - x) * t).toString(16).padStart(2, '0')).join(''); }
-const SKALA = [0, 1, 2, 3, 4, 5, 6].map((i) => tok('--sk' + i) || '#8b85e0');
-function kolorSkali(t) {
+const SKALA_T = [0, 1, 2, 3, 4, 5, 6].map((i) => tok('--skt' + i) || '#6ea4c6');
+const SKALA_H = [0, 1, 2, 3, 4, 5, 6].map((i) => tok('--skh' + i) || '#5fa8a3');
+function kolorSkali(t, skala) {
+  const S = skala || SKALA_T;
   t = Math.max(0, Math.min(1, isFinite(t) ? t : 0.5));
-  const x = t * (SKALA.length - 1), i = Math.min(SKALA.length - 2, Math.floor(x));
-  return mix(SKALA[i], SKALA[i + 1], x - i);
+  const x = t * (S.length - 1), i = Math.min(S.length - 2, Math.floor(x));
+  return mix(S[i], S[i + 1], x - i);
 }
 /* klucz legendy: mały SVG z tym samym wzorem kreski co znak na wykresie */
 const WZORY = { kropki: '.01 4.5', granica: '5 4' };
@@ -2173,21 +2178,6 @@ function zmiana(d) {
   if (a < 0.05) return `<span class="zmiana">${L(0)}°<span class="sr"> zmiany w 24 godziny</span></span>`;
   return `<span class="zmiana">${ik(d < 0 ? 'dol' : 'gora', 's')}${L(a)}°<span class="zm-h" aria-hidden="true">24${NB}h</span><span class="sr"> ${d < 0 ? 'mniej' : 'więcej'} niż 24 godziny temu</span></span>`;
 }
-/* jeden komponent zakresu: kropka, nazwa, pasek min–maks z kreską średniej na wspólnej osi, wartości.
-   Pasek jest wyśrodkowany na środku przedziału, więc przy minimalnej szerokości (6 px) rośnie w obie
-   strony i kreska średniej zostaje w środku, a nie na krawędzi. */
-function wierszZakresu(nazwa, kolor, a, m, dz, j, lo, hi) {
-  const x = (v) => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
-  const l = x(a[0]), r = x(a[1]);
-  const tekst = `${L(a[0], dz)}–${L(a[1], dz)}${j}`, czyt = `${liczba(a[0], dz)} do ${liczba(a[1], dz)}${j}`;
-  return `<div class="wr" style="--c:${kolor}"><span class="wr-n"><i class="kropka" style="--k:${kolor}"></i>${esc(nazwa)}</span>` +
-    `<span class="wr-tor" role="img" aria-label="${esc(nazwa + ': ' + czyt + (m != null ? ', średnio ' + liczba(m, dz) + j : ''))}"><i style="left:${((l + r) / 2).toFixed(2)}%;width:${(r - l).toFixed(2)}%"></i>${m != null ? `<b style="left:${x(m).toFixed(2)}%"></b>` : ''}</span>` +
-    `<span class="wr-w">${tekst}</span></div>`;
-}
-function osZakresu(lo, hi, tk, jedn) {
-  const x = (v) => ((v - lo) / (hi - lo) * 100).toFixed(2);
-  return `<div class="wr" aria-hidden="true" style="min-height:16px"><span></span><span class="wr-os">${tk.map((v) => `<span style="left:${x(v)}%">${liczba(v, 0)}${jedn}</span>`).join('')}</span><span></span></div>`;
-}
 /* Jedno źródło minimum i maksimum dla wszystkich „7 dni” i „30 dni” (strona pokoju, dwór, Historia):
    doby z dzienne.csv (kolektor: po filtrze skoków, bez artefaktów, doba warszawska). Seria godzinowa służy tylko
    do rysowania wykresu Doba/7 dni i rytmu doby: średnie godzinowe mają naturalnie niższe szczyty niż pojedyncze
@@ -2222,7 +2212,6 @@ function najwyzej7(p) {
   czasySerii(s).forEach((t, i) => { if (s.wilg[i] != null && lok(t).klucz === o.dzien && liczba(s.wilg[i], 0) === cel) o.ms = t; });
   return o;
 }
-const LEG_SREDNIA = '<div class="leg"><span><i class="l-kreska"></i>średnia</span></div>';
 
 /* =====================================================================
    DOM
@@ -2460,7 +2449,8 @@ function rysujWykresStrony(host, slug) {
   wykres(host, o);
   o.przy(null);
 }
-/* rytm doby: mapa 7 dób × 24 godziny na jednej skali sekwencyjnej (tokeny --sk0…--sk6) */
+/* rytm doby: mapa 7 dób × 24 godziny na skali sekwencyjnej (tokeny --skt… dla temperatury, --skh… dla wilgotności) */
+const DNI_KR = ['pn', 'wt', 'śr', 'cz', 'pt', 'sb', 'nd'];   // ta sama kolejność co DNI (od poniedziałku)
 function mapaRytmu(el, slug) {
   const p = pokojWg(slug), m = stan.wyk.miara, s = p.seria, T = czasySerii(s), dni = [], idx = {};
   const karta = el.closest('.karta'), out = $('.rytm-nagl', karta), leg = $('.skala-leg', karta);
@@ -2484,21 +2474,22 @@ function mapaRytmu(el, slug) {
   const ucMin = wszystkie[0] < mn, ucMax = wszystkie[wszystkie.length - 1] > mx;
   const minR = m === 'temp' ? 1 : 8;
   if (mx - mn < minR) { const c = (mx + mn) / 2; mn = c - minR / 2; mx = c + minR / 2; }
-  const kol = kolorSkali;
-  const W = Math.max(240, Math.round(el.clientWidth)), lab = 72, gap = 2, cw = (W - lab - 23 * gap) / 24, ch = 20, H = rz.length * (ch + gap) + 18;
+  const skala = m === 'temp' ? SKALA_T : SKALA_H, kol = (t) => kolorSkali(t, skala);
+  // 8.11: niższe pola z prześwitem 1 px i krótkie podpisy dni — dawniej wąskie, wysokie słupki z odstępami jak kod kreskowy
+  const W = Math.max(240, Math.round(el.clientWidth)), lab = 52, gap = 1, rg = 3, cw = (W - lab - 23 * gap) / 24, ch = 16, H = rz.length * (ch + rg) + 18;
   const jedn = m === 'temp' ? '°' : '%', dz = m === 'temp' ? 1 : 0;
   let svg = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" tabindex="0" aria-label="Rytm doby: ${m === 'temp' ? 'temperatura' : 'wilgotność'} w każdej godzinie ostatnich 7 dni">`;
   const komorki = [];
   rz.forEach((d, r) => {
-    const y = r * (ch + gap);
-    svg += `<text class="r-et" x="0" y="${y + 14}">${DNI[d.wd]} ${d.d}.${dwa(d.m)}</text>`;
+    const y = r * (ch + rg);
+    svg += `<text class="r-et" x="0" y="${y + 12}">${DNI_KR[d.wd]} ${d.d}.${dwa(d.m)}</text>`;
     d.h.forEach((v, c) => {
       if (v === undefined) return;
       const x = lab + c * (cw + gap);
       komorki.push({ r, c, x, y, v, d });
       // czujnik się nie odezwał: pusta ramka, a nie dziura w mapie — widać, że to luka w danych, nie błąd strony
       svg += v === null ? `<rect class="r-brak" x="${(x + 0.75).toFixed(1)}" y="${y + 0.75}" width="${(cw - 1.5).toFixed(1)}" height="${ch - 1.5}" rx="2"/>` :
-        `<rect x="${x.toFixed(1)}" y="${y}" width="${cw.toFixed(1)}" height="${ch}" rx="2" fill="${kol((v - mn) / (mx - mn))}"/>`;
+        `<rect x="${x.toFixed(1)}" y="${y}" width="${cw.toFixed(1)}" height="${ch}" rx="1.5" fill="${kol((v - mn) / (mx - mn))}"/>`;
     });
   });
   [0, 6, 12, 18].forEach((g) => { svg += `<text class="r-et" x="${(lab + g * (cw + gap)).toFixed(1)}" y="${H - 2}">${g}:00</text>`; });
@@ -2518,7 +2509,7 @@ function mapaRytmu(el, slug) {
   wybierz(akt);
   const zPunktu = (e) => {
     const r = sv.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width, y = (e.clientY - r.top) * H / r.height;
-    const c = Math.floor((x - lab) / (cw + gap)), w = Math.floor(y / (ch + gap));
+    const c = Math.floor((x - lab) / (cw + gap)), w = Math.floor(y / (ch + rg));
     const k = komorki.findIndex((q2) => q2.r === Math.max(0, Math.min(rz.length - 1, w)) && q2.c === Math.max(0, Math.min(23, c)));
     if (k >= 0) wybierz(k);
   };
@@ -2867,25 +2858,35 @@ function rysujHistorie() {
   el.innerHTML = h;
   montuj($('[data-m30]', el), rysuj30);
 }
+/* Zakresy 7 dni (8.11): liczby — najniżej, średnio, najwyżej — a pod każdym pokojem pasek na wspólnej, ciasnej osi
+   samych pokoi z polem komfortu. Dawniej jeden pasek w wierszu na osi z dworem (−5…25°): pokoje mieściły się
+   w kilku pikselach przy prawym brzegu. Dwór ma same liczby. */
 function zakresy7() {
-  const temp = stan.zakresy === 'temp';
-  // oś obejmuje wszystkie zakresy: dwór w listopadzie (−1,4–9,2°) leżał dawniej kreską na brzegu osi 10–25°
-  const zz = pokojeTeraz().map((p) => { const z = zakres7dni(p); return temp ? z.t : z.h; }).filter(Boolean);
-  const krok = temp ? 5 : 20, mnA = Math.min.apply(null, zz.map((a) => a[0]).concat([Infinity])), mxA = Math.max.apply(null, zz.map((a) => a[1]).concat([-Infinity]));
-  const lo = Math.min(temp ? 10 : 20, isFinite(mnA) ? Math.floor(mnA / krok) * krok : Infinity), hi = Math.max(temp ? 25 : 80, isFinite(mxA) ? Math.ceil(mxA / krok) * krok : -Infinity);
-  const co = (hi - lo) / krok > 5 ? 2 * krok : krok, tk = [];
-  for (let v = lo; v <= hi + 1e-9; v += co) tk.push(v);
+  const temp = stan.zakresy === 'temp', dz = temp ? 1 : 0, j = temp ? '°' : '%', pole = temp ? POLE.t : POLE.h;
   let h = `<div class="seg seg-pelny zak-seg" role="group" aria-label="Co pokazać">${segBtn('zakresy', 'temp', 'Temperatura', stan.zakresy)}${segBtn('zakresy', 'wilg', 'Wilgotność', stan.zakresy)}</div>`;
-  h += pokojeTeraz().map((p) => {
-    const z = zakres7dni(p), a = temp ? z.t : z.h;
-    if (!a) return '';
-    return wierszZakresu(p.nazwa, p.kolor, a, temp ? z.t_sr : z.h_sr, temp ? 1 : 0, temp ? '°' : '%', lo, hi);
-  }).join('');
-  return h + osZakresu(lo, hi, tk, temp ? '°' : '%') + LEG_SREDNIA;
+  const w = pokojeTeraz().map((p) => { const z = zakres7dni(p), a = temp ? z.t : z.h; return a ? { p, a, m: temp ? z.t_sr : z.h_sr } : null; }).filter(Boolean);
+  const wn = w.filter((x) => !x.p.zewnatrz);
+  if (!w.length) return h + '<p class="drobny">Brak danych z ostatnich 7 dni</p>';
+  const krok = temp ? 2 : 10;
+  const lo = Math.floor(Math.min.apply(null, [pole[0]].concat(wn.map((x) => x.a[0]))) / krok) * krok;
+  const hi = Math.ceil(Math.max.apply(null, [pole[1]].concat(wn.map((x) => x.a[1]))) / krok) * krok;
+  const x = (v) => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
+  h += '<div class="z7"><div class="z7-g" aria-hidden="true"><span></span><span>najniżej</span><span>średnio</span><span>najwyżej</span></div>';
+  w.forEach((r) => {
+    const czyt = `${r.p.nazwa}: od ${liczba(r.a[0], dz)} do ${liczba(r.a[1], dz)}${j}, średnio ${liczba(r.m, dz)}${j}`;
+    h += `<div class="z7-w${r.p.zewnatrz ? ' dw' : ''}" role="group" aria-label="${esc(czyt)}"><span class="z7-n"><i class="kropka" style="--k:${r.p.kolor}"></i>${esc(r.p.nazwa)}</span>` +
+      `<span>${L(r.a[0], dz)}${j}</span><b>${L(r.m, dz)}${j}</b><span>${L(r.a[1], dz)}${j}</span>`;
+    if (!r.p.zewnatrz) {
+      h += `<span class="z7-tor" style="--c:${r.p.kolor}" aria-hidden="true"><i class="z7-pole" style="left:${x(pole[0]).toFixed(1)}%;width:${(x(pole[1]) - x(pole[0])).toFixed(1)}%"></i>` +
+        `<i class="z7-z" style="left:${x(r.a[0]).toFixed(1)}%;width:${Math.max(1.5, x(r.a[1]) - x(r.a[0])).toFixed(1)}%"></i><i class="z7-sr" style="left:${x(r.m).toFixed(1)}%"></i></span>`;
+    }
+    h += '</div>';
+  });
+  const tk = [lo, pole[0], pole[1], hi].filter((v, i, a) => a.indexOf(v) === i);
+  h += `<div class="z7-os" aria-hidden="true">${tk.map((v) => `<span style="left:${x(v).toFixed(1)}%"${v === lo ? ' class="l"' : v === hi ? ' class="p"' : ''}>${liczba(v, 0)}${j}</span>`).join('')}</div></div>`;
+  return h + '<div class="leg"><span><i class="l-pole"></i>pole komfortu</span><span><i class="l-kreska"></i>średnia</span></div>';
 }
-/* Ostatnie 30 dni: cztery małe wykresy (po jednym na pokój) z paskami zakresu doby min–maks i kreską średniej.
-   Ten sam język co „Zakresy 7 dni”, obrócony w pionie. Oś Y i oś X są wspólne, więc pokoje da się porównać,
-   a wybór dnia działa we wszystkich czterech wierszach naraz. */
+/* Dane „Ostatnich 30 dni”: doby z dzienne.csv dla pokoi (bez dworu) */
 function dane30() {
   const m = stan.mac.miara, pk = wnetrza(), DD = dobowe(), dw = dwor();
   const ref = pk.map((p) => DD[p.id]).filter((x) => x && x.dni)[0], dni = ref ? ref.dni : [];
@@ -2901,128 +2902,21 @@ function dane30() {
 function karta30() {
   const d = dane30();
   return `<div class="seg seg-pelny" role="group" aria-label="Co pokazać">${segBtn('mac', 'temp', 'Temperatura', d.m)}${segBtn('mac', 'wilg', 'Wilgotność', d.m)}</div>` +
-    // nagłówek dnia zmienia się od razu; czytnik ekranu dostaje jedno podsumowanie po zatrzymaniu wyboru
-    '<div class="m30-dzien"></div><p class="sr" aria-live="polite" data-m30-czyt></p><div class="m30-host" data-m30></div>' +
-    '<div class="leg"><span><i class="l-slupek"></i>zakres doby</span><span><i class="l-kreska-p"></i>średnia</span><span><i class="l-pole lekkie"></i>pole komfortu</span></div>';
+    '<div class="wyk-host m30-host" data-m30></div>' +
+    `<div class="leg">${d.pk.map((p) => `<span>${klucz(p.kolor)}${esc(p.nazwa)}</span>`).join('')}<span><i class="l-pole"></i>pole komfortu</span></div>`;
 }
+/* Ostatnie 30 dni (8.11): średnia każdej doby, wszystkie pokoje na jednym wykresie z polem komfortu, dymek z wartościami
+   pokoi po dotknięciu. Dawniej cztery wykresy po 64 px wysokości z paskiem min–maks na każdą dobę — przy 30 dobach na
+   telefonie paski i kropki zlewały się w nieczytelny wzór. Zakres doby został na stronie pokoju (30 dni, pasmo). */
 function rysuj30(host) {
-  const d = dane30(), N = d.dni.length, dz = d.dz, j = d.j;
-  if (!N) { host.innerHTML = '<p class="drobny">Brak danych z ostatnich 30 dni</p>'; return; }
-  // wykres zajmuje całą wysokość wiersza; podpisy osi stoją w kolumnie z prawej: górny pod górną linią, dolny nad dolną
-  const W = Math.max(260, Math.round(host.clientWidth)), HP = 64, YG = 1, YD = HP - 1, PR = 30, PW = W - PR;
-  const c = PW / N, bw = Math.max(4, Math.min(8, Math.round(c * 1.2) / 2)), DZIS = N - 1;
-  const lo = d.os.lo, hi = d.os.hi, Y = (v) => YD - (v - lo) / (hi - lo) * (YD - YG), sx = (i) => i * c + c / 2;
-  const pole = d.m === 'temp' ? POLE.t : POLE.h, pa = Math.max(lo, pole[0]), pb = Math.min(hi, pole[1]);
-  // krycie: niewybrane jak paski w „Zakresach 7 dni” (0,75), dziś (doba niepełna) 0,5, wybrany dzień w pełni.
-  // Pasek ma co najmniej MIN_H px; niższy niż NISKI nie dostaje kreski średniej (zasłoniłaby kolor), chyba że jest wybrany.
-  const KRYCIE = 0.75, NIEPELNA = 0.5, MIN_H = 6, NISKI = 8;
-  const krycie = (i, wyb) => (wyb ? 1 : i === DZIS ? NIEPELNA : KRYCIE);
-  // tło wiersza: pole komfortu w części mieszczącej się w osi, dwie linie osi. Podpisy z prawej stoją przy krawędziach
-  // pola (20 i 24°), bo to one mówią, czy dzień był w komforcie; dawne podpisy osi (18 i 24°) zostawiały dolną
-  // krawędź pola bez liczby. Pole poza osią — podpisy wracają na linie osi.
-  let tlo = pb > pa ? `<rect class="m30-pole" x="0" y="${f1(Y(pb))}" width="${f1(PW)}" height="${f1(Y(pa) - Y(pb))}"/>` : '';
-  [lo, hi].forEach((v) => {
-    const y = v === hi ? Math.round(Y(v)) + 0.5 : Math.round(Y(v)) - 0.5;
-    tlo += `<line class="w-siatka" x1="0" x2="${f1(PW)}" y1="${y}" y2="${y}"/>`;
-  });
-  (pb > pa ? [pa, pb] : [lo, hi]).forEach((v) => {
-    const y = Math.max(YG + 5, Math.min(YD - 5, Y(v)));
-    tlo += `<text class="m30-os" x="${W}" y="${f1(y)}" dy=".35em" text-anchor="end">${liczba(v, 0)}${j}</text>`;
-  });
-  let h = `<div class="m30" tabindex="0" role="img" data-bez-gestu aria-label="${d.m === 'temp' ? 'Temperatura' : 'Wilgotność'} w ${d.pk.length === 1 ? '1 pokoju' : d.pk.length + ' pokojach'} przez 30 dni: najniżej, najwyżej i średnio w każdej dobie. Strzałki zmieniają dzień.">`;
-  d.pk.forEach((p) => {
-    const rz = d.DD[p.id] ? d.DD[p.id][d.m] : [];
-    let s = `<svg width="${W}" height="${HP}" viewBox="0 0 ${W} ${HP}" aria-hidden="true" focusable="false">${tlo}<rect class="m30-wyb" x="0" y="0" width="${f1(c)}" height="${HP}" rx="3"/>`;
-    for (let i = 0; i < N; i++) {
-      const x = rz[i];
-      if (!x || x[1] == null) continue;
-      const g = Y(x[2] != null ? x[2] : x[1]), dl = Y(x[0] != null ? x[0] : x[1]), ym = Y(x[1]);
-      // mały zakres (także min = maks): co najmniej MIN_H px wokół średniej
-      const wy = Math.max(MIN_H, dl - g), y0 = dl - g < MIN_H ? Math.max(0, Math.min(HP - MIN_H, ym - MIN_H / 2)) : g;
-      const sr = wy < NISKI ? `<rect class="m30-sr k" x="${f1(sx(i) - bw / 2)}" y="${f1(ym - 1)}" width="${bw}" height="2"/>` :
-        `<rect class="m30-sr" x="${f1(sx(i) - bw / 2 - 1)}" y="${f1(ym - 1)}" width="${bw + 2}" height="2" rx="1"/>`;
-      s += `<g data-d="${i}" opacity="${krycie(i, false)}"><rect x="${f1(sx(i) - bw / 2)}" y="${f1(y0)}" width="${bw}" height="${f1(wy)}" rx="2" fill="${p.kolor}"/>${sr}</g>`;
-    }
-    h += `<div class="m30-w"><p class="m30-g"><span class="m30-n"><i class="kropka" style="--k:${p.kolor}"></i>${esc(p.nazwa)}</span><span class="m30-v" data-v="${p.id}"></span></p>${s}</svg></div>`;
-  });
-  // wspólna oś X: poniedziałki i „dziś” pod ostatnią kolumną
-  let xs = `<svg class="m30-xos" width="${W}" height="16" viewBox="0 0 ${W} 16" aria-hidden="true" focusable="false"><text class="m30-os dzis" x="${f1(sx(DZIS))}" y="12" text-anchor="middle">dziś</text>`;
-  d.dni.forEach((k, i) => {
-    if (i === DZIS || dzienTyg(k) !== 0 || sx(DZIS) - sx(i) < 36) return;
-    const a = k.split('-');
-    xs += `<text class="m30-os" x="${f1(sx(i))}" y="12" text-anchor="middle">${+a[2]}.${a[1]}</text>`;
-  });
-  host.innerHTML = h + xs + '</svg></div>';
-
-  const el = host.firstChild, karta = host.closest('.karta'), nagl = $('.m30-dzien', karta), czytEl = $('[data-m30-czyt]', karta);
-  const kol = $$('.m30-wyb', el), wart = {}, paski = {};
-  d.pk.forEach((p) => { wart[p.id] = $(`[data-v="${p.id}"]`, el); });
-  $$('g[data-d]', el).forEach((g) => { const i = +g.getAttribute('data-d'); (paski[i] = paski[i] || []).push(g); });
-  const ustawKrycie = (i, wyb) => (paski[i] || []).forEach((g) => { g.setAttribute('opacity', String(krycie(i, wyb))); g.setAttribute('class', wyb ? 'wyb' : ''); });
-  // czytnik ekranu: jedno podsumowanie dnia, gdy wybór się zatrzyma (po puszczeniu palca, po 0,4 s bez zmian),
-  // a nie przy każdej kolumnie mijanej palcem
-  let palec = false, czasCzyt = null, doCzytania = '', przeczytane = '';
-  const przeczytaj = () => {
-    clearTimeout(czasCzyt); czasCzyt = null;
-    if (czytEl && doCzytania !== przeczytane) { czytEl.textContent = doCzytania; przeczytane = doCzytania; }
-  };
-  const zaplanujCzytanie = (odRazu) => {
-    clearTimeout(czasCzyt); czasCzyt = null;
-    if (odRazu) przeczytaj();
-    else if (!palec) czasCzyt = setTimeout(przeczytaj, 400);
-  };
-  // domyślnie wczoraj, czyli ostatnia pełna doba
-  let akt = stan.mac.dzien && d.dni.indexOf(stan.mac.dzien) >= 0 ? d.dni.indexOf(stan.mac.dzien) : Math.max(0, N - 2);
-  const wybierz = (i, start) => {
-    i = Math.max(0, Math.min(N - 1, i));
-    if (i === akt && !start) return;
-    ustawKrycie(akt, false);
-    akt = i;
-    stan.mac.dzien = d.dni[i];
-    ustawKrycie(i, true);
-    kol.forEach((r) => r.setAttribute('x', f1(i * c)));
-    const k = d.dni[i], a = k.split('-'), czyt = [];
-    const tytul = i === DZIS ? `Dziś, do ${godz(TERAZ)}` : `${DNI_PEL[dzienTyg(k)]}, ${+a[2]}.${a[1]}`;
-    d.pk.forEach((p) => {
-      const x = d.DD[p.id] ? d.DD[p.id][d.m][i] : null;
-      if (!x || x[1] == null) { wart[p.id].innerHTML = '<span class="brak">brak danych</span>'; czyt.push(p.nazwa + ': brak danych'); return; }
-      wart[p.id].innerHTML = `${L(x[1], dz)}${j}<small>${L(x[0], dz)}–${L(x[2], dz)}${j}</small>`;
-      czyt.push(`${p.nazwa}: średnio ${liczba(x[1], dz)}${j}, od ${liczba(x[0], dz)} do ${liczba(x[2], dz)}${j}`);
-    });
-    // dwór ma inną skalę niż pokoje: tylko liczby pod nazwą dnia
-    const dw = d.dwId && d.DD[d.dwId] ? d.DD[d.dwId][d.m][i] : null;
-    nagl.innerHTML = `<p class="dzien-g">${tytul}</p>` +
-      (dw ? `<p class="dzien-zew">Na zewnątrz <b>${L(dw[0], dz)}–${L(dw[2], dz)}${j}</b>, średnio <b>${L(dw[1], dz)}${j}</b></p>` : '');
-    doCzytania = [tytul].concat(dw ? [`Na zewnątrz od ${liczba(dw[0], dz)} do ${liczba(dw[2], dz)}${j}, średnio ${liczba(dw[1], dz)}${j}`] : [], czyt).join('. ');
-    zaplanujCzytanie(start);
-  };
-  wybierz(akt, true);
-  // wybór sprzed dotknięcia: gdy palec po przytrzymaniu przejdzie w przewijanie strony, wybór wraca
-  let przed = null;
-  el.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') przed = akt; });
-  const zPunktu = (e) => {
-    const r = el.getBoundingClientRect(), x = (e.clientX - r.left) * W / r.width;
-    // stuknięcie w nazwę pokoju albo w podpisy osi z prawej nie wybiera dnia; przeciąganie działa w całym bloku
-    const stuk = e.type === 'pointerdown' || e.type === 'pointerup';
-    if (stuk && (x > PW || (e.target && e.target.closest && e.target.closest('.m30-g')))) return;
-    palec = e.pointerType !== 'mouse' && e.type !== 'pointerup';
-    wybierz(Math.floor(x / c));
-  };
-  sledzPalec(el, {
-    wskaz: zPunktu,
-    puszczony: () => { przed = null; palec = false; zaplanujCzytanie(); },
-    anulowany: () => {
-      const b = przed;
-      przed = null; palec = false;
-      if (b != null && b !== akt) wybierz(b); else zaplanujCzytanie();
-    },
-  });
-  el.addEventListener('keydown', (e) => {
-    const k = { ArrowLeft: akt - 1, ArrowRight: akt + 1, Home: 0, End: N - 1 }[e.key];
-    if (k == null) return;
-    e.preventDefault();
-    palec = false;
-    wybierz(k);
+  const d = dane30(), t = d.dni.map(dnia);
+  if (!t.length) { host.innerHTML = '<p class="drobny">Brak danych z ostatnich 30 dni</p>'; return; }
+  const pole = d.m === 'temp' ? POLE.t : POLE.h;
+  wykres(host, {
+    od: t[0] - 432e5, do: t[t.length - 1] + 432e5, os: '30dni', dniT: t, wys: 208, przerwa: 36 * GODZ,
+    serie: d.pk.map((p) => ({ nazwa: p.nazwa, kolor: p.kolor, t, v: (d.DD[p.id] ? d.DD[p.id][d.m] : []).map((x) => (x ? x[1] : null)) })),
+    pasmo: { od: pole[0], do: pole[1] }, minRozp: d.m === 'temp' ? 3 : 15, jedn: d.j, dz: d.dz, dymek: true,
+    opis: `${d.m === 'temp' ? 'Temperatura' : 'Wilgotność'} w pokojach: średnia każdej doby przez 30 dni`,
   });
 }
 

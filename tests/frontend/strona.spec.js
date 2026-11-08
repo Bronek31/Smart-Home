@@ -334,7 +334,11 @@ test.describe('30 dni i 7 dni', () => {
     expect(przezZmiane.slice(-3)).toEqual(['2026-10-24', '2026-10-25', '2026-10-26']);
     expect(new Set(przezZmiane).size).toBe(30);
     await page.click('[data-tab="historia"]');
-    await expect(page.locator('.m30-xos .dzis')).toHaveText('dziś');
+    // ostatni punkt wykresu „Ostatnie 30 dni” to dziś: klawisz End pokazuje go w dymku
+    const w30 = page.locator('#v-historia [data-m30] svg');
+    await w30.focus();
+    await page.keyboard.press('End');
+    await expect(page.locator('#v-historia [data-m30] .dymek-c')).toHaveText('dziś');
     expect(bledy).toEqual([]);
   });
 
@@ -1259,13 +1263,41 @@ test.describe('czytelność wykresów (21.10)', () => {
     expect(bledy).toEqual([]);
   });
 
-  test('30 dni: podpisy z prawej przy krawędziach pola komfortu, nie przy osi', async ({ page }) => {
-    // salon chłodnieje w przeszłość o 0,3° na dobę: 9 dób temu ok. 18 °C, więc oś schodzi poniżej pola komfortu
+  test('Historia 8.11: „30 dni” jednym wykresem, „Zakresy 7 dni” liczbami na osi samych pokoi', async ({ page }) => {
+    // dawniej cztery mini wykresy po 64 px i paski 7 dni na osi z dworem (−5…25°) — oba nieczytelne na telefonie
     const { bledy } = await otworz(page, { trend: { salon: 0.3 } }, { hash: '#historia' });
-    const et = await page.locator('.m30-w').first().locator('text.m30-os').allTextContents();
-    // dolny podpis to krawędź pola (20°), a nie dół osi — dawna wersja pisała tu „18°” i pole kończyło się bez liczby
-    expect(et).toHaveLength(2);
-    expect(et[0]).toBe('20°');
+    const w30 = page.locator('#v-historia [data-m30]');
+    await expect(w30.locator('path.w-linia')).toHaveCount(4);
+    await expect(w30.locator('rect.w-pasmo')).toHaveCount(1);
+    await expect(page.locator('#m30-karta .leg')).toContainText('pole komfortu');
+    // dymek: wszystkie pokoje naraz
+    await w30.locator('svg').focus();
+    await page.keyboard.press('End');
+    await expect(w30.locator('.dymek-w')).toHaveCount(4);
+    // zakresy: pokoje z paskiem, dwór same liczby; oś liczona bez dworu (pierwszy podpis nie schodzi pod 10°)
+    const z = page.locator('#zak-karta');
+    await expect(z.locator('.z7-w:not(.dw) .z7-tor')).toHaveCount(4);
+    await expect(z.locator('.z7-w.dw')).toHaveCount(1);
+    expect(await z.locator('.z7-w.dw .z7-tor').count()).toBe(0);
+    const pierwszy = parseFloat((await z.locator('.z7-os span').first().textContent()).replace(',', '.'));
+    expect(pierwszy).toBeGreaterThanOrEqual(10);
+    await expect(z.locator('.z7-w').first()).toContainText(/\d,\d°.*\d,\d°.*\d,\d°/);
+    expect(bledy).toEqual([]);
+  });
+
+  test('rytm doby: skrót dnia zgadza się z datą (pn 2.11 to poniedziałek)', async ({ page }) => {
+    // 8.11: pierwsza wersja nowych podpisów miała tablicę od niedzieli, a DNI od poniedziałku — „nd 2.11”
+    const { bledy } = await otworz(page, {}, { hash: '#salon' });
+    const et = await page.locator('.strona:not(.sasiad) [data-rytm] text.r-et').allTextContents();
+    const dni = et.filter((t) => /^(pn|wt|śr|cz|pt|sb|nd) \d+\.\d+$/.test(t));
+    expect(dni.length).toBeGreaterThanOrEqual(2);
+    const rok = new Date().getFullYear(), skr = ['nd', 'pn', 'wt', 'śr', 'cz', 'pt', 'sb'];
+    for (const t of dni) {
+      const [s, dm] = t.split(' '), [d, m] = dm.split('.').map(Number);
+      // fikstura obejmuje ostatnie dni; przy przełomie roku grudzień należy do poprzedniego
+      const r = m > new Date().getMonth() + 1 ? rok - 1 : rok;
+      expect(s, t).toBe(skr[new Date(r, m - 1, d, 12).getDay()]);
+    }
     expect(bledy).toEqual([]);
   });
 
