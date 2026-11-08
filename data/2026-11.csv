@@ -3151,3 +3151,6 @@ ts,device_id,code,value
 2026-11-08T15:10:53Z,bf5741c97c96fa85b1d7do,battery_state,middle
 2026-11-08T15:10:53Z,bf5741c97c96fa85b1d7do,va_humidity,58
 2026-11-08T15:10:53Z,bf5741c97c96fa85b1d7do,va_temperature,20.5
+2026-11-08T15:21:45Z,bf43cf664d6644420axva3,va_temperature,20.6
+2026-11-08T15:21:46Z,bf43cf664d6644420axva3,battery_state,middle
+2026-11-08T15:21:46Z,bf43cf664d6644420axva3,va_humidity,55
