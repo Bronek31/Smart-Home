@@ -1281,6 +1281,9 @@ test.describe('czytelność wykresów (21.10)', () => {
     const [, mm, dd] = dataWaw(od).split('-');
     expect(await sek.locator('[data-os] svg text').allTextContents()).toEqual([`${+dd}.${mm}`, 'dziś']);
     await expect(sek.locator('[data-os] svg .os-kropla')).toHaveCount(7);
+    // dwa podlania 19 dni od siebie (skrzydłokwiat 8.11): „co 19 dni”, nie „co 19 dnia”
+    await podmien(page, { zmianyRoslin: { Azalia: { od: iso(od), podlania: podlania.slice(0, 1).concat([{ ts: iso(teraz - 8 * DOBA), przed: 34, szczyt: 62, liczy: true }]) } } }, '#azalia');
+    await expect(sek.locator('.sekcja-pop')).toHaveText('średnio co 19 dni');
     expect(bledy).toEqual([]);
   });
 

@@ -2801,7 +2801,8 @@ function sekcjaPodlan(r) {
   const pod = (r.podlania || []).filter((p) => p.ms != null).slice().sort((a, b) => a.ms - b.ms);
   if (!pod.length) return sekcja('Podlania', '<div class="karta"><p class="drobny">Od wbicia czujnika nie było jeszcze podlania</p></div>');
   const sr = pod.length >= 2 ? (pod[pod.length - 1].ms - pod[0].ms) / (pod.length - 1) : null;
-  const pop = sr != null ? `średnio co ${liczba(sr / 864e5, sr < 10 * 864e5 ? 1 : 0)}${NB}dnia` : '';
+  // „co 4,2 dnia”, ale „co 19 dni”: ułamek bierze dopełniacz liczby pojedynczej, całość od 10 w górę — mnogiej
+  const pop = sr != null ? (sr < 10 * 864e5 ? `średnio co ${liczba(sr / 864e5, 1)}${NB}dnia` : `średnio co ${liczba(sr / 864e5, 0)}${NB}dni`) : '';
   const wiersze = pod.map((p, i) => {
     const wart = p.pominiete ? 'poza nauką' : p.szczyt == null ? `${liczba(p.przed, 0)}% → …` : `${liczba(p.przed, 0)}% → ${liczba(p.szczyt, 0)}%`;
     const pod2 = p.pominiete ? 'nie uczy skali' : p.szczyt == null ? 'szczyt 6 godz. po podlaniu' : p.liczy ? `+${liczba(p.szczyt - p.przed, 0)}${NB}pkt` : 'za mały skok, nie uczy skali';
