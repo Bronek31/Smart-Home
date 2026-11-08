@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans+Condensed:wght@500&amp;display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Familjen+Grotesk:wght@400;500;600&amp;display=swap">
 <style>
 /* Smart Home — aplikacja (dom i rośliny), wdrożony projekt z rundy 3 i 4.
    Baza: propozycja 1 (system, nawigacja, Dom, lista roślin, Historia). Z propozycji 2: strona pokoju,
@@ -36,8 +36,11 @@
   /* skala sekwencyjna rytmu doby */
   --sk0:#544a7e;--sk1:#655a9f;--sk2:#776dc3;--sk3:#8b85e0;--sk4:#a2a3f4;--sk5:#bec3fe;--sk6:#d8e0ff;
   --f-t:"Familjen Grotesk",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
-  --f-l:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-  --f-e:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  /* 8.11: jeden krój zamiast trzech (dawniej IBM Plex Mono dla liczb i Plex Sans Condensed dla osi). Liczby
+     zostają w kolumnach dzięki cyfrom równej szerokości (font-variant-numeric na body); tokeny zostają, żeby
+     wszystkie dawne miejsca dostały ten sam krój bez przepisywania reguł */
+  --f-l:var(--f-t);
+  --f-e:var(--f-t);
   --r-s:10px;--r-k:20px;--r-p:999px;
   --g:16px;--zakladki:64px;
   --ease:cubic-bezier(.2,.8,.2,1);
@@ -61,7 +64,7 @@ svg{display:block}
 .ik.l{width:32px;height:32px;stroke-width:1.3125}
 .ik.xl{width:40px;height:40px;stroke-width:1.05}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
-.pc{margin:0 -.14em}
+.pc{margin:0}
 .u{font-family:var(--f-t);font-weight:400;letter-spacing:0;color:var(--dim)}
 .st{font-family:var(--f-t);font-weight:400;letter-spacing:0;color:var(--dim)}
 .kropka{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--k);flex:none}
@@ -113,6 +116,10 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .sekcja{margin-top:32px}
 .sekcja-g{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px}
 .sekcja h2{font:600 20px/24px var(--f-t)}
+.zwijana>summary{list-style:none;cursor:pointer}
+.zwijana>summary::-webkit-details-marker{display:none}
+.zwijana .sekcja-pop{display:inline-flex;align-items:center;gap:6px}
+.zwijana[open] .zw-ik{transform:rotate(180deg)}
 .sekcja-pop{font:400 13px/16px var(--f-t);color:var(--faint);white-space:nowrap}
 .karta{display:block;width:100%;padding:16px;border-radius:var(--r-k);background:var(--panel);border:1px solid var(--edge);text-align:left}
 .lista{border-radius:var(--r-k);background:var(--panel);border:1px solid var(--edge);overflow:hidden}
@@ -208,10 +215,11 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .spoznienie.dlugi{align-items:flex-start}
 .spoznienie>span{min-width:0;overflow-wrap:anywhere}
 .siatka-p{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px}
-.pokoj{position:relative;display:flex;flex-direction:column;min-width:0;padding:16px 16px 0;border-radius:var(--r-k);background:var(--panel);background:color-mix(in srgb,var(--c) 8%,var(--panel));border:1px solid var(--edge);border:1px solid color-mix(in srgb,var(--c) 22%,var(--edge));overflow:hidden;text-align:left}
+.pokoj{position:relative;display:flex;flex-direction:column;min-width:0;padding:16px 16px 0;border-radius:var(--r-k);background:var(--panel);border:1px solid var(--edge);overflow:hidden;text-align:left}
+.pokoj .pokoj-n::before{content:"";display:inline-block;width:8px;height:8px;margin:0 8px 2px 0;border-radius:50%;background:var(--c);vertical-align:middle}
 .pokoj-g{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
 .pokoj-n{min-width:0;font:600 17px/24px var(--f-t);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pokoj-t{display:block;margin-top:8px;font:400 34px/40px var(--f-l);letter-spacing:-.04em;white-space:nowrap}
+.pokoj-t{display:block;margin-top:8px;font:400 34px/40px var(--f-l);letter-spacing:-.02em;white-space:nowrap}
 .pokoj-t .st{font-size:20px;vertical-align:13px;margin-left:0}
 .pokoj-d{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:20px;margin-top:4px}
 .pokoj-h{display:flex;align-items:center;gap:4px;min-height:20px;font:400 15px/20px var(--f-l);color:var(--dim);white-space:nowrap}
@@ -232,7 +240,7 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .dwor{margin-top:12px;background:var(--panel);background:color-mix(in srgb,var(--c) 6%,var(--panel));border-color:var(--edge);border-color:color-mix(in srgb,var(--c) 18%,var(--edge))}
 .dwor-teraz{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-top:8px}
 .dwor-l{min-width:0}
-.dwor-t{display:flex;align-items:center;gap:8px;font:400 34px/40px var(--f-l);letter-spacing:-.04em;white-space:nowrap}
+.dwor-t{display:flex;align-items:center;gap:8px;font:400 34px/40px var(--f-l);letter-spacing:-.02em;white-space:nowrap}
 .dwor-t .ik{color:var(--dim)}
 .dwor-t .st{font-size:20px;vertical-align:13px;margin-left:0}
 .dwor-opis{display:block;margin-top:4px;font:400 13px/16px var(--f-t);color:var(--dim)}
@@ -257,7 +265,7 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 
 /* strona pokoju i dworu */
 .boh{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-top:16px}
-.boh-t{font:400 56px/56px var(--f-l);letter-spacing:-.05em;white-space:nowrap}
+.boh-t{font:400 56px/56px var(--f-l);letter-spacing:-.03em;white-space:nowrap}
 .boh-t .st{font-size:28px;vertical-align:24px;margin-left:-3px}
 .boh-p{display:flex;flex-direction:column;align-items:flex-end;gap:4px;padding-bottom:4px}
 .boh-w{display:inline-flex;align-items:center;gap:4px;font:400 20px/24px var(--f-l)}
@@ -286,7 +294,7 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .status.lagodny .status-g .ik{color:var(--k)}
 .seg-strona{margin-top:24px}
 .wart-rzad{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
-.wart-duza{font:400 34px/40px var(--f-l);letter-spacing:-.04em;white-space:nowrap}
+.wart-duza{font:400 34px/40px var(--f-l);letter-spacing:-.02em;white-space:nowrap}
 .wart-duza .u{font-size:20px;margin-left:2px}
 .wart-op{margin-top:4px;font:400 15px/20px var(--f-t);color:var(--dim)}
 .znacz{font:400 15px/20px var(--f-t);color:var(--dim);text-align:right}
@@ -295,6 +303,12 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .tor-zn{position:absolute;top:-6px;bottom:-6px;width:2px;margin-left:-1px;border-radius:1px;background:var(--granica);box-shadow:0 0 0 2px var(--panel)}
 .tor.ponad .tor-zn{background:var(--warn-t)}
 .tor-pole{position:absolute;top:0;bottom:0;background:var(--ok-pole)}
+.tor-pole.pod{top:calc(100% + 4px);bottom:auto;height:3px;border-radius:2px;background:var(--ok);opacity:.7}
+.leg .l-pole-pod{width:14px;height:3px;border-radius:2px;background:var(--ok);opacity:.7}
+.dlaczego{margin-top:8px}
+.dlaczego>summary{display:inline-flex;align-items:center;min-height:32px;font:400 13px/16px var(--f-t);color:var(--akcent);cursor:pointer;list-style:none}
+.dlaczego>summary::-webkit-details-marker{display:none}
+.dlaczego .opis{margin-top:4px}
 .tor-zakres{position:absolute;top:0;bottom:0;border-radius:var(--r-p);background:var(--c)}
 .tor-kreska{position:absolute;top:-4px;bottom:-4px;width:2px;margin-left:-1px;border-radius:1px;background:var(--text)}
 .tor-et{position:relative;height:16px;margin-top:8px;font:500 12px/16px var(--f-e);color:var(--faint)}
@@ -369,13 +383,14 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .podtytul.stan-r.pilne{color:var(--bad-t)}
 
 /* szczegół rośliny */
-.rd-scena{display:grid;place-items:center;height:288px;margin-top:16px;border-radius:var(--r-k);background:var(--panel);border:1px solid var(--edge)}
-.rd-scena svg{width:203px;height:264px}
-.rd-poziom{display:flex;align-items:center;gap:12px;margin-top:16px}
-.rd-buzka{width:40px;height:40px;flex:none}
-.rd-buzka svg{width:40px;height:40px}
-.rd-poziom b{display:block;font:600 20px/24px var(--f-t);color:var(--k)}
-.rd-poziom span span{display:block;font:400 15px/20px var(--f-t);color:var(--dim)}
+.rd-gora{display:grid;grid-template-columns:120px minmax(0,1fr);align-items:center;gap:16px;margin-top:16px;padding:12px 16px 12px 8px;border-radius:var(--r-k);background:var(--panel);border:1px solid var(--edge)}
+.rd-scena{display:grid;place-items:center}
+.rd-scena svg{width:120px;height:156px}
+.rd-poziom{display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+.rd-buzka{width:36px;height:36px;flex:none;margin-bottom:8px}
+.rd-buzka svg{width:36px;height:36px}
+.rd-poziom b{display:block;font:600 22px/28px var(--f-t);color:var(--k)}
+.rd-poziom>span:not(.rd-buzka){display:block;font:400 15px/20px var(--f-t);color:var(--dim)}
 .rd-pelna{margin-top:8px;font:400 13px/16px var(--f-t);color:var(--faint)}
 .powody{margin-top:16px}
 .powod{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 0}
@@ -385,40 +400,30 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .powod.info .powod-ik{color:var(--faint)}
 .powod.info p{color:var(--dim)}
 .wsk-siatka{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.wsk{min-width:0;padding:12px 12px 16px;border-radius:var(--r-k);background:var(--panel);border:1px solid var(--edge);text-align:center}
-.wsk svg{width:100%;max-width:136px;height:auto;margin:0 auto}
-.wsk.wyl svg{opacity:.4}
-.wsk-tor{fill:none;stroke:var(--panel-3);stroke-width:10;stroke-linecap:round}
-.wsk-pasmo{fill:none;stroke:var(--ok-pole);stroke-width:10}
-.wsk-war{fill:none;stroke-width:10;stroke-linecap:round}
-.wsk-zn{stroke:var(--dim);stroke-width:2;stroke-linecap:round}
-.wsk-kropka{stroke:var(--panel);stroke-width:3}
-.wsk-w{font:400 28px var(--f-l);fill:var(--text);letter-spacing:-.03em}
-.wsk-j{font-family:var(--f-t);font-size:13px;fill:var(--dim);letter-spacing:0}
-.wsk-pw{font:500 12px var(--f-e);fill:var(--faint)}
-.wsk-et{margin-top:4px;font:600 15px/20px var(--f-t)}
-.wsk-pod{margin-top:4px;font:400 13px/16px var(--f-t);color:var(--faint)}
-.sw{display:grid;grid-template-columns:72px minmax(0,1fr) 68px;align-items:center;gap:12px;min-height:52px}
-.sw-n{font:400 15px/20px var(--f-t)}
-.sw-n small{display:block;font:400 13px/16px var(--f-t);color:var(--faint)}
-.sw-tor{position:relative;height:8px;border-radius:4px;background:var(--panel-3)}
-.sw-tor i{position:absolute;left:0;top:0;bottom:0;min-width:4px;border-radius:4px;background:var(--k)}
-.sw-tor i.niep{opacity:.4}
-.sw-tor em{position:absolute;top:-6px;bottom:-6px;width:2px;margin-left:-1px;border-radius:1px;background:var(--text)}
-.sw-w{font:500 15px/20px var(--f-l);text-align:right}
-.sw-w small{display:block;font:400 13px/16px var(--f-t);color:var(--faint)}
-.sw-os{min-height:20px}
-.sw-os .sw-tor{height:16px;background:none}
-.sw-os .sw-tor span{position:absolute;top:0;transform:translateX(-100%);padding-right:4px;font:500 12px/16px var(--f-e);color:var(--dim);white-space:nowrap}
-.os svg{width:100%}
-.os-linia{stroke:var(--edge-2);stroke-width:2;stroke-linecap:round}
-.os-tick{stroke:var(--faint);stroke-width:1.5;stroke-linecap:round}
-.os-et{font:500 12px var(--f-e);fill:var(--faint)}
-.os-g{font:600 13px var(--f-t);fill:var(--text)}
-.os-w{font:400 13px var(--f-t);fill:var(--dim)}
-.os-kropla path{fill:var(--gleba);stroke:var(--gleba);stroke-width:2.1;stroke-linejoin:round}
-.os-kropla.pusta path{fill:none}
-.os-lista{margin-top:8px}
+.mk{min-width:0;padding:12px 14px 14px;border-radius:var(--r-k);background:var(--panel);border:1px solid var(--edge)}
+.mk-et{font:400 13px/16px var(--f-t);color:var(--dim)}
+.mk-wart{margin-top:4px;font:400 28px/32px var(--f-t);letter-spacing:-.02em;white-space:nowrap}
+.mk-wart .u{font-size:15px;margin-left:2px}
+.mk-wart .u.st{margin-left:0;vertical-align:9px}
+.mk-wart small{margin-left:6px;font:400 13px/16px var(--f-t);color:var(--faint);letter-spacing:0}
+.mk-tor{position:relative;height:6px;margin-top:10px;border-radius:var(--r-p);background:var(--panel-3)}
+.mk-pasmo{position:absolute;top:0;bottom:0;border-radius:var(--r-p);background:var(--ok-pole)}
+.mk-wyp{position:absolute;top:0;bottom:0;left:0;min-width:6px;border-radius:var(--r-p)}
+.mk-kr{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;box-shadow:0 0 0 2px var(--panel)}
+.mk-zn{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;border-radius:1px;background:var(--dim)}
+.mk-pod{margin-top:8px;font:400 13px/16px var(--f-t);color:var(--faint);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mk.wyl .mk-wart,.mk.wyl .mk-tor{opacity:.4}
+.sl-wyk{position:relative;display:flex;gap:6px;height:150px;padding:18px 0 20px}
+.sl-wyk::after{content:"";position:absolute;left:0;right:0;bottom:calc(20px + (100% - 38px) * var(--potrz));border-top:2px dashed var(--text);opacity:.55;pointer-events:none}
+.sl{position:relative;flex:1;min-width:0;display:flex;flex-direction:column;align-items:center}
+.sl-tor{position:relative;flex:1;width:100%;max-width:28px}
+.sl-tor i{position:absolute;left:0;right:0;bottom:0;min-height:3px;border-radius:4px 4px 1px 1px;background:var(--k)}
+.sl-tor i.niep{opacity:.4}
+.sl-tor b{position:absolute;left:50%;transform:translateX(-50%);font:500 12px/16px var(--f-t);color:var(--dim);white-space:nowrap}
+.sl-d{position:absolute;bottom:-20px;font:400 12px/16px var(--f-t);color:var(--faint);white-space:nowrap}
+.sl-leg{display:flex;align-items:center;gap:8px;margin-top:12px;font:400 13px/16px var(--f-t);color:var(--faint)}
+.sl-leg i{width:16px;border-top:2px dashed var(--text);opacity:.55}
+.os-lista{margin-top:0}
 .os-ik{color:var(--gleba)}
 .os-ik path{fill:currentColor}
 .os-ik.pusta path{fill:none}
@@ -1685,6 +1690,7 @@ const IK = {
   dzwonek: '<path d="M6.2 16.2v-5a5.8 5.8 0 0 1 11.6 0v5l1.5 2H4.7z"/><path d="M10.2 20.6a2 2 0 0 0 3.6 0"/>',
   'chev-r': '<path d="M9.5 5.5 16 12l-6.5 6.5"/>',
   'chev-l': '<path d="M14.5 5.5 8 12l6.5 6.5"/>',
+  'chev-d': '<path d="M5.5 9.5 12 16l6.5-6.5"/>',
   wybor: '<path d="M8 9.5 12 5.5l4 4M8 14.5l4 4 4-4"/>',
   kropla: '<path d="M12 3.8c3.3 3.9 5.6 7 5.6 9.9a5.6 5.6 0 0 1-11.2 0c0-2.9 2.3-6 5.6-9.9z"/>',
   krople: '<path d="M8.5 4c2.2 2.6 3.7 4.6 3.7 6.5a3.7 3.7 0 0 1-7.4 0c0-1.9 1.5-3.9 3.7-6.5z"/><path d="M16.5 10.5c1.9 2.2 3.2 3.9 3.2 5.5a3.2 3.2 0 0 1-6.4 0c0-1.6 1.3-3.3 3.2-5.5z"/>',
@@ -1951,7 +1957,7 @@ function xTicki(os, od, doo, dniT) {
       if (l.h === 12) out.push({ t, et: DNI[l.wd] });
     } else if (os === 'gleba' && doo - od > 36 * GODZ) {
       // kilka dób: same daty o północy, bez „12:00” między nimi — rzadsze podpisy wybiera wykres() po szerokości
-      if (l.h === 0) out.push({ t, et: l.d + '.' + dwa(l.m), linia: true });
+      if (l.h === 0) out.push({ t, et: l.d + '.' + dwa(l.m), linia: doo - od <= 14 * 864e5 || l.wd === 1 });
     } else if (l.h % 6 === 0) {
       out.push({ t, et: os === 'gleba' && l.h === 0 ? l.d + '.' + dwa(l.m) : l.h + ':00', linia: l.h === 0 });
     }
@@ -2180,7 +2186,7 @@ function wierszZakresu(nazwa, kolor, a, m, dz, j, lo, hi) {
 }
 function osZakresu(lo, hi, tk, jedn) {
   const x = (v) => ((v - lo) / (hi - lo) * 100).toFixed(2);
-  return `<div class="wr" aria-hidden="true" style="min-height:16px"><span></span><span class="wr-os">${tk.map((v) => `<span style="left:${x(v)}%">${v}${jedn}</span>`).join('')}</span><span></span></div>`;
+  return `<div class="wr" aria-hidden="true" style="min-height:16px"><span></span><span class="wr-os">${tk.map((v) => `<span style="left:${x(v)}%">${liczba(v, 0)}${jedn}</span>`).join('')}</span><span></span></div>`;
 }
 /* Jedno źródło minimum i maksimum dla wszystkich „7 dni” i „30 dni” (strona pokoju, dwór, Historia):
    doby z dzienne.csv (kolektor: po filtrze skoków, bez artefaktów, doba warszawska). Seria godzinowa służy tylko
@@ -2311,10 +2317,10 @@ function rysujDom() {
   }
   h += `<div class="siatka-p">${wewn.map(kartaPokoju).join('')}</div>`;
   if (dw) h += kartaDwor(dw);
-  h += segMiaryDom() + `<section class="karta wyk-dom" aria-label="Wykres">${kartaWykresuDom()}</section>`;
+  // wykres wszystkich pokoi przeniesiony do Historii (8.11): na Domu pięć linii naraz i skok farelki spłaszczały resztę,
+  // a bez niego ekran mieści kafle i pogodę
   el.innerHTML = h;
   $$('[data-iskra]', el).forEach((s) => { const p = pk.find((x) => x.slug === s.dataset.iskra); montuj(s, (host) => iskra(host, p)); });
-  montuj($('[data-wykres="dom"]', el), rysujWykresDom);
 }
 
 /* =====================================================================
@@ -2350,6 +2356,11 @@ function htmlPokoj(slug) {
       `<p>Wilgotność ${liczba(p.wilg, 0)}% od ${w.godz}${NB}godz., za wilgotno od ${tekstGranicy(gr, [p.wilg, w.wilg])}%.</p>` +
       `<p class="rada">${esc(D.wietrzenie.rada)}</p>${D.wietrzenie.jak ? `<p class="rada">${esc(D.wietrzenie.jak)}</p>` : ''}</section>`;
   }
+  const nc0 = p.wilg != null ? nocPokoju(p) : null;
+  if (nc0 && nc0.ostrz) {
+    h += `<section class="status" data-noc-status><p class="status-g">${ik('okno')}${nc0.poPolnocy ? 'Wilgotna noc' : 'Przewietrz przed snem'}</p>` +
+      `<p>${nc0.poPolnocy ? 'Tej nocy' : `Dziś w${NB}nocy`} za wilgotno od ok.${NB}${liczba(nc0.granica, 0)}% (na dworze do${NB}${liczba(nc0.tMin, 0)}°), a zwykle masz wtedy do${NB}${liczba(nc0.zwykle, 0)}%.</p></section>`;
+  }
   h += segMiary() + kartaWykresuStrony();
   // Wilgotność i granica „za wilgotno”
   const lo = 30, hi = 90, pr = (v) => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100)), zapas = gr - p.wilg;
@@ -2360,25 +2371,20 @@ function htmlPokoj(slug) {
     const opisG = zapas < 0 ? `<span class="warn-t">za wilgotno — ${liczba(p.wilg, 0)}%, granica ${grT}%</span>` :
       `za wilgotno od ${grT}% · <span class="${zapas < 5 ? 'warn-t' : 'ok-t'}">zapas ${liczba(zapas, 0)}${NB}pkt</span>`;
     // pasek niesie stan, nie tożsamość pokoju: neutralny, bursztyn dopiero przy zapasie < 5 pkt albo ponad granicą
-    h += sekcja('Wilgotność', `<div class="karta"><p class="wart-duza">${liczba(p.wilg, 0)}<span class="u">%</span></p><p class="wart-op">${opisG}</p>` +
+    h += sekcja('Wilgotność', `<div class="karta"><p class="wart-op" style="margin-top:0">${opisG}</p>` +
       `<div class="tor${zapas < 0 ? ' ponad' : ''}" style="--c:var(--${zapas < 5 ? 'warn' : 'dim'})"><i class="tor-w" style="width:${pr(p.wilg).toFixed(1)}%"></i><i class="tor-zn" style="left:${pr(gr).toFixed(1)}%"></i></div>` +
       `<div class="tor-et" aria-hidden="true"><span class="l" style="left:0">${lo}%</span><span class="gr" style="left:${pr(gr).toFixed(1)}%">${grT}%</span><span class="p" style="left:100%">${hi}%</span></div>` +
       (nw ? `<p class="opis">Najwyżej w 7 dni: ${nwKiedy ? `<b>${nwKiedy}</b> — ` : ''}${liczba(nw.v, 0)}%</p>` : '') +
-      (nc ? `<p class="opis${nc.ostrz ? ' warn-t' : ''}" style="margin-top:4px" data-noc>${nocZdanie(nc)}</p>` : '') +
-      `<p class="opis" style="margin-top:4px">Granica zależy od pogody: im zimniej na dworze, tym niżej. Liczona z zapasem ${ZAPAS_GRANICY}${NB}pkt ponad normę.</p></div>`);
+      // ostrzeżenie nocne stoi u góry strony jako komunikat; tu tylko spokojna wersja zdania
+      (nc && !nc.ostrz ? `<p class="opis" style="margin-top:4px" data-noc>${nocZdanie(nc)}</p>` : '') +
+      `<details class="dlaczego"><summary>Skąd ta granica?</summary><p class="opis">Wilgoć osiada na najzimniejszym kawałku ściany zewnętrznej, więc granica zależy od pogody: im zimniej na dworze, tym niżej. Liczona z${NB}zapasem ${ZAPAS_GRANICY}${NB}pkt ponad normę.</p></details></div>`);
   }
-  // komfort dziś
-  const kf = komfortDzis(p);
-  if (kf) {
-    const ko = komfortOpis(kf);
-    h += sekcja('Komfort dziś', `<div class="karta"><div class="wart-rzad"><span class="wart-duza">${kf.proc}<span class="u">%</span></span><span class="znacz ${ko.ok ? 'ok-t' : 'warn-t'}">${esc(ko.tekst)}</span></div>` +
-      `<div class="tor" style="--c:var(--dim)" role="img" aria-label="${kf.proc}% dnia w polu komfortu"><i class="tor-w" style="width:${kf.proc}%"></i></div></div>`, POLE_POP);
-  }
+  // „Komfort dziś” odszedł ze strony pokoju 8.11 — ta sama liczba stoi w Historii obok pozostałych pokoi
   // 7 dni: z dób, tak jak „Najwyżej w 7 dni”, wykres 30 dni i Historia
   const z = zakres7dni(p);
   if (z.t && z.h) {
     h += sekcja('7 dni', `<div class="karta">${zakres7('Temperatura', z.t, z.t_sr, '°', 1, 16, 26, POLE.t, p.kolor)}${zakres7('Wilgotność', z.h, z.h_sr, '%', 0, 30, 90, POLE.h, p.kolor)}` +
-      `<div class="leg"><span><i class="l-pole"></i>pole komfortu</span><span><i class="l-kreska"></i>średnia</span></div></div>`);
+      `<div class="leg"><span><i class="l-pole-pod"></i>pole komfortu</span><span><i class="l-kreska"></i>średnia</span></div></div>`);
   }
   // rytm doby
   h += sekcja('Rytm doby', `<div class="karta"><p class="rytm-nagl" aria-live="polite"></p><div class="rytm" data-rytm data-bez-gestu></div><div class="skala-leg" aria-hidden="true"></div></div>`);
@@ -2390,7 +2396,7 @@ function htmlPokoj(slug) {
 function zakres7(et, a, m, j, dz, lo, hi, pole, kolor) {
   const pr = (v) => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
   let h = `<div class="zakres"><div class="zakres-g"><span>${et}</span><b>${L(a[0], dz)}–${L(a[1], dz)}${j}<small>śr. ${liczba(m, dz)}${j}</small></b></div><div class="tor" style="--c:${kolor}" role="img" aria-label="${esc(et + ' w 7 dni: ' + liczba(a[0], dz) + ' do ' + liczba(a[1], dz) + j + ', średnio ' + liczba(m, dz) + j)}">`;
-  if (pole) h += `<i class="tor-pole" style="left:${pr(pole[0]).toFixed(1)}%;width:${(pr(pole[1]) - pr(pole[0])).toFixed(1)}%"></i>`;
+  if (pole) h += `<i class="tor-pole pod" style="left:${pr(pole[0]).toFixed(1)}%;width:${(pr(pole[1]) - pr(pole[0])).toFixed(1)}%"></i>`;
   h += `<i class="tor-zakres" style="left:${pr(a[0]).toFixed(1)}%;width:${Math.max(1.5, pr(a[1]) - pr(a[0])).toFixed(1)}%;opacity:.8"></i><i class="tor-kreska" style="left:${pr(m).toFixed(1)}%"></i></div>`;
   h += `<div class="tor-et" aria-hidden="true"><span class="l" style="left:0">${lo}${j}</span>`;
   if (pole) h += `<span style="left:${pr(pole[0]).toFixed(1)}%">${pole[0]}</span><span style="left:${pr(pole[1]).toFixed(1)}%">${pole[1]}</span>`;
@@ -2429,6 +2435,15 @@ function rysujWykresStrony(host, slug) {
     const n = stan.wyk.zakres === 'doba' ? 25 : p.seria.temp.length, T = czasySerii(p.seria), a = T.length - n;
     const t = T.slice(a), v = p.seria[m].slice(a);
     const g = zGranica ? granicaSerii(p).slice(a) : null;
+    // Seria to średnie godzinowe, a nagłówek strony pokazuje ostatni odczyt — sypialnia 8.11: „25,7°” u góry
+    // i „23,7° teraz” na wykresie. Ostatni odczyt dochodzi więc jako ostatni punkt linii.
+    // Kubełek godzinowy jest opisany końcem godziny (odczyt 10:51 wpada w „11:00”), więc ostatni kubełek zastępuje
+    // ostatni odczyt w swojej prawdziwej chwili; odczyt po ostatnim kubełku dochodzi jako nowy punkt.
+    const ostV = m === 'temp' ? p.temp : p.wilg, k = t.length - 1;
+    if (p.odczyt_ms != null && jestLiczba(ostV) && k >= 0 && p.odczyt_ms > t[k] - GODZ) {
+      if (p.odczyt_ms > t[k]) { t.push(p.odczyt_ms); v.push(ostV); if (g) g.push(granicaTeraz(p)); }
+      else { t[k] = p.odczyt_ms; v[k] = ostV; if (g) g[k] = granicaTeraz(p); }
+    }
     o = { od: t[0], do: t[t.length - 1], os: stan.wyk.zakres, wys: 192,
       serie: [{ nazwa: p.nazwa, kolor: p.kolor, t, v, glowna: true, obszar: true }],
       granica: g ? { t, v: g } : null,
@@ -2640,28 +2655,15 @@ function rysujRosliny() {
 /* =====================================================================
    SZCZEGÓŁ ROŚLINY (układ z propozycji 2)
    ===================================================================== */
-function luk(cx, cy, r, a0, a1) {
-  const p = (a) => [cx + r * Math.cos(a * Math.PI / 180), cy + r * Math.sin(a * Math.PI / 180)], A = p(a0), B = p(a1);
-  return `M${A[0].toFixed(2)} ${A[1].toFixed(2)}A${r} ${r} 0 ${(a1 - a0) > 180 ? 1 : 0} 1 ${B[0].toFixed(2)} ${B[1].toFixed(2)}`;
+function kafelek(o) {
+  const pr = (v) => Math.max(0, Math.min(100, (v - o.min) / (o.max - o.min) * 100)).toFixed(1);
+  let tor = '<div class="mk-tor" aria-hidden="true">';
+  if (o.pasmo) tor += `<i class="mk-pasmo" style="left:${pr(o.pasmo[0])}%;width:${(pr(o.pasmo[1]) - pr(o.pasmo[0])).toFixed(1)}%"></i>`;
+  if (o.wart != null) tor += o.tryb === 'wypelnij' ? `<i class="mk-wyp" style="width:${pr(o.wart)}%;background:${o.kolor}"></i>` : `<i class="mk-kr" style="left:${pr(o.wart)}%;background:${o.kolor}"></i>`;
+  (o.znaczniki || []).forEach((z) => { tor += `<i class="mk-zn" style="left:${pr(z)}%"></i>`; });
+  tor += '</div>';
+  return `<div class="mk${o.wyl ? ' wyl' : ''}"><div class="mk-et">${o.et}</div><div class="mk-wart">${o.tekst}<span class="u${o.jedn === '°' ? ' st' : ''}">${o.jedn}</span>${o.podW ? `<small>${o.podW}</small>` : ''}</div>${tor}<div class="mk-pod">${o.pod}</div></div>`;
 }
-function wskaznik(o) {
-  const A0 = 135, SW = 270, cx = 68, cy = 66, r = 50;
-  const kat = (v) => A0 + SW * Math.max(0, Math.min(1, (v - o.min) / (o.max - o.min)));
-  let s = `<svg width="136" height="118" viewBox="0 0 136 118" aria-hidden="true"><path class="wsk-tor" d="${luk(cx, cy, r, A0, A0 + SW)}"/>`;
-  if (o.pasmo) s += `<path class="wsk-pasmo" d="${luk(cx, cy, r, kat(o.pasmo[0]), kat(o.pasmo[1]))}"/>`;
-  if (o.tryb === 'wypelnij' && o.wart != null && o.wart > o.min) s += `<path class="wsk-war" stroke="${o.kolor}" d="${luk(cx, cy, r, A0, Math.max(A0 + 0.5, kat(o.wart)))}"/>`;
-  (o.znaczniki || []).forEach((z) => {
-    const a = kat(z) * Math.PI / 180;
-    s += `<line class="wsk-zn" x1="${(cx + (r - 9) * Math.cos(a)).toFixed(2)}" y1="${(cy + (r - 9) * Math.sin(a)).toFixed(2)}" x2="${(cx + (r + 9) * Math.cos(a)).toFixed(2)}" y2="${(cy + (r + 9) * Math.sin(a)).toFixed(2)}"/>`;
-  });
-  if (o.tryb === 'kropka' && o.wart != null) { const a = kat(o.wart) * Math.PI / 180; s += `<circle class="wsk-kropka" cx="${(cx + r * Math.cos(a)).toFixed(2)}" cy="${(cy + r * Math.sin(a)).toFixed(2)}" r="8.5" fill="${o.kolor}"/>`; }
-  s += `<text class="wsk-w" x="${cx}" y="${cy + 10}" text-anchor="middle">${o.tekst.replace(/(\d+),(\d+)/, '$1<tspan dx="-.14em">,</tspan><tspan dx="-.14em">$2</tspan>')}<tspan class="wsk-j"${o.jedn === '°' ? ' dy="-11"' : ''}>${o.jedn}</tspan></text>`;
-  if (o.podW) s += `<text class="wsk-pw" x="${cx}" y="${cy + 30}" text-anchor="middle">${o.podW}</text>`;
-  s += '</svg>';
-  return `<div class="wsk${o.wyl ? ' wyl' : ''}">${s}<div class="wsk-et">${o.et}</div><div class="wsk-pod">${o.pod}</div></div>`;
-}
-/* Temperatura doniczki z ostatnich 72 godz. (seria godzinowa) poza zakresem gatunku w co najmniej 80% godzin,
-   cały czas po tej samej stronie: {cieplo, lo, hi} albo null. Krótszej serii nie oceniamy. */
 function trwaleTemp(r) {
   const s = r.seria, n = s && s.krok_ms ? Math.round(72 * GODZ / s.krok_ms) : 0;
   const tz = r.temp_zakres, v = n && s.temp ? s.temp.slice(-n).filter(jestLiczba) : [];
@@ -2683,9 +2685,10 @@ function htmlRoslina(g) {
   const r = roslinaWg(g), o = R.ocen(r), P = R.POZIOMY[o.poziom], cz = o.poziom === 0;
   const st = D.rosliny_stare ? ' rd-stare' : '';
   let h = `<h1 class="duzy" tabindex="-1">${esc(r.nazwa)}</h1>` + liniaRoslin();
-  h += `<div class="rd-scena${st}">${R.roslina(r.gatunek, { poziom: o.poziom, twarz: true, objawy: o.objawy })}</div>`;
-  h += `<div class="rd-poziom${st}" style="--k:${P.kolor}"><span class="rd-buzka">${R.buzka(o.poziom)}</span><span><b>${P.nazwa}</b><span>${esc(P.tekst)}</span></span></div>`;
-  h += `<p class="rd-pelna">${esc(r.nazwa_pelna || r.nazwa)}${r.pokoj ? ' · ' + esc(r.pokoj) : ''}</p>`;
+  // 8.11: ilustracja obok stanu, a nie na pół pierwszego ekranu nad nim — stan i „co zrobić” mieszczą się od razu
+  h += `<div class="rd-gora${st}"><div class="rd-scena">${R.roslina(r.gatunek, { poziom: o.poziom, twarz: true, objawy: o.objawy })}</div>` +
+    `<div class="rd-poziom" style="--k:${P.kolor}"><span class="rd-buzka">${R.buzka(o.poziom)}</span><b>${P.nazwa}</b><span>${esc(P.tekst)}</span>` +
+    `<p class="rd-pelna">${esc(r.nazwa_pelna || r.nazwa)}${r.pokoj ? ' · ' + esc(r.pokoj) : ''}</p></div></div>`;
   const cz2 = coZrobic(r, o);
   if (cz2) h += `<section class="status ${cz2.kl}"><p class="status-g">${ik(cz2.ik)}Co zrobić teraz</p><p><b>${esc(cz2.akcja)}</b> ${esc(cz2.tekst)}</p></section>`;
   // prognoza podlewania jako wiersz informacyjny zaraz po glebie; gdy kolektor już mówi o podlewaniu,
@@ -2724,12 +2727,12 @@ function htmlRoslina(g) {
   const OK = tok('--ok'), WARN = tok('--warn');
   const tv = jestLiczba(r.temp) ? r.temp : 20, hv = jestLiczba(r.wilg) ? r.wilg : 50;
   h += sekcja('Teraz', '<div class="wsk-siatka">' +
-    wskaznik({ min: 0, max: 100, wart: r.gleba, tryb: 'wypelnij', kolor: kolG, pasmo: r.prog_gleba != null && r.szczyt != null ? [r.prog_gleba, r.szczyt] : null, znaczniki: znG, tekst: liczba(r.gleba, 0), jedn: '%', et: 'Gleba',
+    kafelek({ min: 0, max: 100, wart: r.gleba, tryb: 'wypelnij', kolor: kolG, pasmo: r.prog_gleba != null && r.szczyt != null ? [r.prog_gleba, r.szczyt] : null, znaczniki: znG, tekst: liczba(r.gleba, 0), jedn: '%', et: 'Gleba',
       pod: podCz || (r.prog_gleba != null ? `próg ${r.prog_gleba} · szczyt ${liczba(r.szczyt, 0)}` : 'skala w nauce'), wyl: cz }) +
-    wskaznik({ min: 0, max: 100, wart: proc, tryb: 'wypelnij', kolor: kolS, tekst: liczba(proc, 0), jedn: '%', podW: 'potrzeby', et: 'Światło dziś',
+    kafelek({ min: 0, max: 100, wart: proc, tryb: 'wypelnij', kolor: kolS, tekst: liczba(proc, 0), jedn: '%', podW: 'potrzeby', et: 'Światło dziś',
       pod: podCz || (wcz != null ? `wczoraj ${wcz}%` : 'dzień niepełny'), wyl: cz }) +
-    wskaznik({ min: tz ? Math.min(tz[0] - 6, tv - 1) : tv - 7, max: tz ? Math.max(tz[1] + 6, tv + 1) : tv + 7, wart: r.temp, tryb: 'kropka', kolor: tIn ? OK : (pt ? R.POZIOMY[pt.poziom].kolor : WARN), pasmo: tz || null, tekst: liczba(r.temp), jedn: '°', et: 'Temperatura', pod: podCz || (tz ? `lubi ${tz[0]}–${tz[1]}${NB}°C` : ''), wyl: cz }) +
-    wskaznik({ min: hz ? Math.max(0, Math.min(hz[0] - 25, hv - 5)) : Math.max(0, hv - 25), max: hz ? Math.min(100, Math.max(hz[1] + 15, hv + 5)) : Math.min(100, hv + 25), wart: r.wilg, tryb: 'kropka', kolor: hIn ? OK : WARN, pasmo: hz || null, tekst: liczba(r.wilg, 0), jedn: '%', et: 'Wilgotność', pod: podCz || (hz ? `lubi ${hz[0]}–${hz[1]}%` : ''), wyl: cz }) +
+    kafelek({ min: tz ? Math.min(tz[0] - 6, tv - 1) : tv - 7, max: tz ? Math.max(tz[1] + 6, tv + 1) : tv + 7, wart: r.temp, tryb: 'kropka', kolor: tIn ? OK : (pt ? R.POZIOMY[pt.poziom].kolor : WARN), pasmo: tz || null, tekst: liczba(r.temp), jedn: '°', et: 'Temperatura', pod: podCz || (tz ? `lubi ${tz[0]}–${tz[1]}${NB}°C` : ''), wyl: cz }) +
+    kafelek({ min: hz ? Math.max(0, Math.min(hz[0] - 25, hv - 5)) : Math.max(0, hv - 25), max: hz ? Math.min(100, Math.max(hz[1] + 15, hv + 5)) : Math.min(100, hv + 25), wart: r.wilg, tryb: 'kropka', kolor: hIn ? OK : WARN, pasmo: hz || null, tekst: liczba(r.wilg, 0), jedn: '%', et: 'Wilgotność', pod: podCz || (hz ? `lubi ${hz[0]}–${hz[1]}%` : ''), wyl: cz }) +
     '</div>');
   // gleba (implementacja z propozycji 2: krople to ścieżka w <g transform>)
   const pod = r.podlania || [];
@@ -2754,16 +2757,16 @@ function swiatloWiersze(r, kolor) {
   if (!d.length || !potrz) return '<p class="drobny">Brak pomiaru światła</p>';
   const dom = Math.max(potrz, Math.max.apply(null, d.map((x) => x.lxh))) * 1.06;
   const xp = (v) => (v / dom * 100).toFixed(2);
-  return `<div style="--k:${kolor}">` + d.map((x) => {
-    // pełna doba jak w rosliny.py (pelne_doby_swiatla): pokrycie ≥ progu, po dniu wbicia czujnika i nie dziś
-    const dzis = lok(TERAZ).klucz, odD = r.od_ms ? lok(r.od_ms).klucz : '';
-    const dd = x.data.split('-'), pel = x.pokrycie >= POKRYCIE_PELNEJ_DOBY && x.data > odD && x.data !== dzis, pr = Math.round(x.lxh / potrz * 100);
-    // niepełna doba: kiedy był pomiar (do zbiórki albo od wbicia czujnika), bez drugiego procentu w wierszu
-    const niep = x.data === dzis ? 'do ' + godz(D.rosliny_ms != null ? Math.min(D.rosliny_ms, TERAZ) : TERAZ) : x.data === odD ? 'od ' + godz(r.od_ms) : 'niepełna';
-    return `<div class="sw"><span class="sw-n">${+dd[2]}.${dd[1]}<small>${pel ? 'pełna doba' : niep}</small></span>` +
-      `<span class="sw-tor" role="img" aria-label="${tys(x.lxh)} luksogodzin, ${pr}% potrzeby${pel ? '' : ', doba niepełna'}"><i class="${pel ? '' : 'niep'}" style="width:${xp(x.lxh)}%"></i><em style="left:${xp(potrz)}%"></em></span>` +
-      `<span class="sw-w">${pr}%<small>${tys(x.lxh)}${NB}lx·h</small></span></div>`;
-  }).join('') + `<div class="sw sw-os" aria-hidden="true"><span></span><span class="sw-tor"><span style="left:${xp(potrz)}%">potrzeba ${tys(potrz)}${NB}lx·h</span></span><span></span></div></div>`;
+  const dzisK = lok(TERAZ).klucz, odK = r.od_ms ? lok(r.od_ms).klucz : '';
+  const sl = d.map((x) => {
+    const pel = x.pokrycie >= POKRYCIE_PELNEJ_DOBY && x.data > odK && x.data !== dzisK, pr = Math.round(x.lxh / potrz * 100), dd = x.data.split('-');
+    return `<div class="sl" role="img" aria-label="${+dd[2]}.${dd[1]}: ${tys(x.lxh)} luksogodzin, ${pr}% potrzeby${pel ? '' : ', doba niepełna'}">` +
+      `<span class="sl-tor"><i class="${pel ? '' : 'niep'}" style="height:${xp(x.lxh)}%"></i><b style="bottom:calc(${xp(x.lxh)}% + 4px)">${pr}%</b></span>` +
+      `<span class="sl-d">${x.data === dzisK ? 'dziś' : +dd[2] + '.' + dd[1]}</span></div>`;
+  }).join('');
+  // 8.11: słupki dób zamiast wierszy; kreska to dzienna potrzeba gatunku
+  return `<div class="sl-wyk" style="--k:${kolor};--potrz:${(potrz / dom).toFixed(4)}">${sl}</div>` +
+    `<p class="sl-leg"><i></i>potrzeba ${tys(potrz)}${NB}lx·h na dobę</p>`;
 }
 function wykresGleby(host, r) {
   const karta = host.closest('.karta'), nag = $('.wyk-w', karta), kk = $('.wyk-k', karta);
@@ -2789,8 +2792,8 @@ function wykresGleby(host, r) {
   wykres(host, o);
   o.przy(null);
 }
-/* Podlania: oś z samymi kroplami (rytm), pod nią lista od najnowszego. Dawniej daty i „przed → szczyt” stały na osi
-   przy każdej kropli, a przy siedmiu podlaniach azalii w miesiącu napisy wchodziły jeden na drugi. */
+/* Podlania: lista od najnowszego. Dawniej daty i „przed → szczyt” stały na osi przy każdej kropli, a przy siedmiu
+   podlaniach azalii w miesiącu napisy wchodziły jeden na drugi; krople na osi powtarzały znaczniki z wykresu gleby. */
 function poIlu(ms) {
   const d = ms / 864e5;
   if (d < 1.5) { const g = Math.max(1, Math.round(ms / GODZ)); return `po ${g}${NB}godz.`; }
@@ -2810,26 +2813,11 @@ function sekcjaPodlan(r) {
       `<span class="wiersz-n">${esc(kiedy(p.ms))}<small>${i ? poIlu(p.ms - pod[i - 1].ms) : 'pierwsze od wbicia czujnika'}</small></span>` +
       `<span class="wiersz-w t">${wart}<small>${pod2}</small></span></div>`;
   }).reverse().join('');
-  return sekcja('Podlania', `<div class="karta os" data-os></div><div class="lista os-lista">${wiersze}</div>`, pop);
-}
-function osPodlan(el, r) {
-  const W = Math.max(240, Math.round(el.clientWidth) - 32), H = 56, pad = 10, yo = 28, od = r.od_ms, doo = TERAZ;
-  const X = (t) => pad + (t - od) / (doo - od) * (W - 2 * pad);
-  let s = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Podlania od wbicia czujnika: ${(r.podlania || []).length}">`;
-  s += `<line class="os-linia" x1="${pad}" x2="${W - pad}" y1="${yo}" y2="${yo}"/>`;
-  s += `<line class="os-tick" x1="${pad}" x2="${pad}" y1="${yo - 6}" y2="${yo + 6}"/><line class="os-tick" x1="${W - pad}" x2="${W - pad}" y1="${yo - 6}" y2="${yo + 6}"/>`;
-  s += `<text class="os-et" x="${pad}" y="${H - 2}">${dzien(od)}</text><text class="os-et" x="${W - pad}" y="${H - 2}" text-anchor="end">dziś</text>`;
-  (r.podlania || []).forEach((p) => {
-    const x = X(p.ms);
-    s += `<line class="os-tick" x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${yo - 4}" y2="${yo + 4}"/>`;
-    s += `<g class="os-kropla${p.pominiete ? ' pusta' : ''}" transform="translate(${(x - 8).toFixed(1)} 0) scale(.6667)"><path d="${KROPLA_D}"/></g>`;
-  });
-  el.innerHTML = s + '</svg>';
+  return sekcja('Podlania', `<div class="lista os-lista">${wiersze}</div>`, pop);
 }
 function zamontujRoslina(el, g) {
   const r = roslinaWg(g);
   montuj($('[data-gleba]', el), (host) => wykresGleby(host, r));
-  montuj($('[data-os]', el), (host) => osPodlan(host, r));
 }
 
 /* =====================================================================
@@ -2857,8 +2845,9 @@ function rysujHistorie() {
   const el = $('#v-historia');
   if (!D || D.blad) { el.innerHTML = '<h1 class="duzy">Historia</h1>' + htmlBledu(D ? D.blad : null); return; }
   let h = '<h1 class="duzy">Historia</h1>';
+  h += `<section class="sekcja" style="margin-top:24px"><div class="sekcja-g"><h2>Wszystkie pokoje</h2></div>${segMiaryDom()}<div class="karta wyk-dom" aria-label="Wykres">${kartaWykresuDom()}</div></section>`;
   const kd = D.komfort_dzis || [];
-  h += `<section class="sekcja" style="margin-top:24px"><div class="sekcja-g"><h2>Komfort dziś</h2><span class="sekcja-pop">${POLE.t[0]}–${POLE.t[1]}${NB}°C · ${POLE.h[0]}–${POLE.h[1]}%</span></div><div class="karta">` +
+  h += `<section class="sekcja"><div class="sekcja-g"><h2>Komfort dziś</h2><span class="sekcja-pop">${POLE.t[0]}–${POLE.t[1]}${NB}°C · ${POLE.h[0]}–${POLE.h[1]}%</span></div><div class="karta">` +
     (kd.map((k) => {
       const p = pokojeTeraz().find((x) => x.id === k.id), ko = komfortOpis(k);
       if (!p) return '';
@@ -2868,18 +2857,26 @@ function rysujHistorie() {
   h += `<section class="sekcja"><div class="sekcja-g"><h2>Zakresy 7 dni</h2></div><div class="karta" id="zak-karta">${zakresy7()}</div></section>`;
   h += `<section class="sekcja"><div class="sekcja-g"><h2>Ostatnie 30 dni</h2></div><div class="karta" id="m30-karta">${karta30()}</div></section>`;
   const wn = wnetrza(), ost = Math.max.apply(null, [0].concat(wn.map((p) => p.odczyt_ms || 0)));
-  h += `<section class="sekcja"><div class="sekcja-g"><h2>Czujniki i zbiórka</h2></div><div class="lista">` +
+  // diagnostyka zwinięta; rozwija się sama, gdy coś jest nie tak (milczący czujnik, słaba bateria, spóźniona zbiórka)
+  const klopot = wn.some((p) => milczy(p) || p.bateria === 'low') || (D.zbiorka_ms != null && TERAZ - D.zbiorka_ms > SPOZNIENIE_ZBIORKI);
+  h += `<details class="sekcja zwijana"${klopot ? ' open' : ''}><summary class="sekcja-g"><h2>Czujniki i zbiórka</h2><span class="sekcja-pop">${wn.filter((p) => !milczy(p)).length} z ${wn.length} nadają${ik('chev-d', 's zw-ik')}</span></summary><div class="lista">` +
     `<div class="wiersz"><span class="wiersz-ik">${ik('czujnik', 'm')}</span><span class="wiersz-n">Czujniki w pokojach</span><span class="wiersz-w t" data-nadaja>${wn.filter((p) => !milczy(p)).length} z ${wn.length} nadają</span></div>` +
     `<div class="wiersz"><span class="wiersz-ik">${ik('zegar', 'm')}</span><span class="wiersz-n">Ostatni raport czujnika</span><span class="wiersz-w t">${ost ? temu(ost) : '–'}</span></div>` +
     `<div class="wiersz"><span class="wiersz-ik">${ik('zbiorka', 'm')}</span><span class="wiersz-n">Ostatnia zbiórka danych</span><span class="wiersz-w t">${temu(D.zbiorka_ms)}</span></div>` +
     `<div class="wiersz"><span class="wiersz-ik">${ik('historia', 'm')}</span><span class="wiersz-n">Najdłuższa przerwa<small>w ostatnich 24 godz.</small></span><span class="wiersz-w t">${przerwa(D.przerwa_ms)}</span></div>` +
-    `<div class="wiersz"><span class="wiersz-ik">${ik('bateria', 'm')}</span><span class="wiersz-n">Baterie</span><span class="wiersz-w t">${esc(opisBaterii(wn))}</span></div></div></section>`;
+    `<div class="wiersz"><span class="wiersz-ik">${ik('bateria', 'm')}</span><span class="wiersz-n">Baterie</span><span class="wiersz-w t">${esc(opisBaterii(wn))}</span></div></div></details>`;
   el.innerHTML = h;
+  montuj($('[data-wykres="dom"]', el), rysujWykresDom);
   montuj($('[data-m30]', el), rysuj30);
 }
 function zakresy7() {
   const temp = stan.zakresy === 'temp';
-  const lo = temp ? 10 : 20, hi = temp ? 25 : 90, tk = temp ? [10, 15, 20, 25] : [20, 40, 60, 80];
+  // oś obejmuje wszystkie zakresy: dwór w listopadzie (−1,4–9,2°) leżał dawniej kreską na brzegu osi 10–25°
+  const zz = pokojeTeraz().map((p) => { const z = zakres7dni(p); return temp ? z.t : z.h; }).filter(Boolean);
+  const krok = temp ? 5 : 20, mnA = Math.min.apply(null, zz.map((a) => a[0]).concat([Infinity])), mxA = Math.max.apply(null, zz.map((a) => a[1]).concat([-Infinity]));
+  const lo = Math.min(temp ? 10 : 20, isFinite(mnA) ? Math.floor(mnA / krok) * krok : Infinity), hi = Math.max(temp ? 25 : 80, isFinite(mxA) ? Math.ceil(mxA / krok) * krok : -Infinity);
+  const co = (hi - lo) / krok > 5 ? 2 * krok : krok, tk = [];
+  for (let v = lo; v <= hi + 1e-9; v += co) tk.push(v);
   let h = `<div class="seg seg-pelny zak-seg" role="group" aria-label="Co pokazać">${segBtn('zakresy', 'temp', 'Temperatura', stan.zakresy)}${segBtn('zakresy', 'wilg', 'Wilgotność', stan.zakresy)}</div>`;
   h += pokojeTeraz().map((p) => {
     const z = zakres7dni(p), a = temp ? z.t : z.h;
