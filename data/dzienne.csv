@@ -887,5 +887,5 @@ date,device_id,code,min,avg,max,n
 2026-11-10,bf7e2a70935af7de78mjqt,va_temperature,20.9,21.14,21.3,11
 2026-11-10,bfd6f4f87fea9d866dvpve,va_humidity,60,62.29,66,17
 2026-11-10,bfd6f4f87fea9d866dvpve,va_temperature,19.4,19.80,20.7,13
-2026-11-10,zewnatrz,va_humidity,75,79.55,82,11
-2026-11-10,zewnatrz,va_temperature,1.4,2.25,3.9,11
+2026-11-10,zewnatrz,va_humidity,73,79.00,82,12
+2026-11-10,zewnatrz,va_temperature,1.4,2.43,4.4,12
