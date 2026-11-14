@@ -5542,3 +5542,17 @@ ts,device_id,code,value
 2026-11-14T15:47:54Z,bf7e2a70935af7de78mjqt,battery_state,middle
 2026-11-14T16:00:00Z,zewnatrz,va_humidity,71
 2026-11-14T16:00:00Z,zewnatrz,va_temperature,5.6
+2026-11-14T16:03:05Z,bf5741c97c96fa85b1d7do,battery_state,middle
+2026-11-14T16:03:05Z,bf5741c97c96fa85b1d7do,va_humidity,64
+2026-11-14T16:03:05Z,bf5741c97c96fa85b1d7do,va_temperature,21
+2026-11-14T16:08:32Z,bfd6f4f87fea9d866dvpve,battery_state,middle
+2026-11-14T16:08:32Z,bfd6f4f87fea9d866dvpve,va_humidity,65
+2026-11-14T16:08:32Z,bfd6f4f87fea9d866dvpve,va_temperature,20.3
+2026-11-14T16:13:33Z,bf43cf664d6644420axva3,battery_state,middle
+2026-11-14T16:13:33Z,bf43cf664d6644420axva3,va_humidity,59
+2026-11-14T16:13:33Z,bf43cf664d6644420axva3,va_temperature,21.1
+2026-11-14T16:47:29Z,bf7e2a70935af7de78mjqt,va_humidity,56
+2026-11-14T16:47:29Z,bf7e2a70935af7de78mjqt,va_temperature,20.4
+2026-11-14T16:47:30Z,bf7e2a70935af7de78mjqt,battery_state,middle
+2026-11-14T17:00:00Z,zewnatrz,va_humidity,73
+2026-11-14T17:00:00Z,zewnatrz,va_temperature,4.8
