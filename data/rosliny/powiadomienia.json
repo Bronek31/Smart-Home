@@ -350,16 +350,11 @@
    "noc": []
   },
   "Skrzydłokwiat": {
-   "ponizej_od": "2026-11-14T19:01:10Z",
-   "wyslano": [
-    "2026-11-14T21:01:09Z"
-   ],
+   "ponizej_od": null,
+   "wyslano": [],
    "na_sucho": [],
    "czujnik": {},
-   "noc": [],
-   "podlej_dla": {
-    "iphone": "2026-11-15T07:01:12Z"
-   }
+   "noc": []
   },
   "Azalia": {
    "ponizej_od": null,
