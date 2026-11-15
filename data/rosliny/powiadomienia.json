@@ -301,6 +301,24 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261115T070112Z-podlej",
+   "ts": "2026-11-15T07:01:12Z",
+   "przebieg": "43688019356-1",
+   "regula": "podlej",
+   "rosliny": [
+    "Skrzydłokwiat"
+   ],
+   "tytul": "Podlej: skrzydłokwiat",
+   "tresc": "Skrzydłokwiat: gleba 32% (podlewaj przy ok. 35%).",
+   "tag": "podlej-skrzydlokwiat",
+   "url": "#skrzydlokwiat",
+   "na_sucho": false,
+   "telefony": [
+    "iphone"
+   ],
+   "odlozone": true
   }
  ],
  "stan_regul": {
@@ -318,7 +336,10 @@
    ],
    "na_sucho": [],
    "czujnik": {},
-   "noc": []
+   "noc": [],
+   "podlej_dla": {
+    "iphone": "2026-11-15T07:01:12Z"
+   }
   },
   "Azalia": {
    "ponizej_od": null,
@@ -334,14 +355,7 @@
    "odlozone": []
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "podlej",
-     "obiekt": "Skrzydłokwiat",
-     "ts": "2026-11-14T21:01:09Z",
-     "ponizej_od": "2026-11-14T19:01:10Z"
-    }
-   ]
+   "odlozone": []
   }
  }
 }

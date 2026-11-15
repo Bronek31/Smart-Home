@@ -1684,11 +1684,7 @@
    "czujniki": {}
   },
   "bf7e2a70935af7de78mjqt": {
-   "przewietrz": {
-    "od": "2026-11-15T06:01:16Z",
-    "wyslano": "2026-11-15T06:01:16Z",
-    "na_sucho": null
-   },
+   "przewietrz": null,
    "okno": null,
    "czujniki": {}
   },
