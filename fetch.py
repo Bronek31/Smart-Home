@@ -111,6 +111,8 @@ LIMIT_ROSLIN_S = 300
 LIMIT_DOMU_S = 60
 OUTDOOR_ID = "zewnatrz"
 OUTDOOR_URL = "https://api.open-meteo.com/v1/forecast"
+# Poniżej tej wilgotności odczyt z Open-Meteo to błąd modelu, nie pogoda (w Polsce nie schodzi pod ~15%).
+WILG_DWOR_MIN = 5
 AIR_URL = "https://air-quality-api.open-meteo.com/v1/air-quality"
 WEATHER = DATA_DIR / "pogoda.json"
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
@@ -717,6 +719,8 @@ def fetch_outdoor(days: int) -> tuple[list[dict], dict | None]:
                 continue
             if when > now:          # prognoza na resztę doby nas nie interesuje
                 continue
+            if code == "va_humidity" and float(value) < WILG_DWOR_MIN:
+                continue            # model zwracał 0–1% po kilka godzin (7, 9 i 14.09) — fizycznie niemożliwe
             rows.append({
                 "ts": when.strftime("%Y-%m-%dT%H:%M:%SZ"),
                 "device_id": OUTDOOR_ID,
@@ -1891,6 +1895,11 @@ def main() -> int:
     pogoda = fetch_weather()
 
     added = merge(collected)
+    # Urządzenie nieodświeżone w tym przebiegu (najczęściej dwór po timeoucie Open-Meteo)
+    # ma wrócić do listy już tutaj, nie dopiero w write_manifest: bez niego reguły domu
+    # nie mają granicy z dworem, zamykają epizody „przewietrz”/„okno” i przy następnym
+    # przebiegu wysyłają je od nowa, a diagnose() nie widzi, że pogoda milczy.
+    manifest_devices = keep_known(manifest_devices)
     zwiniete = collapse_power(manifest_devices)
     if zwiniete:
         print(f"Włączniki: zwinięto {zwiniete} powtórzeń tego samego stanu.")

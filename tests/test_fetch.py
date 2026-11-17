@@ -839,5 +839,22 @@ class TestNaZywychDanych(unittest.TestCase):
             self.assertEqual(len(wartosci), len(godzinowe["time"]), pole)
 
 
+class WilgotnoscDworu(unittest.TestCase):
+    """Open-Meteo zwracało we wrześniu po kilka godzin 0–1% — takie odczyty nie wchodzą do CSV."""
+
+    def test_odrzuca_niemozliwie_niska_wilgotnosc(self):
+        godzina = (datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%Y-%m-%dT%H:00")
+        odp = mock.Mock()
+        odp.json.return_value = {"hourly": {
+            "time": [godzina],
+            "temperature_2m": [20.2],
+            "relative_humidity_2m": [0],
+        }}
+        with mock.patch.dict(os.environ, {"OUTDOOR_LAT": "52", "OUTDOOR_LON": "21"}), \
+                mock.patch.object(fetch.requests, "get", return_value=odp):
+            wiersze, _ = fetch.fetch_outdoor(1)
+        self.assertEqual([w["code"] for w in wiersze], ["va_temperature"])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

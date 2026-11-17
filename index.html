@@ -1612,7 +1612,8 @@ function kiedy(ms) {
   if (bezCzasu(ms)) return '–';
   const l = lok(ms), n = lok(TERAZ);
   if (l.klucz === n.klucz) return 'dziś, ' + godz(ms);
-  if (l.klucz === lok(TERAZ - 864e5).klucz) return 'wczoraj, ' + godz(ms);
+  // od południa (10:00 UTC) dzisiejszej daty, nie od TERAZ — doba przy zmianie czasu ma 23 albo 25 godz.
+  if (l.klucz === lok(dnia(n.klucz) - 864e5).klucz) return 'wczoraj, ' + godz(ms);
   return DNI[l.wd] + ' ' + dzien(ms) + ', ' + godz(ms);
 }
 function temu(ms) {
