@@ -474,7 +474,7 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .wyb>.m30-sr.k{visibility:visible}
 
 /* Powiadomienia */
-.tel-op{margin-top:8px;min-height:16px;font:400 13px/16px var(--f-t);color:var(--faint)}
+.tel-op{margin:8px 16px 0;min-height:16px;font:400 13px/16px var(--f-t);color:var(--faint)}
 .tel-op.inny{color:var(--dim)}
 .grupa{margin-top:24px}
 .grupa-t{margin:0 0 8px 16px;font:600 15px/20px var(--f-t);color:var(--dim)}
@@ -533,6 +533,8 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .zakladki-w{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));height:var(--zakladki)}
 .zakladka{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-width:0;color:var(--faint);font:500 12px/16px var(--f-e)}
 .zakladka>span:last-child{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 320 px (iPhone SE 1. gen., duża czcionka systemowa): przy 12 px „Powiadomienia” nie mieści się w ćwiartce i ucina się do „Powiadomien…” */
+@media (max-width:359px){.zakladka{font-size:11px;letter-spacing:-.01em}}
 .z-ik{position:relative;display:grid;place-items:center;width:56px;height:32px;border-radius:var(--r-p);transition:background-color .2s}
 .zakladka[aria-current="page"]{color:var(--text)}
 .zakladka[aria-current="page"] .z-ik{background:var(--panel-3)}
@@ -3416,6 +3418,9 @@ function rysujPowiadomienia() {
   h += `<div class="seg seg-pelny" role="group" aria-label="Telefon" style="margin-top:${pol ? 16 : 24}px">${['android', 'iphone'].map((t) =>
     `<button type="button" data-tel="${t}" aria-pressed="${t === tel}">${TEN_TEL === t ? ik('telefon', 's') : ''}${NAZWA_TEL[t]}${TEN_TEL === t ? '<span class="sr"> (ten telefon)</span>' : ''}</button>`).join('')}</div>`;
   if (TEN_TEL) h += `<p class="tel-op${tel === TEN_TEL ? '' : ' inny'}">${tel === TEN_TEL ? 'Ten telefon' : 'Drugi telefon — zmieniasz jego ustawienia'}</p>`;
+  // Bez klucza strona nie może odczytać zmiennych z GitHuba, więc przełączniki pokazują wartości domyślne —
+  // a te potrafią przeczyć liście „Ostatnie” (np. cisza 21–8 przy powiadomieniach o 1:00 w nocy).
+  if (!pol) h += `<p class="grupa-s ustaw-uwaga">${pam.get('ustawienia', null) ? 'Ostatnio odczytane ustawienia — mogły się od tego czasu zmienić.' : 'Bez połączenia widać ustawienia domyślne, nie te zapisane dla telefonu.'}</p>`;
   // „Przewietrz” obejmuje też wariant „przed snem” (prognoza wilgoci na noc); „Czujniki w pokojach” to milczenie
   // i słaba bateria czujnika w pokoju
   const pd = proba(pw.tryb_dom, 'o domu'), pr = proba(pw.tryb_rosliny, 'o roślinach');
