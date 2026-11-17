@@ -373,9 +373,13 @@ def tempo_wpisow(client: Tuya, device_id: str, teraz_ms: int, okno_ms: int = 360
             f"ok. {na_dobe * 7 // 100 + 1} stron na tydzień ({rozbicie})")
 
 
-def fetch_logs(client: Tuya, device_id: str, start_ms: int, end_ms: int) -> list[dict]:
+def fetch_logs(client: Tuya, device_id: str, start_ms: int, end_ms: int) -> tuple[list[dict], bool]:
     """Całe okno naraz, do 300 stron. Zostało dla urządzeń z włącznikiem, które mają
-    własne, dwunastogodzinne okno; czujniki idą przez pobierz_przyrostowo()."""
+    własne, dwunastogodzinne okno; czujniki idą przez pobierz_przyrostowo().
+
+    Drugi element: czy przyszło całe okno. Przy urwanym stronicowaniu kolejność stron
+    nie jest znana, więc najnowszy widziany wpis nie może przesunąć `last_log` —
+    inaczej następny przebieg pominąłby to, czego ten nie dostał."""
     rows, stan = _strony_z_wyborem(client, device_id, start_ms, end_ms, 300)
     if rows is None:
         raise TuyaError(
@@ -383,7 +387,7 @@ def fetch_logs(client: Tuya, device_id: str, start_ms: int, end_ms: int) -> list
         )
     if stan == "blad":
         print(f"  uwaga: {device_id} — błąd w trakcie stronicowania, biorę to, co przyszło", flush=True)
-    return rows
+    return rows, stan == "komplet"
 
 
 def _strony_z_wyborem(client, device_id, start_ms, end_ms, limit):
@@ -1474,8 +1478,12 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = 
     try:
         zaplanuj_powiadomienia_roslin(stany, end_ms, strefa, ustawienia)
     except Exception as err:
-        bledy.append(f"powiadomienia: {type(err).__name__}: {err}")
-        print(f"Rośliny: błąd reguł powiadomień — {type(err).__name__}: {err}", flush=True)
+        # jak w torze domu: sama nazwa typu i miejsce — treść trafiłaby do publicznego
+        # stan.json, a reguły powiadomień pracują na ustawieniach telefonów
+        ramka = traceback.extract_tb(err.__traceback__)[-1:] if err.__traceback__ else []
+        miejsce = f" ({Path(ramka[0].filename).name}:{ramka[0].lineno})" if ramka else ""
+        bledy.append(f"powiadomienia: {type(err).__name__}{miejsce}, szczegóły w logu przebiegu")
+        print(f"Rośliny: błąd reguł powiadomień — {type(err).__name__}{miejsce}", flush=True)
     alerty.extend(f"**Rośliny** — {b}" for b in bledy)
     _zapisz_stan_roslin({
         "updated": iso(end_ms),
@@ -1834,7 +1842,7 @@ def main() -> int:
                 manifest_devices[device_id]["pobrane_do"] = iso(kursor)
         try:
             if sprzet:
-                logs = fetch_logs(client, device_id, od_kiedy, end_ms)
+                logs, komplet = fetch_logs(client, device_id, od_kiedy, end_ms)
             else:
                 logs, domkniete = pobierz_przyrostowo(client, device_id, od_kiedy, end_ms, pewne_do=kursor)
                 # Kursor nigdy nie cofa się: to, co przed nim, jest już w CSV.
@@ -1847,7 +1855,7 @@ def main() -> int:
             print(f"{name}: pominięty — {err}", flush=True)
             continue
         widziany = max((int(e["event_time"]) for e in logs if e.get("event_time")), default=0)
-        if sprzet:
+        if sprzet and komplet:
             znacznik = max(widziany, ostatni_log.get(device_id, 0))
             if znacznik:
                 manifest_devices[device_id]["last_log"] = iso(znacznik)

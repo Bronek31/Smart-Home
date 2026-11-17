@@ -40,9 +40,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10          # zwykle 8 s
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6
         with:
           python-version: '3.12'
           cache: pip
@@ -67,9 +67,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20          # zwykle 80 s, z pobieraniem Chromium kilka minut
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444  # v5
         with:
           node-version: '20'
           cache: npm
@@ -83,7 +83,7 @@ jobs:
         working-directory: tests/frontend
         run: echo "wersja=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/cache@v4
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         id: przegladarki
         with:
           path: ~/.cache/ms-playwright
@@ -104,7 +104,7 @@ jobs:
 
       - name: Ślady nieudanych testów
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: slady-playwright
           path: |
@@ -117,7 +117,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5          # zwykle 5 s
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5
       - name: Pilnuj, czym ta strona jest
         # Cały sens tego projektu polega na tym, że index.html działa prosto z repozytorium.
         # Gdyby ktoś kiedyś dołożył krok budowania albo lokalny import, Pages wystawi
