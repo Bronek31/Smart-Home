@@ -380,6 +380,8 @@ test.describe('reguły domu z data/dom/stan.json (D1)', () => {
     const { bledy } = await otworz(page, { dom: { kuchnia: { przewietrz: { od, wilg: 71, granica: 63.2 } } } });
     await expect(page.locator('#v-dom .podsum-s')).toHaveText(/Przewietrz kuchnię/);
     await expect(page.locator('#v-dom .podsum-l')).toContainText('za wilgotno od 63%');
+    // średnia mieszkania zostaje na ekranie także pod „Przewietrz”
+    await expect(page.locator('#v-dom [data-srednia]')).toHaveText(/^Średnio w domu \d+,\d\s°C · \d+%$/);
     await expect(page.locator('[data-idz="kuchnia"].pokoj .pokoj-uw')).toContainText('od 3');
     await page.click('#v-dom .podsum');
     await expect(page).toHaveURL(/#kuchnia$/);

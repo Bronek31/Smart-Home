@@ -205,6 +205,7 @@ html.powiekszony .pager,html.powiekszony .w-svg,html.powiekszony .rytm svg,html.
 .podsum-l{margin-top:4px;padding-left:16px;font:400 15px/20px var(--f-t);color:var(--dim)}
 .podsum-b{position:relative;padding:4px 40px 4px 0;min-height:44px}
 .podsum-b .podsum-s{color:var(--warn-t)}
+.podsum-sr{margin-top:8px;padding-left:16px;font:400 15px/20px var(--f-t);color:var(--dim)}
 .podsum-chev{position:absolute;right:0;top:50%;margin-top:-10px;color:var(--faint)}
 .podsum-sz .podsum-s{color:var(--dim)}
 .podsum-ak .podsum-s{color:var(--akcent)}
@@ -2289,6 +2290,9 @@ function rysujDom() {
   if (!D || D.blad) { el.innerHTML = '<h1 class="duzy">Dom</h1>' + htmlBledu(D ? D.blad : null); return; }
   const pk = pokojeTeraz(), wewn = pk.filter((p) => !p.zewnatrz), dw = pk.find((p) => p.zewnatrz);
   const sd = stanDomu();
+  // średnia mieszkania widoczna zawsze — także pod „Przewietrz”, „Zamknij okno?” i milczącym czujnikiem
+  const tw = wewn.map((p) => p.temp).filter(jestLiczba), ww = wewn.map((p) => p.wilg).filter(jestLiczba);
+  const srednia = `Średnio w domu ${liczba(tw.length ? sr(tw) : null)}${NB}°C · ${liczba(ww.length ? sr(ww) : null, 0)}%`;
   let h = '<h1 class="duzy">Dom</h1>';
   if (sd.typ === 'okno') {
     h += `<button class="podsum podsum-b podsum-ak" type="button" data-idz="${sd.p.slug}"><span class="podsum-s">${ik('okno', 's')}Zamknij okno w ${esc(sd.p.miejsc)}?</span>` +
@@ -2300,10 +2304,10 @@ function rysujDom() {
     h += `<button class="podsum podsum-b podsum-sz" type="button" data-idz="${sd.p.slug}"><span class="podsum-s"><i class="kropka" style="--k:var(--faint)"></i>Czujnik w ${esc(sd.p.miejsc)} milczy</span>` +
       `<span class="podsum-l" style="display:block">${sd.p.odczyt_ms == null ? 'Brak odczytów' : 'Ostatni odczyt ' + kiedy(sd.p.odczyt_ms)}</span>${ik('chev-r', 'm podsum-chev')}</button>`;
   } else {
-    const t = wewn.map((p) => p.temp).filter(jestLiczba), w = wewn.map((p) => p.wilg).filter(jestLiczba);
     h += `<div class="podsum"><p class="podsum-s"><i class="kropka" style="--k:var(--ok)"></i>Wszystko w normie</p>` +
-      `<p class="podsum-l">Średnio w domu ${liczba(t.length ? sr(t) : null)}${NB}°C · ${liczba(w.length ? sr(w) : null, 0)}%</p></div>`;
+      `<p class="podsum-l" data-srednia>${srednia}</p></div>`;
   }
+  if (sd.typ === 'okno' || sd.typ === 'wietrz' || sd.typ === 'cisza') h += `<p class="podsum-sr" data-srednia>${srednia}</p>`;
   if (D.zbiorka_ms != null && TERAZ - D.zbiorka_ms > SPOZNIENIE_ZBIORKI) {
     h += `<p class="spoznienie" data-spoznienie>${ik('zbiorka', 's')}Ostatnia zbiórka ${temu(D.zbiorka_ms)}</p>`;
   }
