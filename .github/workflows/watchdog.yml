@@ -79,7 +79,7 @@ jobs:
           dłuższego niż tydzień przepadną bezpowrotnie, bo nie ma ich skąd odtworzyć.
           EOF
           )
-          NUMER=$(gh issue list --label kolektor --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          NUMER=$(gh issue list --label kolektor --state open --limit 1 --json number --jq '.[0].number // empty')
           if [ -n "$NUMER" ]; then
             gh issue comment "$NUMER" --body "$TRESC"
             echo "Dopisano komentarz do zgłoszenia #$NUMER."
@@ -139,7 +139,7 @@ jobs:
             echo "Szerszy obraz na <https://bronek31.github.io/Smart-Home/>, w tabeli *Łączność z bramką*."
             echo "Treść tego zgłoszenia odświeża się co kilka godzin, a zamknie się samo, gdy lista opustoszeje."
           } > "$RUNNER_TEMP/tresc.md"
-          NUMER=$(gh issue list --label czujniki --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          NUMER=$(gh issue list --label czujniki --state open --limit 1 --json number --jq '.[0].number // empty')
           if [ -n "$NUMER" ]; then
             # podmiana treści zamiast komentarza: bateria potrafi konać tygodniami,
             # a codzienny komentarz o tym samym to powiadomienie, które przestaje się czytać
@@ -194,7 +194,7 @@ jobs:
             echo
             echo "Treść odświeża się co kilka godzin, a zgłoszenie zamknie się samo, gdy lista opustoszeje."
           } > "$RUNNER_TEMP/tresc-rosliny.md"
-          NUMER=$(gh issue list --label rosliny --state open --limit 1 --json number --jq '.[0].number // empty' || true)
+          NUMER=$(gh issue list --label rosliny --state open --limit 1 --json number --jq '.[0].number // empty')
           if [ -n "$NUMER" ]; then
             gh issue edit "$NUMER" --body-file "$RUNNER_TEMP/tresc-rosliny.md"
             echo "Odświeżono zgłoszenie #$NUMER."

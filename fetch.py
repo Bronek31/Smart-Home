@@ -1407,8 +1407,18 @@ def zbierz_rosliny(client: Tuya, start_ms: int, end_ms: int, pokoje: set[str] = 
         urzadzenia[dev] = dict(przed)
         skale = przed.get("skale") if przed.get("kody") == kody else None
         if not isinstance(skale, dict):
+            try:
+                spec = specyfikacja(client, dev)
+            except (TuyaError, requests.RequestException) as err:
+                bledy.append(f"{k['nazwa']}: nie udało się pobrać specyfikacji urządzenia — {err}")
+                print(f"{k['nazwa']}: pominięta — {err}", flush=True)
+                continue
+            if not spec:
+                bledy.append(f"{k['nazwa']}: Tuya odmówiła podania specyfikacji urządzenia — to zwykle chwilowe, "
+                             f"spróbuje przy następnym przebiegu")
+                continue
             pola = {item.get("code"): _wartosci(item)
-                    for item in (specyfikacja(client, dev).get("status") or []) if isinstance(item, dict)}
+                    for item in (spec.get("status") or []) if isinstance(item, dict)}
             brak = [kod for kod in kody.values() if kod not in pola]
             if brak:
                 bledy.append(f"{k['nazwa']}: Tuya nie zna pól {', '.join(brak)} — sprawdź „Pokaż urządzenia w Tuya\" i tryb DP Instruction")
@@ -1877,7 +1887,10 @@ def main() -> int:
                     if meta["kind"] != "battery" or raw is None:
                         continue
                     value = str(raw)
-            when = int(entry["event_time"])
+            try:
+                when = int(entry["event_time"])
+            except (KeyError, TypeError, ValueError):
+                continue  # wpis bez czasu nie ma gdzie trafić; nie wywracamy przez niego całego przebiegu
             if since_ms and when < since_ms:
                 continue
             collected.append({"ts": iso(when), "device_id": device_id, "code": code, "value": value})

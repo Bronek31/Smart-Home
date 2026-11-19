@@ -36,9 +36,11 @@ self.addEventListener('install', e => {
     .then(() => self.skipWaiting()));
 });
 
+// Cache jest wspólny dla całego originu (bronek31.github.io), więc kasujemy tylko własne wersje po prefiksie —
+// cudze cache'e i CEL (inny przedrostek) zostają nietknięte.
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(klucze => Promise.all(klucze.filter(k => k !== WERSJA && k !== CEL).map(k => caches.delete(k))))
+    .then(klucze => Promise.all(klucze.filter(k => k.startsWith('smart-home-') && k !== WERSJA).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
