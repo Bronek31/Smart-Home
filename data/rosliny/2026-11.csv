@@ -6719,3 +6719,7 @@ ts,device_id,code,value
 2026-11-20T20:48:44Z,bfe5bdf2b91c53dfd1eaiy,humidity,56
 2026-11-20T20:54:30Z,bf262a90fc72e1aef65arq,humidity,98
 2026-11-20T20:54:30Z,bf262a90fc72e1aef65arq,temp_current,19.9
+2026-11-20T21:06:11Z,bfa2be765aa6176805rhly,humidity,74
+2026-11-20T21:06:11Z,bfa2be765aa6176805rhly,temp_current,20.3
+2026-11-20T21:06:12Z,bfa2be765aa6176805rhly,battery_state,high
+2026-11-20T21:06:12Z,bfa2be765aa6176805rhly,env_humidity,78
