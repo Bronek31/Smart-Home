@@ -357,6 +357,26 @@
     "android",
     "iphone"
    ]
+  },
+  {
+   "id": "20261122T090111Z-podsumowanie",
+   "ts": "2026-11-22T09:01:11Z",
+   "przebieg": "45005472663-1",
+   "regula": "podsumowanie",
+   "rosliny": [
+    "Fikus",
+    "Skrzydłokwiat",
+    "Azalia"
+   ],
+   "tytul": "Rośliny — podsumowanie tygodnia",
+   "tresc": "Fikus: w porządku, gleba 51% (podlewaj przy ok. 27%); ostatnie podlanie 08.11 20:15; światło śr. 15 475 lx·h na dobę, 77% potrzeby (pełne doby: 7 z 7).\nSkrzydłokwiat: w porządku, gleba 74% (podlewaj przy ok. 34%); ostatnie podlanie 16.11 11:53; światło śr. 16 094 lx·h na dobę, 161% potrzeby (pełne doby: 7 z 7).\nAzalia: w porządku, gleba 88% (podlewaj przy ok. 64%); ostatnie podlanie 19.11 11:20; światło śr. 13 516 lx·h na dobę, 48% potrzeby (pełne doby: 7 z 7).",
+   "tag": "podsumowanie",
+   "url": "#rosliny",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
@@ -382,7 +402,7 @@
    "noc": []
   }
  },
- "podsumowanie_ostatnie": "2026-11-15",
+ "podsumowanie_ostatnie": "2026-11-22",
  "telefony": {
   "android": {
    "odlozone": []
