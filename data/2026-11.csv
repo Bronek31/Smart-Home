@@ -9985,3 +9985,15 @@ ts,device_id,code,value
 2026-11-25T22:42:05Z,bfd6f4f87fea9d866dvpve,battery_state,middle
 2026-11-25T22:42:05Z,bfd6f4f87fea9d866dvpve,va_humidity,50
 2026-11-25T22:42:05Z,bfd6f4f87fea9d866dvpve,va_temperature,19.7
+2026-11-25T23:11:15Z,bf43cf664d6644420axva3,va_humidity,44
+2026-11-25T23:11:15Z,bf43cf664d6644420axva3,va_temperature,20.8
+2026-11-25T23:11:16Z,bf43cf664d6644420axva3,battery_state,middle
+2026-11-25T23:17:06Z,bfd6f4f87fea9d866dvpve,battery_state,middle
+2026-11-25T23:17:06Z,bfd6f4f87fea9d866dvpve,va_humidity,45
+2026-11-25T23:17:06Z,bfd6f4f87fea9d866dvpve,va_temperature,19.4
+2026-11-25T23:24:54Z,bf5741c97c96fa85b1d7do,battery_state,middle
+2026-11-25T23:24:54Z,bf5741c97c96fa85b1d7do,va_humidity,48
+2026-11-25T23:24:54Z,bf5741c97c96fa85b1d7do,va_temperature,20.6
+2026-11-25T23:28:00Z,bf7e2a70935af7de78mjqt,va_humidity,49
+2026-11-25T23:28:00Z,bf7e2a70935af7de78mjqt,va_temperature,20.1
+2026-11-25T23:28:01Z,bf7e2a70935af7de78mjqt,battery_state,middle
