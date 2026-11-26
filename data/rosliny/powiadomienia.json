@@ -430,16 +430,11 @@
    "noc": []
   },
   "Azalia": {
-   "ponizej_od": "2026-11-26T04:01:15Z",
-   "wyslano": [
-    "2026-11-26T06:01:11Z"
-   ],
+   "ponizej_od": null,
+   "wyslano": [],
    "na_sucho": [],
    "czujnik": {},
-   "noc": [],
-   "podlej_dla": {
-    "iphone": "2026-11-26T07:01:23Z"
-   }
+   "noc": []
   }
  },
  "podsumowanie_ostatnie": "2026-11-22",
