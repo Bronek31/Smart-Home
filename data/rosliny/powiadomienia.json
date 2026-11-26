@@ -394,6 +394,24 @@
    "telefony": [
     "android"
    ]
+  },
+  {
+   "id": "20261126T070123Z-podlej",
+   "ts": "2026-11-26T07:01:23Z",
+   "przebieg": "45772215337-1",
+   "regula": "podlej",
+   "rosliny": [
+    "Azalia"
+   ],
+   "tytul": "Podlej: azalia (pilne)",
+   "tresc": "Azalia: gleba 63% (podlewaj przy ok. 64%). Wyjmij czujnik, wyjmij plastikową doniczkę z osłonki i zanurz ją w letniej wodzie, aż przestaną lecieć bąbelki (15–30 min). Odsącz, wylej wodę z osłonki i wbij czujnik w to samo miejsce.",
+   "tag": "podlej-azalia",
+   "url": "#azalia",
+   "na_sucho": false,
+   "telefony": [
+    "iphone"
+   ],
+   "odlozone": true
   }
  ],
  "stan_regul": {
@@ -418,7 +436,10 @@
    ],
    "na_sucho": [],
    "czujnik": {},
-   "noc": []
+   "noc": [],
+   "podlej_dla": {
+    "iphone": "2026-11-26T07:01:23Z"
+   }
   }
  },
  "podsumowanie_ostatnie": "2026-11-22",
@@ -427,14 +448,7 @@
    "odlozone": []
   },
   "iphone": {
-   "odlozone": [
-    {
-     "regula": "podlej",
-     "obiekt": "Azalia",
-     "ts": "2026-11-26T06:01:11Z",
-     "ponizej_od": "2026-11-26T04:01:15Z"
-    }
-   ]
+   "odlozone": []
   }
  }
 }
