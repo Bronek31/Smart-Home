@@ -41,6 +41,28 @@ do Actions.
 
 ---
 
+## 26.11 — iPhone nie dostawał „Podlej: azalia”
+
+Właściciel: „nie dostałem dziś powiadomienia na Androida o azalii”. Pomiar:
+
+- **Android — po naszej stronie czysto.** Wpis `20261126T060111Z-podlej` (7:01) poszedł tylko na
+  Androida (iPhone w ciszy), log przebiegu: „Android: wysłano „Podlej: azalia (pilne)” (201)”, TTL 12 godz.
+  Google przyjął, więc dalej to już telefon: zakładka Powiadomienia pokaże „Powiadomienia nie dochodzą”,
+  jeśli worker pusha nie odebrał (wtedy odnowić subskrypcję); bez ostrzeżenia worker go odebrał
+  i pokazał, a zgubił je telefon (wyciszony kanał, Nie przeszkadzać, oszczędzanie baterii Chrome).
+- **iPhone — prawdziwy błąd nadawcy.** Odłożone na 8:01 to samo powiadomienie Apple odrzucił kodem 400
+  (zgłoszenie 19). Wcześniej tak samo zgłoszenia 8, 10 i 18 — za każdym razem „Podlej: azalia”, 4 z 4.
+  Dziesięć innych tagów o długości 10–32 znaków przeszło na iPhone'a każdorazowo. Jedyna różnica:
+  `Topic` był samym tagiem, a `podlej-azalia` ma 13 znaków, czyli długość 4k+1, której base64url nie
+  zna. Apple ma na to kod `BadWebPushTopic` (400). Teraz `Topic` to skrót tagu (`wyslij.temat`):
+  zawsze 24 znaki poprawnego base64url, ten sam tag → ten sam `Topic`.
+- Zgłoszenie mówiło tylko „400, kod spoza znanych”. Nadawca dopisuje teraz powód z treści odpowiedzi
+  (`reason` od Apple), jeśli to jedno słowo — sama treść może nieść adres subskrypcji.
+- Potwierdzenie: najbliższe „Podlej: azalia” na iPhone'a ma w logu przebiegu 201. Samo zamknięcie
+  zgłoszenia 19 niczego nie dowodzi — zamknie je każde udane powiadomienie na oba telefony.
+
+---
+
 ## 8.11 (po południu) — nowy wygląd
 
 Przegląd wszystkich zakładek na zrzutach z telefonu, podgląd na prawdziwych danych (artefakt z wbudowanymi

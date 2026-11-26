@@ -81,7 +81,7 @@ zainstalowany):
 - `sub` ze ścieżką („https://bronek31.github.io/Smart-Home/"), a nawet z samym końcowym
   ukośnikiem, py_vapid odrzuca już lokalnie (VapidException „Missing 'sub'");
 - Urgency i Topic dochodzą do requests.post (małymi literami — w HTTP bez znaczenia),
-  TTL jako „43200", treść jako aes128gcm;
+  TTL jako „43200", treść jako aes128gcm; Topic to skrót tagu, nie sam tag (BAJTY_TOPIC);
 - pola `d` z JWK par wygenerowanych WebCrypto (Chromium 141 i Node 22, ECDSA P-256)
   Vapid.from_string przyjmuje jako klucz surowy (32 B), a jego klucz publiczny (X9.62,
   nieskompresowany) jest bajt w bajt eksportem 'raw' tej samej pary: 65 B, pierwszy
@@ -95,6 +95,7 @@ from __future__ import annotations
 import argparse
 import base64
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -156,8 +157,18 @@ ETYKIETA = "powiadomienia"
 TELEFONY = (("android", "Android", "PUSH_ANDROID"), ("iphone", "iPhone", "PUSH_IPHONE"))
 ID_TELEFONOW = tuple(t[0] for t in TELEFONY)
 NAZWY_TELEFONOW = {t[0]: t[1] for t in TELEFONY}
-# RFC 8030: Topic to najwyżej 32 znaki z alfabetu base64url, inaczej serwer odrzuci całość.
-WZOR_TOPIC = re.compile(r"[A-Za-z0-9_-]{1,32}")
+# Topic (RFC 8030: najwyżej 32 znaki z alfabetu base64url) to 18 bajtów SHA-256 tagu
+# w base64url — zawsze 24 znaki, kanoniczne kodowanie całych bajtów. Dawniej Topic = tag
+# i iPhone nie dostał żadnego „Podlej: azalia”: 4 z 4 odrzucone kodem 400 (zgłoszenia 8,
+# 10, 18 i 19, 17.10–26.11), a dziesięć innych tagów o długości 10–32 znaków przeszło
+# każdorazowo. „podlej-azalia” ma 13 znaków, a tekst długości 4k+1 nie jest poprawnym
+# base64url; Apple odrzuca Topic niezgodny z RFC 8030 kodem 400 (BadWebPushTopic) razem
+# z powiadomieniem. Google przyjmował wszystko. Ten sam tag daje ten sam Topic, więc
+# zastępowanie czekającego powiadomienia na serwerze działa jak dawniej.
+BAJTY_TOPIC = 18
+# Powód odmowy, który Apple podaje w treści odpowiedzi ({"reason": "BadWebPushTopic"}).
+# Do logu i zgłoszenia idzie wyłącznie samo słowo: treść odpowiedzi może nieść adres.
+WZOR_POWODU = re.compile(r"[A-Za-z]{1,64}")
 
 # Bez pola `telefony` — test idzie na każdy podpięty telefon, niezależnie od jego ustawień:
 # sprawdza drogę sekret → serwer push → telefon, a nie reguły.
@@ -209,6 +220,12 @@ def z_base64url(tekst: str) -> bytes:
 
 def do_base64url(bajty: bytes) -> str:
     return base64.urlsafe_b64encode(bajty).rstrip(b"=").decode("ascii")
+
+
+def temat(tag: str) -> str:
+    """Nagłówek Topic dla tagu — patrz BAJTY_TOPIC. Działa dla każdego tagu, także
+    spoza ASCII i dłuższego niż 32 znaki."""
+    return do_base64url(hashlib.sha256(tag.encode("utf-8")).digest()[:BAJTY_TOPIC])
 
 
 def _dodaj(p, q):
@@ -438,13 +455,20 @@ def tresc_push(wpis: dict) -> str:
     return dane
 
 
+def _powod(odpowiedz) -> str | None:
+    """Pole `reason` z treści odpowiedzi serwera push, jeśli to pojedyncze słowo."""
+    try:
+        powod = json.loads(getattr(odpowiedz, "text", None) or "").get("reason")
+    except (ValueError, TypeError, AttributeError, RecursionError):
+        return None
+    return powod if isinstance(powod, str) and WZOR_POWODU.fullmatch(powod) else None
+
+
 def wyslij_jedno(biblioteka, telefon: Telefon, dane: str, tag: str, vapid, spij) -> int | Blad:
     """Jedno powiadomienie na jeden telefon; kod HTTP przy sukcesie, Blad przy porażce."""
     import requests
 
-    naglowki = {"Urgency": "normal"}
-    if WZOR_TOPIC.fullmatch(tag):
-        naglowki["Topic"] = tag
+    naglowki = {"Urgency": "normal", "Topic": temat(tag)}
     for proba in range(len(PRZERWY_S) + 1):
         # każda gałąź niżej albo kończy funkcję, albo ustawia blad_proby i idzie na ponowienie
         try:
@@ -482,7 +506,9 @@ def wyslij_jedno(biblioteka, telefon: Telefon, dane: str, tag: str, vapid, spij)
                             f"Skopiuj JSON subskrypcji ze strony jeszcze raz i podmień sekret "
                             f"`{telefon.sekret}`.", konfiguracja=True)
             if kod != 429 and kod < 500:
-                return Blad(telefon.nazwa, f"serwer push odrzucił powiadomienie ({kod})",
+                powod = _powod(getattr(blad, "response", None))
+                return Blad(telefon.nazwa, f"serwer push odrzucił powiadomienie "
+                                           f"({kod}{', ' + powod if powod else ''})",
                             "Kod spoza znanych — trzeba zajrzeć do nadawcy (wyslij.py).")
             blad_proby = f"serwer push odmawia ({kod})"
         except (requests.ConnectionError, requests.Timeout) as blad:
@@ -669,9 +695,6 @@ def _main(args, env, spij, gh, strona: Path) -> int:
                     continue
                 dane = tresc_push(wpis)
                 tag = json.loads(dane)["tag"]
-                if not WZOR_TOPIC.fullmatch(tag):
-                    print(f"Tag {tag!r} nie nadaje się na nagłówek Topic — wysyłam bez niego.",
-                          flush=True)
                 for telefon in odbiorcy:
                     wynik = wyslij_jedno(biblioteka, telefon, dane, tag, vapid, spij)
                     if isinstance(wynik, Blad):

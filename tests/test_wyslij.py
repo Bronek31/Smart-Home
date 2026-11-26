@@ -105,8 +105,8 @@ class Odpowiedz:
 
 
 def zrob_atrape(plan: dict | None = None) -> types.ModuleType:
-    """Atrapa pywebpush. `plan`: endpoint → kolejne wyniki (kod HTTP albo wyjątek do
-    rzucenia); po wyczerpaniu planu 201."""
+    """Atrapa pywebpush. `plan`: endpoint → kolejne wyniki (kod HTTP, para (kod, treść
+    odpowiedzi) albo wyjątek do rzucenia); po wyczerpaniu planu 201."""
     modul = types.ModuleType("pywebpush")
     plan = {k: list(v) for k, v in (plan or {}).items()}
 
@@ -140,6 +140,9 @@ def zrob_atrape(plan: dict | None = None) -> types.ModuleType:
         wynik = kolejka.pop(0) if kolejka else 201
         if isinstance(wynik, BaseException):
             raise wynik
+        if isinstance(wynik, tuple):
+            kod, tekst = wynik
+            raise WebPushException(f"Push failed: {kod} for {endpoint}", response=Odpowiedz(kod, tekst))
         if wynik > 202:
             # prawdziwa biblioteka wkłada w komunikat treść odpowiedzi — tu wprost adres
             raise WebPushException(f"Push failed: {wynik} for {endpoint}",
@@ -486,20 +489,39 @@ class TestPulapki(Baza):
             self.assertLessEqual(w["timeout"], 60)
 
     def test_naglowki_urgency_i_topic(self):
-        """Topic = tag, więc nowe „Podlej" zastępuje na serwerze stare, niedoręczone."""
+        """Topic wynika z tagu, więc nowe „Podlej" zastępuje na serwerze stare, niedoręczone."""
         _, _, atrapa = self.uruchom()
         for w in atrapa.wywolania:
-            self.assertEqual(w["naglowki"], {"Urgency": "normal", "Topic": "podlej"})
+            self.assertEqual(w["naglowki"], {"Urgency": "normal", "Topic": wyslij.temat("podlej")})
 
-    def test_tag_spoza_alfabetu_bez_topic(self):
-        """Topic spoza base64url albo dłuższy niż 32 znaki serwer odrzuca razem
-        z powiadomieniem — lepiej wysłać bez niego."""
-        self.ustaw_historie([wpis(tag="podlej azalię"), wpis(id="x", tag="a" * 33)])
+    def test_topic_zawsze_dekoduje_sie_jako_base64url(self):
+        """Apple dekoduje Topic jako base64url i tekst, który się nie dekoduje, odrzuca kodem
+        400 (BadWebPushTopic) razem z powiadomieniem. „podlej-azalia” ma 13 znaków, a tekstu
+        długości 4k+1 zdekodować się nie da — iPhone nie dostał żadnego „Podlej: azalia”
+        (4 z 4, zgłoszenia 8, 10, 18 i 19), a każdy inny tag przechodził. Odrzuca dawne
+        Topic = tag. Tag spoza alfabetu albo dłuższy niż 32 znaki też dostaje Topic."""
+        tagi = ["podlej-azalia", "okno-lazienka", "przestaw-fikus", "przewietrz-lazienka",
+                "podsumowanie", "czujniki-lazienka-sypialnia-kuchnia", "podlej azalię", "a" * 33]
+        self.ustaw_historie([wpis(id=str(i), tag=t) for i, t in enumerate(tagi)])
         kod, _, atrapa = self.uruchom()
         self.assertEqual(kod, 0)
-        self.assertEqual(len(atrapa.wywolania), 4)
+        self.assertEqual(len(atrapa.wywolania), 2 * len(tagi))
         for w in atrapa.wywolania:
-            self.assertEqual(w["naglowki"], {"Urgency": "normal"})
+            topic = w["naglowki"].get("Topic", "")
+            with self.subTest(tag=json.loads(w["dane"])["tag"]):
+                # RFC 8030: najwyżej 32 znaki z alfabetu base64url
+                self.assertRegex(topic, r"\A[A-Za-z0-9_-]{1,32}\Z")
+                # kanoniczne kodowanie całych bajtów: dekoduje je nawet najsurowszy dekoder
+                self.assertEqual(len(topic) % 4, 0)
+                self.assertEqual(wyslij.do_base64url(wyslij.z_base64url(topic)), topic)
+
+    def test_topic_staly_dla_tagu(self):
+        """Ten sam tag → ten sam Topic (zastępowanie czekającego na serwerze), inny tag →
+        inny Topic (podlanie azalii nie może zastąpić podlania fikusa)."""
+        self.assertEqual(wyslij.temat("podlej-azalia"), wyslij.temat("podlej-azalia"))
+        tagi = ["podlej-azalia", "podlej-fikus", "podlej-skrzydlokwiat", "przestaw-azalia",
+                "czujnik-azalia", "podsumowanie", "przed-snem", "test"]
+        self.assertEqual(len({wyslij.temat(t) for t in tagi}), len(tagi))
 
     def test_klucz_przez_vapid_from_string(self):
         """Biblioteka dostaje klucz przetworzony przez Vapid.from_string (format JWK `d`)."""
@@ -522,7 +544,6 @@ class TestPulapki(Baza):
         dane = json.loads(wyslij.tresc_push({"tresc": "x"}))
         self.assertEqual(dane["url"], "#dom")
         self.assertEqual(dane["title"], "Smart Home")
-        self.assertTrue(wyslij.WZOR_TOPIC.fullmatch(dane["tag"]))
         self.assertNotIn("rosliny.html", json.dumps(dane))
 
     def test_dluga_tresc_przycieta_do_granicy(self):
@@ -599,6 +620,21 @@ class TestBledyWysylki(Baza):
         self.assertEqual([w["endpoint"] for w in atrapa.wywolania].count(ANDROID), 1)
         self.assertEqual(self.spane, [])
         self.assertIn("issue create", self.gh.polecenia())
+
+    def test_powod_odmowy_w_zgloszeniu(self):
+        """Apple mówi w treści odpowiedzi, dlaczego odrzucił ({"reason": "BadWebPushTopic"}).
+        Do zgłoszenia trafia samo słowo — „400” bez powodu kazał zgadywać (zgłoszenia 8, 10,
+        18, 19). Powód, który nie jest pojedynczym słowem (tu adres subskrypcji), nie trafia
+        nigdzie."""
+        kod, log, _ = self.uruchom(atrapa=zrob_atrape({
+            IPHONE: [(400, '{"reason":"BadWebPushTopic"}')],
+            ANDROID: [(400, json.dumps({"reason": ANDROID}))]}))
+        self.assertEqual(kod, 0)
+        self.assertIn("iPhone: serwer push odrzucił powiadomienie (400, BadWebPushTopic)", log)
+        self.assertIn("(400, BadWebPushTopic)", self.gh.tresci())
+        self.assertIn("Android: serwer push odrzucił powiadomienie (400).", log)
+        self.bez_tajemnic(self.log_bez_masek(log), "log")
+        self.bez_tajemnic(self.gh.tresci(), "zgłoszenie")
 
     def test_nieoczekiwany_wyjatek_z_adresem(self):
         kod, log, _ = self.uruchom(atrapa=zrob_atrape({ANDROID: [RuntimeError(f"boom {ANDROID}")]}))
@@ -1527,7 +1563,7 @@ class TestPrawdziwaBiblioteka(Baza):
                 naglowki = kw["headers"]
                 self.assertEqual(naglowki["ttl"], "43200")
                 self.assertEqual(naglowki["urgency"], "normal")
-                self.assertEqual(naglowki["topic"], "podlej")
+                self.assertEqual(naglowki["topic"], wyslij.temat("podlej"))
                 self.assertEqual(naglowki["content-encoding"], "aes128gcm")
                 self.assertEqual(kw["timeout"], wyslij.LIMIT_SIECI_S)
                 roszczenia, k = self.jwt(naglowki)

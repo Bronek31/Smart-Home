@@ -831,8 +831,11 @@ i cisza (`cisza`, `od`, `do`). Domyślnie wszystko poza podsumowaniem, cisza 21�
     i drugi telefon dostałby zły `aud`;
   - `ttl` podany jawnie, bo domyślne 0 Apple odrzuca;
   - `sub` bez ścieżki w adresie.
-- Nagłówki: `TTL` 12 godz., `Urgency: normal`, `Topic`/`tag` ASCII (np. `podlej-azalia`,
-  `przewietrz-lazienka`), więc nowe powiadomienie zastępuje stare.
+- Nagłówki: `TTL` 12 godz., `Urgency: normal`, `Topic` = 18 bajtów SHA-256 `tag`
+  w base64url (24 znaki), więc nowe powiadomienie zastępuje stare. Do 26.11 `Topic` był
+  samym tagiem, a 13-znakowe `podlej-azalia` (długość 4k+1 to nie base64url) Apple
+  odrzucał kodem 400 — iPhone nie dostał żadnego „Podlej: azalia”. `tag` w treści dla
+  `sw.js` został czytelny (`podlej-azalia`, `przewietrz-lazienka`).
 
 **Awarie wysyłki:**
 - 404/410 (subskrypcja wygasła) albo 403 (klucz VAPID nie pasuje): sam krok wysyłki
@@ -840,6 +843,8 @@ i cisza (`cisza`, `od`, `do`). Domyślnie wszystko poza podsumowaniem, cisza 21�
   w `zbieraj.yml`) z radą „zakładka Powiadomienia → Ten telefon”. Watchdog by tego nie
   zobaczył, bo wynik wysyłki powstaje już po commicie.
 - 429 i 5xx: dwie ponowne próby w tym samym kroku, potem zgłoszenie.
+- Inne 4xx: jedna próba, zgłoszenie z kodem i powodem z treści odpowiedzi, jeśli serwer
+  go podał jednym słowem (Apple: `{"reason": "BadWebPushTopic"}`).
 - Brak sekretów: krok kończy się na zielono z linią „brak subskrypcji”.
 
 **Przełącznik `POWIADOMIENIA: na-sucho | wlaczone`** w `zbieraj.yml` to globalny
