@@ -412,12 +412,32 @@
     "iphone"
    ],
    "odlozone": true
+  },
+  {
+   "id": "20261127T180126Z-podlej",
+   "ts": "2026-11-27T18:01:26Z",
+   "przebieg": "46046252699-1",
+   "regula": "podlej",
+   "rosliny": [
+    "Fikus"
+   ],
+   "tytul": "Podlej: fikus",
+   "tresc": "Fikus: gleba 25% (podlewaj przy ok. 27%).",
+   "tag": "podlej-fikus",
+   "url": "#fikus",
+   "na_sucho": false,
+   "telefony": [
+    "android",
+    "iphone"
+   ]
   }
  ],
  "stan_regul": {
   "Fikus": {
    "ponizej_od": "2026-11-27T16:01:16Z",
-   "wyslano": [],
+   "wyslano": [
+    "2026-11-27T18:01:26Z"
+   ],
    "na_sucho": [],
    "czujnik": {},
    "noc": []
