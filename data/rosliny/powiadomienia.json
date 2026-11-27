@@ -434,10 +434,8 @@
  ],
  "stan_regul": {
   "Fikus": {
-   "ponizej_od": "2026-11-27T16:01:16Z",
-   "wyslano": [
-    "2026-11-27T18:01:26Z"
-   ],
+   "ponizej_od": null,
+   "wyslano": [],
    "na_sucho": [],
    "czujnik": {},
    "noc": []
