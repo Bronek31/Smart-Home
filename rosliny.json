@@ -25,7 +25,7 @@
       "czujnik": "bf262a90fc72e1aef65arq",
       "nazwa": "Azalia",
       "gatunek": "azalia",
-      "pokoj": "bf5741c97c96fa85b1d7do",
+      "pokoj": "bf7e2a70935af7de78mjqt",
       "sucho": 9,
       "od": "2026-10-09T08:35:00+02:00",
       "kody": {"gleba": "humidity", "temp": "temp_current", "wilg": "env_humidity", "swiatlo": "illumiance", "bateria": "battery_state", "alarm": "water_warning"}

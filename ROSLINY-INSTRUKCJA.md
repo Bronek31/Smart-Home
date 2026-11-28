@@ -7,7 +7,7 @@ wystarczy napisać w czacie, co wyszło.
 **Gdzie stoją rośliny:**
 - fikus — Salon;
 - skrzydłokwiat — Salon;
-- azalia — Kuchnia.
+- azalia — Sypialnia, parapet okna na południe (od 28.11; wcześniej Kuchnia).
 
 **Bezpieczeństwo strony:** sparowanie czujników w Smart Life niczego nie zmienia na
 obecnej stronie ani w kolektorze. Czujniki trafią do zbierania dopiero w kroku 8,
@@ -305,19 +305,22 @@ dostępu · Połączono”.
 
 ## Rady już teraz, bez czujników
 
-- **Azalia (Kuchnia):**
-  - Jeśli stoi przy płycie albo czajniku — odsuń.
+- **Azalia (Sypialnia, od 28.11):**
   - **Nigdy nie dopuść do przesuszenia.** Po podlaniu wylewaj wodę z osłonki.
   - Jeśli ziemia zaschnie: **wyjmij czujnik**, wyjmij plastikową doniczkę z osłonki
     i zanurz ją w letniej wodzie, aż przestaną lecieć bąbelki (15–30 min). Przytrzymaj,
     bo sucha ziemia pływa, a pień na paliku przeważa. Odsącz, wylej wodę z osłonki,
     wbij czujnik w to samo miejsce.
-  - Kuchnia ma ok. 21 °C dniem i nocą (od 17.09 ani razu nie zeszła do 18 °C),
-    a kwitnąca azalia woli 10–18 °C, więc w cieple kwitnie krócej.
-  - **Nie zakręcaj dla niej kaloryfera.** Chłodniejsza kuchnia to wyższa wilgotność
-    i alarm pleśni na stronie.
-  - Usuwaj przekwitłe kwiaty. Nie nawoź w czasie kwitnienia. Nie przesadzaj do
-    wiosny.
+  - Czoło głowicy czujnika (otwór światła) ma patrzeć w okno — po przeniesieniu
+    sprawdź, bo od światła zależy „przestaw”.
+  - Wykręcaj resztki przekwitłych kwiatów (brązowe „pędzelki” ze słupkiem), uważając
+    na nowe listki tuż pod nimi.
+  - Zdejmij przezroczystą folię i taśmę z gałązek.
+  - Wytnij przy pniu pęd, który rośnie u jego podstawy — w formie drzewka nic nie
+    powinno rosnąć poniżej korony.
+  - Pojedyncze żółte liście w środku korony oberwij. Jeśli zacznie ich szybko
+    przybywać, napisz.
+  - Nie przesadzaj do wiosny.
 - **Skrzydłokwiat (Salon):**
   - Obetnij brązowe końcówki liści czystymi nożyczkami, zostawiając cienki brązowy
     pasek. Nie odrosną.

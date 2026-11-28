@@ -352,7 +352,7 @@ porównanie z chmury, sprawdzone dwiema metodami i przez sceptyka.
 |---|---|---|---|
 | Doniczka | czarna ceramika z podstawką, ok. 12–14 cm; na wierzchu mech | biała, z rowkiem nisko na ściance — **możliwe dno z rezerwuarem**, czyli woda w spodzie, której sonda nie widzi | **plastikowa doniczka w osłonce**; woda w osłonce jest dla sondy niewidoczna; na wierzchu kora; pień na paliku |
 | Liście | zdrowe, ciemnozielone, przyrosty na czubkach | **brązowe, zaschnięte końcówki** na 4–5 liściach, kilka bladych | zdrowe; kwitnie, nowe przyrosty; u podstawy pnia mały pęd |
-| Miejsce | Salon | Salon (zdjęcie zrobione w Kuchni) | Kuchnia, blat |
+| Miejsce | Salon | Salon (zdjęcie zrobione w Kuchni) | Kuchnia, blat; od 28.11 Sypialnia, parapet |
 
 ### Potrzeby
 
@@ -416,8 +416,12 @@ artefaktów. Okno to 1–8.10.2026, ogrzewanie działa od 1.10.
 
 ### Rady już teraz
 
-- **Azalia (Kuchnia):**
-  - Jeśli stoi przy płycie albo czajniku — odsunąć.
+- **Azalia (od 28.11 Sypialnia, parapet okna na południe; wcześniej Kuchnia):**
+  - Po co przeprowadzka: w kuchni dostawała 47% potrzebnego światła (25–27.11).
+    Sypialnia to zimą jedyne bezpośrednie słońce. Powietrze ma prawie to samo
+    (mediana 14–28.11: 20,3 °C wobec 20,7 °C w kuchni), więc o chłodzie zdecyduje
+    parapet — pokaże czujnik w doniczce. W słoneczne dni sypialnia dochodzi do
+    ok. 23 °C; przy ≥ 24 °C azalia gubi pąki.
   - Po podlaniu wylać wodę z osłonki. Nie lać wody na głowicę czujnika.
   - **Nigdy nie dopuścić do przesuszenia.** Jeśli zaschnie: **wyjąć czujnik**, wyjąć
     plastikową doniczkę z osłonki i zanurzyć ją w letniej wodzie, aż przestaną lecieć
@@ -425,10 +429,17 @@ artefaktów. Okno to 1–8.10.2026, ogrzewanie działa od 1.10.
     przeważa. Odsączyć, wylać wodę z osłonki, włożyć czujnik w to samo miejsce.
   - Woda z kranu w Katowicach jest miękka (ok. 5 °dH według PSSE)
     **[do sprawdzenia]**, więc nadaje się do podlewania.
-  - Usuwać przekwitłe kwiaty. Nie nawozić w czasie kwitnienia. Nie przesadzać do
-    wiosny; wtedy do kwaśnej ziemi dla azalii.
-  - Mały pęd u podstawy pnia: jeśli to odrost podkładki, wyciąć **[do sprawdzenia]**.
-  - Przy 20–21 °C kwitnienie będzie krótsze niż w chłodzie.
+  - Kwitnienie skończone (zdjęcia 28.11): wykręcać resztki kwiatów — brązowe
+    „pędzelki” z wystającym słupkiem na końcach pędów — nie łamiąc nowych listków
+    tuż pod nimi. Nie przesadzać do wiosny; wtedy do kwaśnej ziemi dla azalii.
+  - Zdjąć przezroczystą folię i taśmę z gałązek (resztki z ogrodnictwa): zbiera się
+    pod nimi wilgoć i chowają szkodniki, a grubiejąca gałązka może się w nie wrzynać.
+  - Pęd u podstawy pnia (8.10 mały, 28.11 wyraźnie większy): w formie drzewka wycina
+    się wszystko, co rośnie poniżej korony, więc wyciąć przy samym pniu — bez względu
+    na to, czy to odrost podkładki.
+  - Pojedyncze żółte i rdzawe liście w środku korony to stare liście (po kwitnieniu
+    i przeprowadzce) — oberwać. Gdyby pojawiło się ich dużo, żółtych z zielonymi
+    nerwami, to chloroza (za mało kwaśno).
 - **Skrzydłokwiat (Salon):**
   - Obciąć brązowe końcówki, zostawiając cienki brązowy pasek. Nie odrosną.
   - Zimą przy suchym powietrzu nowe mogą się pojawiać i nie jest to błąd podlewania.

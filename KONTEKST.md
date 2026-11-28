@@ -41,6 +41,31 @@ do Actions.
 
 ---
 
+## 28.11 — azalia przeniesiona do sypialni
+
+Właściciel przeniósł azalię z kuchni na parapet sypialni (okno na południe) i przysłał dwa
+zdjęcia (28.11, 11:28). `pokoj` azalii w `rosliny.json` to teraz Sypialnia. To pole jest tylko
+podpisem na karcie i stronie rośliny („… · Sypialnia”); progi, nauka podlań i ocena światła
+go nie czytają, więc nic nie trzeba przeliczać.
+
+- **Po co:** w kuchni (płn.) `swiatlo_ocena` z 25–27.11 to 47% potrzeby (12–15 tys. lx·h na dobę
+  przy 28 tys.). Sypialnia ma zimą jedyne bezpośrednie słońce. Powietrze prawie to samo
+  (mediana 14–28.11: sypialnia 20,3 °C, kuchnia 20,7 °C), więc o chłodzie zdecyduje parapet;
+  czujnik w doniczce w kuchni miał medianę 19,4 °C.
+- **Kiedy:** do ostatniego odczytu przed zdjęciami (10:35) światło i temperatura przy roślinie
+  nie odróżniają się od kuchni, ale dzień był pochmurny, a przy pełnym zachmurzeniu okna na
+  północ i południe dostają podobne światło. Godzina — od właściciela. Doba przeprowadzki jest
+  mieszana; „przestaw” oceni nowe miejsce dopiero po trzech pełnych dobach.
+- **Na zdjęciach:** zdrowa, liście ciemnozielone, dużo nowych przyrostów; kwitnienie skończone,
+  na końcach pędów resztki kwiatów ze słupkami. Na gałązkach przezroczysta folia lub taśma
+  z ogrodnictwa. Kilka żółtych i rdzawych liści w środku korony. Pęd u podstawy pnia z 8.10
+  urósł. Rady w `ROSLINY.md` i `ROSLINY-INSTRUKCJA.md` zaktualizowane.
+- **Do obserwacji:** temperatura przy roślinie w słoneczne dni (sypialnia dochodziła do 22,8 °C,
+  azalia gubi pąki przy ≥ 24 °C) i to, czy pod parapetem nie grzeje kaloryfer. Orientacja głowicy
+  czujnika po przeniesieniu — prośba do właściciela.
+
+---
+
 ## 26.11 — iPhone nie dostawał „Podlej: azalia”
 
 Właściciel: „nie dostałem dziś powiadomienia na Androida o azalii”. Pomiar:
@@ -1038,7 +1063,7 @@ Zanim któraś z nich wróci jako pomysł — oto powody.
 | Workflowy | `zbieraj` z cron-job.org co godzinę, harmonogram GitHuba co godzinę o :19 jako zapas; ok. 7 zapytań Tuya na przebieg (do 8.10: 29) z pakietu 0,20 USD na miesiąc; krok wysyłki powiadomień z obu plików · `watchdog` co 6 godz. o :41 · `testy` przy zmianie kodu i o 4:17 · `odkryj` i `powiadomienie-testowe` na żądanie i po każdej zmianie swojego pliku na main. Akcje na wersjach z Node 24 |
 | Powiadomienia | Android i iPhone, wysyłka od 11.10; ustawienia w zmiennych `POWIADOMIENIA_ANDROID`/`_IPHONE`, zapisywane z aplikacji |
 | Orientacja mieszkania | Sypialnia na **południe**, Salon i Kuchnia na **północ** — to nie ozdoba, z tego bierze się rada o kolejności otwierania okien |
-| Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie + trzy doniczki (fikus i skrzydłokwiat w Salonie, azalia w Kuchni; sondy od 9.10) |
+| Czujniki | cztery pokoje na wysokości ok. 80–90 cm (wyrównane 19.08) + klimatyzator FERSK VIND 2 w salonie + trzy doniczki (fikus i skrzydłokwiat w Salonie, azalia w Sypialni od 28.11, wcześniej w Kuchni; sondy od 9.10) |
 
 ## Co czeka
 
