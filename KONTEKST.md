@@ -52,10 +52,10 @@ go nie czytają, więc nic nie trzeba przeliczać.
   przy 28 tys.). Sypialnia ma zimą jedyne bezpośrednie słońce. Powietrze prawie to samo
   (mediana 14–28.11: sypialnia 20,3 °C, kuchnia 20,7 °C), więc o chłodzie zdecyduje parapet;
   czujnik w doniczce w kuchni miał medianę 19,4 °C.
-- **Kiedy:** do ostatniego odczytu przed zdjęciami (10:35) światło i temperatura przy roślinie
-  nie odróżniają się od kuchni, ale dzień był pochmurny, a przy pełnym zachmurzeniu okna na
-  północ i południe dostają podobne światło. Godzina — od właściciela. Doba przeprowadzki jest
-  mieszana; „przestaw” oceni nowe miejsce dopiero po trzech pełnych dobach.
+- **Kiedy:** rano 28.11 (od właściciela). Z danych tego nie widać: światło i temperatura przy
+  roślinie do 10:35 nie odróżniają się od kuchni, ale dzień był pochmurny, a przy pełnym
+  zachmurzeniu okna na północ i południe dostają podobne światło. 28.11 to doba mieszana;
+  „przestaw” oceni samą sypialnię z 29.11–1.12, czyli od 2.12.
 - **Na zdjęciach:** zdrowa, liście ciemnozielone, dużo nowych przyrostów; kwitnienie skończone,
   na końcach pędów resztki kwiatów ze słupkami. Na gałązkach przezroczysta folia lub taśma
   z ogrodnictwa. Kilka żółtych i rdzawych liści w środku korony. Pęd u podstawy pnia z 8.10
